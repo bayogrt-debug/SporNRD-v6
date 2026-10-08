@@ -18,12 +18,9 @@ export default {
 
   async fetch(request, env) {
 
-    /* =====================================================
-       CORS
-       ===================================================== */
-
     if (
-      request.method === "OPTIONS"
+      request.method ===
+      "OPTIONS"
     ) {
 
       return new Response(
@@ -72,12 +69,8 @@ export default {
           "modular-flat",
 
         learning:
-
-          env &&
-          env.SPORNRD_LEARNING
-
+          env?.SPORNRD_LEARNING
             ? "global-kv"
-
             : "local-fallback"
 
       });
@@ -129,13 +122,8 @@ export default {
 
         const feed =
           await getTyfFeed({
-
-            limit:
-              limit,
-
-            env:
-              env
-
+            limit,
+            env
           });
 
 
@@ -159,11 +147,8 @@ export default {
               feed.items
 
           },
-
           200,
-
           180
-
         );
 
       }
@@ -181,18 +166,12 @@ export default {
 
             detail:
               String(
-                error &&
-                error.message
-
-                  ? error.message
-
-                  : error
+                error?.message ||
+                error
               )
 
           },
-
           502
-
         );
 
       }
@@ -201,8 +180,7 @@ export default {
 
 
     /* =====================================================
-       KULLANICI GERİ BİLDİRİMİ
-       Woow / Çöp / Kaydet / Paylaş vb.
+       GERİ BİLDİRİM
        ===================================================== */
 
     if (
@@ -232,11 +210,8 @@ export default {
             result.persisted,
 
           mode:
-
             result.persisted
-
               ? "global-kv"
-
               : "local-fallback"
 
         });
@@ -256,18 +231,12 @@ export default {
 
             detail:
               String(
-                error &&
-                error.message
-
-                  ? error.message
-
-                  : error
+                error?.message ||
+                error
               )
 
           },
-
           400
-
         );
 
       }
@@ -298,12 +267,8 @@ export default {
             true,
 
           mode:
-
-            env &&
-            env.SPORNRD_LEARNING
-
+            env?.SPORNRD_LEARNING
               ? "global-kv"
-
               : "local-fallback",
 
           learning:
@@ -326,18 +291,12 @@ export default {
 
             detail:
               String(
-                error &&
-                error.message
-
-                  ? error.message
-
-                  : error
+                error?.message ||
+                error
               )
 
           },
-
           500
-
         );
 
       }
@@ -359,21 +318,14 @@ export default {
           "Endpoint bulunamadı",
 
         availableEndpoints: [
-
           "/",
-
           "/api/tyf?limit=20",
-
           "/api/feedback",
-
           "/api/learning"
-
         ]
 
       },
-
       404
-
     );
 
   }
