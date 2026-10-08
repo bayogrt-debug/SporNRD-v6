@@ -1,10 +1,5 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "spornrd-source-api-v4",
-  "main": "worker/worker.js",
-  "compatibility_date": "2026-10-08",
-  "workers_dev": true
-
-  // Global öğrenmeyi açmak istediğinde Cloudflare KV oluşturup
-  // SPORNRD_LEARNING binding adını kullan. Kod KV olmadan da çalışır.
+  "main": "worker.js",
+  "compatibility_date": "2026-10-08"
 }
