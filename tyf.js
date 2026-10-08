@@ -40,10 +40,6 @@ const NEWS =
   BASE + "/haberler/";
 
 
-/* =========================================================
-   TYF ANA AKIŞ
-   ========================================================= */
-
 export async function getTyfFeed({
   limit = 20,
   env
@@ -71,11 +67,9 @@ export async function getTyfFeed({
 
   const results =
     await Promise.allSettled(
-
       links.map(
         readArticle
       )
-
     );
 
 
@@ -96,23 +90,16 @@ export async function getTyfFeed({
 
       .filter(
         item =>
-          item.relevanceScore >= 3
+          item.relevanceScore >=
+          3
       );
 
-
-  /* =======================================================
-     TEKRAR EDEN HABERLERİ TEMİZLE
-     ======================================================= */
 
   const deduped =
     dedupeArticles(
       items
     );
 
-
-  /* =======================================================
-     ÖĞRENME + İLGİ PUANI
-     ======================================================= */
 
   for (
     const item
@@ -128,14 +115,10 @@ export async function getTyfFeed({
   }
 
 
-  /* =======================================================
-     PUAN + TARİHE GÖRE SIRALA
-     ======================================================= */
-
   deduped.sort(
     (a, b) => {
 
-      const scoreDifference =
+      const score =
         Number(
           b.finalScore || 0
         )
@@ -146,10 +129,10 @@ export async function getTyfFeed({
 
 
       if (
-        scoreDifference !== 0
+        score !== 0
       ) {
 
-        return scoreDifference;
+        return score;
 
       }
 
@@ -178,9 +161,6 @@ export async function getTyfFeed({
       name:
         "Türkiye Yüzme Federasyonu",
 
-      shortName:
-        "TYF",
-
       sourceType:
         "FEDERASYON",
 
@@ -208,183 +188,105 @@ export async function getTyfFeed({
 
 
 /* =========================================================
-   TEK HABER OKU
+   TEK HABER
    ========================================================= */
 
 async function readArticle(
   url
 ) {
 
-  try {
-
-    const html =
-      await getHtml(
-        url
-      );
+  const html =
+    await getHtml(
+      url
+    );
 
 
-    /* -----------------------------------------------------
-       ORİJİNAL BAŞLIK
-       ----------------------------------------------------- */
-
-    const originalTitle =
-      extractTitle(
-        html
-      );
+  const originalTitle =
+    extractTitle(
+      html
+    );
 
 
-    if (
-      !originalTitle
-    ) {
+  if (
+    !originalTitle
+  ) {
 
-      return null;
+    return null;
 
-    }
-
-
-    /* -----------------------------------------------------
-       SADECE GERÇEK HABER BÖLÜMÜ
-       ----------------------------------------------------- */
-
-    const region =
-      extractArticleRegion(
-        html
-      );
+  }
 
 
-    const originalText =
-      extractBody(
-        region,
-        originalTitle
-      );
+  const region =
+    extractArticleRegion(
+      html
+    );
 
 
-    /* -----------------------------------------------------
-       KATEGORİ + HEDEF KİTLE
-       ----------------------------------------------------- */
-
-    const analysis =
-      classifyArticle(
-        originalTitle,
-        originalText
-      );
+  const originalText =
+    extractBody(
+      region,
+      originalTitle
+    );
 
 
-    if (
-      !analysis.keep
-    ) {
-
-      return null;
-
-    }
+  const analysis =
+    classifyArticle(
+      originalTitle,
+      originalText
+    );
 
 
-    /* -----------------------------------------------------
-       GERÇEKLERİ ÇIKAR
-       ----------------------------------------------------- */
+  if (
+    !analysis.keep
+  ) {
 
-    const facts =
-      extractFacts({
+    return null;
 
-        title:
-          originalTitle,
-
-        body:
-          originalText,
-
-        category:
-          analysis.category,
-
-        audience:
-          analysis.audience
-
-      });
+  }
 
 
-    /* -----------------------------------------------------
-       TARİH
-       ----------------------------------------------------- */
-
-    const date =
-      extractDate(
-        region || html
-      );
-
-
-    /* -----------------------------------------------------
-       GÖRSEL
-       ----------------------------------------------------- */
-
-    const image =
-      extractImage(
-        html,
-        BASE
-      );
-
-
-    /* -----------------------------------------------------
-       PDF
-       ----------------------------------------------------- */
-
-    const pdfUrl =
-      extractPdf(
-        region || html,
-        BASE
-      );
-
-
-    /* -----------------------------------------------------
-       SPORNRD EDİTÖRÜ
-       ----------------------------------------------------- */
-
-    const editorial =
-      buildEditorial({
-
-        originalTitle:
-          originalTitle,
-
-        originalText:
-          originalText,
-
-        category:
-          analysis.category,
-
-        facts:
-          facts,
-
-        pdfUrl:
-          pdfUrl
-
-      });
-
-
-    /* -----------------------------------------------------
-       SON HABER NESNESİ
-       ----------------------------------------------------- */
-
-    return {
-
-      id:
-        makeId(
-          url
-        ),
-
-      externalId:
-        makeId(
-          url
-        ),
-
-
-      /* Kullanıcının gördüğü */
+  const facts =
+    extractFacts({
 
       title:
-        editorial.title,
+        originalTitle,
 
-      summary:
-        editorial.summary,
+      body:
+        originalText,
+
+      category:
+        analysis.category,
+
+      audience:
+        analysis.audience
+
+    });
 
 
-      /* Orijinal kaynak */
+  const date =
+    extractDate(
+      region ||
+      html
+    );
+
+
+  const image =
+    extractImage(
+      html,
+      BASE
+    );
+
+
+  const pdfUrl =
+    extractPdf(
+      region ||
+      html,
+      BASE
+    );
+
+
+  const editorial =
+    buildEditorial({
 
       originalTitle:
         originalTitle,
@@ -392,143 +294,136 @@ async function readArticle(
       originalText:
         originalText,
 
-
-      /* Editör bilgisi */
-
-      editorial:
-        true,
-
-      editorialLabel:
-        "SporNRD Özeti",
-
-      editorialVersion:
-        "6.0.0",
-
-      titleCandidates:
-        editorial.titleCandidates || [],
-
-
-      /* Kaynak */
-
-      source:
-        "Türkiye Yüzme Federasyonu",
-
-      sourceShortName:
-        "TYF",
-
-      sourceType:
-        "FEDERASYON",
-
-      verified:
-        true,
-
-      sport:
-        "Yüzme",
-
-
-      /* Analiz */
-
       category:
         analysis.category,
-
-      audience:
-        analysis.audience,
-
-      relevanceScore:
-        analysis.score,
-
-      qualityScore:
-        editorial.qualityScore || 0,
-
-
-      /* Haber DNA */
-
-      topic:
-        facts.topic,
-
-      urgency:
-        facts.urgency,
-
-      actionRequired:
-        facts.actionRequired,
-
-      actionLabel:
-        editorial.actionLabel,
-
-      tags:
-        editorial.tags || [],
-
-
-      /* Yapılandırılmış gerçekler */
 
       facts:
         facts,
 
-
-      /* Tarih / konum */
-
-      date:
-        date.text,
-
-      timestamp:
-        date.time,
-
-      location:
-        facts.location || "Türkiye",
-
-
-      /* Medya */
-
-      image:
-        image,
-
-      url:
-        url,
-
       pdfUrl:
-        pdfUrl,
+        pdfUrl
+
+    });
 
 
-      /* Görsel kategori */
+  return {
 
-      emoji:
-        emojiFor(
-          analysis.category
-        )
+    id:
+      makeId(
+        url
+      ),
 
-    };
+    externalId:
+      makeId(
+        url
+      ),
 
-  }
 
-  catch (error) {
+    title:
+      editorial.title,
 
-    console.log(
+    summary:
+      editorial.summary,
 
-      "TYF haber detayı okunamadı:",
 
+    originalTitle:
+      originalTitle,
+
+    originalText:
+      originalText,
+
+
+    editorial:
+      true,
+
+    editorialLabel:
+      "SporNRD Özeti",
+
+    editorialVersion:
+      "6.0.0",
+
+    titleCandidates:
+      editorial.titleCandidates,
+
+
+    source:
+      "Türkiye Yüzme Federasyonu",
+
+    sourceType:
+      "FEDERASYON",
+
+    verified:
+      true,
+
+    sport:
+      "Yüzme",
+
+
+    category:
+      analysis.category,
+
+    audience:
+      analysis.audience,
+
+    relevanceScore:
+      analysis.score,
+
+    qualityScore:
+      editorial.qualityScore,
+
+
+    topic:
+      facts.topic,
+
+    urgency:
+      facts.urgency,
+
+    actionRequired:
+      facts.actionRequired,
+
+    actionLabel:
+      editorial.actionLabel,
+
+    tags:
+      editorial.tags,
+
+
+    facts:
+      facts,
+
+
+    date:
+      date.text,
+
+    timestamp:
+      date.time,
+
+    location:
+      facts.location,
+
+
+    image:
+      image,
+
+    url:
       url,
 
-      String(
-        error &&
-        error.message
+    pdfUrl:
+      pdfUrl,
 
-          ? error.message
 
-          : error
+    emoji:
+      emojiFor(
+        analysis.category
       )
 
-    );
-
-
-    return null;
-
-  }
+  };
 
 }
 
 
 /* =========================================================
-   HTML İNDİR
+   HTML AL
    ========================================================= */
 
 async function getHtml(
@@ -562,12 +457,7 @@ async function getHtml(
   ) {
 
     throw new Error(
-
-      "TYF HTTP " +
-      response.status +
-      ": " +
-      url
-
+      `TYF HTTP ${response.status}: ${url}`
     );
 
   }
@@ -579,7 +469,7 @@ async function getHtml(
 
 
 /* =========================================================
-   TYF HABER LİNKLERİNİ BUL
+   HABER LİNKLERİ
    ========================================================= */
 
 function findLinks(
@@ -659,7 +549,7 @@ function findLinks(
 
 
 /* =========================================================
-   HABER ID
+   ID
    ========================================================= */
 
 function makeId(
@@ -696,7 +586,8 @@ function makeId(
       );
 
 
-    hash |= 0;
+    hash |=
+      0;
 
   }
 
@@ -712,7 +603,7 @@ function makeId(
 
 
 /* =========================================================
-   KATEGORİ EMOJİSİ
+   EMOJİ
    ========================================================= */
 
 function emojiFor(
@@ -742,9 +633,8 @@ function emojiFor(
   return (
     map[
       category
-    ]
-    ||
+    ] ||
     "🏊"
   );
 
-  }
+        }
