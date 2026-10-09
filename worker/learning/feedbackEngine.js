@@ -1,38 +1,279 @@
-import { ACTION_WEIGHT } from "./defaultWeights.js";
-import { readLearningState, writeLearningState } from "./learningStore.js";
+/* =========================================================
+   SporNRD
+   worker/learning/feedbackEngine.js
 
-export async function recordFeedback(env, payload) {
-  const action = String(payload?.action || "");
-  const category = String(payload?.category || "announcement");
-  const source = String(payload?.source || "unknown");
-  const delta = ACTION_WEIGHT[action] || 0;
+   Kullanıcı geri bildirimlerinden öğrenme motoru
+   ========================================================= */
 
-  const state = await readLearningState(env);
 
-  state.categoryBoosts[category] = clamp(
-    Number(state.categoryBoosts[category] || 0) + delta * 0.08,
-    -4,
-    8
-  );
+import {
+  ACTION_WEIGHT
+} from "../intelligence/defaultWeights.js";
 
-  state.sourceBoosts[source] = clamp(
-    Number(state.sourceBoosts[source] || 0) + delta * 0.03,
-    -3,
-    5
-  );
 
-  state.actionCounts[action] = Number(state.actionCounts[action] || 0) + 1;
-  state.totalSignals = Number(state.totalSignals || 0) + 1;
-  state.updatedAt = new Date().toISOString();
+import {
+  readLearningState,
+  writeLearningState
+} from "./learningStore.js";
 
-  const persisted = await writeLearningState(env, state);
+
+/* =========================================================
+   GERİ BİLDİRİM KAYDI
+   ========================================================= */
+
+export async function recordFeedback(
+  env,
+  payload
+) {
+
+  const action =
+    String(
+      payload?.action ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const category =
+    String(
+      payload?.category ||
+      "announcement"
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const source =
+    String(
+      payload?.source ||
+      payload?.sourceId ||
+      "unknown"
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const delta =
+    Number(
+      ACTION_WEIGHT[
+        action
+      ] ||
+      0
+    );
+
+
+  /* -------------------------------------------------------
+     Öğrenme durumunu oku
+     ------------------------------------------------------- */
+
+  const state =
+    await readLearningState(
+      env
+    );
+
+
+  /* -------------------------------------------------------
+     Gerekli alanları garanti altına al
+     ------------------------------------------------------- */
+
+  if (
+    !state.categoryBoosts ||
+    typeof state.categoryBoosts !==
+    "object"
+  ) {
+
+    state.categoryBoosts =
+      {};
+
+  }
+
+
+  if (
+    !state.sourceBoosts ||
+    typeof state.sourceBoosts !==
+    "object"
+  ) {
+
+    state.sourceBoosts =
+      {};
+
+  }
+
+
+  if (
+    !state.actionCounts ||
+    typeof state.actionCounts !==
+    "object"
+  ) {
+
+    state.actionCounts =
+      {};
+
+  }
+
+
+  /* -------------------------------------------------------
+     KATEGORİ ÖĞRENMESİ
+     ------------------------------------------------------- */
+
+  state.categoryBoosts[
+    category
+  ] =
+    clamp(
+
+      Number(
+        state.categoryBoosts[
+          category
+        ] ||
+        0
+      )
+      +
+      delta *
+      0.08,
+
+      -4,
+
+      8
+
+    );
+
+
+  /* -------------------------------------------------------
+     KAYNAK ÖĞRENMESİ
+     ------------------------------------------------------- */
+
+  state.sourceBoosts[
+    source
+  ] =
+    clamp(
+
+      Number(
+        state.sourceBoosts[
+          source
+        ] ||
+        0
+      )
+      +
+      delta *
+      0.03,
+
+      -3,
+
+      5
+
+    );
+
+
+  /* -------------------------------------------------------
+     AKSİYON SAYACI
+     ------------------------------------------------------- */
+
+  state.actionCounts[
+    action
+  ] =
+    Number(
+      state.actionCounts[
+        action
+      ] ||
+      0
+    )
+    +
+    1;
+
+
+  /* -------------------------------------------------------
+     TOPLAM SİNYAL
+     ------------------------------------------------------- */
+
+  state.totalSignals =
+    Number(
+      state.totalSignals ||
+      0
+    )
+    +
+    1;
+
+
+  state.updatedAt =
+    new Date()
+      .toISOString();
+
+
+  /* -------------------------------------------------------
+     KAYDET
+     ------------------------------------------------------- */
+
+  const persisted =
+    await writeLearningState(
+      env,
+      state
+    );
+
 
   return {
-    persisted,
-    state
+
+    persisted:
+      Boolean(
+        persisted
+      ),
+
+    action:
+      action,
+
+    category:
+      category,
+
+    source:
+      source,
+
+    delta:
+      delta,
+
+    state:
+      state
+
   };
+
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+
+/* =========================================================
+   SAYI SINIRLAMA
+   ========================================================= */
+
+function clamp(
+  value,
+  min,
+  max
+) {
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+
+    return 0;
+
+  }
+
+
+  return Math.max(
+
+    min,
+
+    Math.min(
+      max,
+      numericValue
+    )
+
+  );
+
 }
