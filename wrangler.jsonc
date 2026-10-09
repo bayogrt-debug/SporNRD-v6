@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "spornrd-source-api-v4",
-  "main": "worker.js",
+  "main": "worker/worker.js",
   "compatibility_date": "2026-10-08",
   "workers_dev": true
 }
