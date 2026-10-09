@@ -3,7 +3,9 @@
    worker/learning/learningStore.js
 
    Global öğrenme durumunu okuma / yazma
-   Cloudflare KV + güvenli local fallback
+   Cloudflare KV + güvenli fallback
+
+   SporNRD v6.0.4
    ========================================================= */
 
 
@@ -52,6 +54,9 @@ function createDefaultState() {
 
 /* =========================================================
    KAYITLI DURUMU VARSAYILANLA BİRLEŞTİR
+
+   Böylece ileride DEFAULT_LEARNING_STATE içine
+   yeni alanlar eklenirse eski KV kaydı sistemi bozmaz.
    ========================================================= */
 
 function mergeLearningState(
@@ -63,10 +68,7 @@ function mergeLearningState(
 
 
   if (
-    !stored ||
-    typeof stored !==
-    "object" ||
-    Array.isArray(
+    !isPlainObject(
       stored
     )
   ) {
@@ -78,10 +80,18 @@ function mergeLearningState(
 
   return {
 
+    /* -----------------------------------------------------
+       Genel alanlar
+       ----------------------------------------------------- */
+
     ...defaults,
 
     ...stored,
 
+
+    /* -----------------------------------------------------
+       Kategori öğrenmesi
+       ----------------------------------------------------- */
 
     categoryBoosts: {
 
@@ -101,6 +111,10 @@ function mergeLearningState(
     },
 
 
+    /* -----------------------------------------------------
+       Federasyon / kaynak öğrenmesi
+       ----------------------------------------------------- */
+
     sourceBoosts: {
 
       ...(
@@ -118,6 +132,32 @@ function mergeLearningState(
 
     },
 
+
+    /* -----------------------------------------------------
+       Başlık stili öğrenmesi
+       ----------------------------------------------------- */
+
+    headlineStyleBoosts: {
+
+      ...(
+        defaults.headlineStyleBoosts ||
+        {}
+      ),
+
+      ...(
+        isPlainObject(
+          stored.headlineStyleBoosts
+        )
+          ? stored.headlineStyleBoosts
+          : {}
+      )
+
+    },
+
+
+    /* -----------------------------------------------------
+       Kullanıcı aksiyon sayaçları
+       ----------------------------------------------------- */
 
     actionCounts: {
 
@@ -150,7 +190,8 @@ export async function readLearningState(
 ) {
 
   /* -------------------------------------------------------
-     KV yoksa varsayılan öğrenme durumu
+     Cloudflare KV bağlı değilse
+     varsayılan öğrenme durumunu kullan.
      ------------------------------------------------------- */
 
   if (
@@ -208,7 +249,8 @@ export async function writeLearningState(
 ) {
 
   /* -------------------------------------------------------
-     KV bağlı değilse local fallback
+     KV bağlı değilse kayıt yapılamaz.
+     Uygulama yine çalışmaya devam eder.
      ------------------------------------------------------- */
 
   if (
@@ -222,11 +264,12 @@ export async function writeLearningState(
   }
 
 
+  /* -------------------------------------------------------
+     State kontrolü
+     ------------------------------------------------------- */
+
   if (
-    !state ||
-    typeof state !==
-    "object" ||
-    Array.isArray(
+    !isPlainObject(
       state
     )
   ) {
@@ -251,10 +294,13 @@ export async function writeLearningState(
 
 
     await env.SPORNRD_LEARNING.put(
+
       KEY,
+
       JSON.stringify(
         normalizedState
       )
+
     );
 
 
@@ -290,12 +336,16 @@ function isPlainObject(
 ) {
 
   return Boolean(
+
     value &&
+
     typeof value ===
     "object" &&
+
     !Array.isArray(
       value
     )
+
   );
 
 }
@@ -325,4 +375,4 @@ function getErrorMessage(
     "Bilinmeyen hata"
   );
 
-        }
+}
