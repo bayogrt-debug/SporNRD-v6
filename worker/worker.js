@@ -2,7 +2,7 @@
    SporNRD
    worker/worker.js
 
-   Sürüm: 6.0.3
+   Sürüm: 6.0.4
    Mimari: Multi Source Modular
 
    AKTİF KAYNAKLAR
@@ -54,7 +54,11 @@ import {
    ========================================================= */
 
 const VERSION =
-  "6.0.3";
+  "6.0.4";
+
+
+const SERVICE_NAME =
+  "SporNRD Öğrenen Spor Editörü";
 
 
 const DEFAULT_LIMIT =
@@ -212,7 +216,7 @@ export default {
           true,
 
         service:
-          "SporNRD Öğrenen Spor Editörü",
+          SERVICE_NAME,
 
         status:
           "running",
@@ -228,33 +232,17 @@ export default {
 
         activeSources:
           providers.map(
-            provider => ({
-
-              id:
-                provider.id,
-
-              name:
-                provider.name,
-
-              shortName:
-                provider.shortName,
-
-              sport:
-                provider.sport,
-
-              verified:
-                provider.verified
-
-            })
+            provider =>
+              createSourceInfo(
+                provider
+              )
           ),
 
         learning:
-
-          env &&
-          env.SPORNRD_LEARNING
-
+          hasLearningKv(
+            env
+          )
             ? "global-kv"
-
             : "local-fallback",
 
         endpoints: {
@@ -305,10 +293,13 @@ export default {
           "healthy",
 
         service:
-          "SporNRD",
+          SERVICE_NAME,
 
         version:
           VERSION,
+
+        architecture:
+          "multi-source-modular",
 
         timestamp:
           new Date()
@@ -316,7 +307,14 @@ export default {
 
         activeSourceCount:
           getActiveProviders()
-            .length
+            .length,
+
+        learning:
+          hasLearningKv(
+            env
+          )
+            ? "global-kv"
+            : "local-fallback"
 
       });
 
@@ -337,23 +335,9 @@ export default {
           .map(
             provider => ({
 
-              id:
-                provider.id,
-
-              name:
-                provider.name,
-
-              shortName:
-                provider.shortName,
-
-              sport:
-                provider.sport,
-
-              sourceType:
-                provider.sourceType,
-
-              verified:
-                provider.verified,
+              ...createSourceInfo(
+                provider
+              ),
 
               enabled:
                 provider.enabled,
@@ -370,6 +354,9 @@ export default {
         ok:
           true,
 
+        version:
+          VERSION,
+
         count:
           sources.length,
 
@@ -383,8 +370,6 @@ export default {
 
     /* =====================================================
        BİRLEŞİK SPORNRD AKIŞI
-
-       TYF + TBF
        ===================================================== */
 
     if (
@@ -437,6 +422,9 @@ export default {
               new Date()
                 .toISOString(),
 
+            requestedSources:
+              requestedSources,
+
             sourceCount:
               result.sources.length,
 
@@ -462,13 +450,18 @@ export default {
 
       }
 
-      catch (error) {
+      catch (
+        error
+      ) {
 
         return json(
           {
 
             ok:
               false,
+
+            version:
+              VERSION,
 
             error:
               "SporNRD birleşik akışı oluşturulamadı.",
@@ -491,9 +484,6 @@ export default {
 
     /* =====================================================
        TEK FEDERASYON ENDPOINTİ
-
-       /api/tyf
-       /api/tbf
        ===================================================== */
 
     const provider =
@@ -557,20 +547,37 @@ export default {
           ok:
             true,
 
+          version:
+            VERSION,
+
           persisted:
             Boolean(
-              result &&
-              result.persisted
+              result?.persisted
             ),
 
           mode:
-
-            result &&
-            result.persisted
-
+            result?.persisted
               ? "global-kv"
-
               : "local-fallback",
+
+          feedback: {
+
+            action:
+              result?.action ||
+              payload.action,
+
+            category:
+              result?.category ||
+              payload.category ||
+              "announcement",
+
+            source:
+              result?.source ||
+              payload.sourceId ||
+              payload.source ||
+              "unknown"
+
+          },
 
           receivedAt:
             new Date()
@@ -580,13 +587,18 @@ export default {
 
       }
 
-      catch (error) {
+      catch (
+        error
+      ) {
 
         return json(
           {
 
             ok:
               false,
+
+            version:
+              VERSION,
 
             error:
               "Feedback işlenemedi.",
@@ -608,7 +620,7 @@ export default {
 
 
     /* =====================================================
-       ÖĞRENME
+       ÖĞRENME DURUMU
        ===================================================== */
 
     if (
@@ -633,12 +645,10 @@ export default {
             VERSION,
 
           mode:
-
-            env &&
-            env.SPORNRD_LEARNING
-
+            hasLearningKv(
+              env
+            )
               ? "global-kv"
-
               : "local-fallback",
 
           learning:
@@ -648,13 +658,18 @@ export default {
 
       }
 
-      catch (error) {
+      catch (
+        error
+      ) {
 
         return json(
           {
 
             ok:
               false,
+
+            version:
+              VERSION,
 
             error:
               "Öğrenme durumu okunamadı.",
@@ -691,6 +706,9 @@ export default {
           ok:
             false,
 
+          version:
+            VERSION,
+
           error:
             "Bu endpoint için HTTP yöntemi desteklenmiyor.",
 
@@ -718,6 +736,9 @@ export default {
 
         ok:
           false,
+
+        version:
+          VERSION,
 
         error:
           "Endpoint bulunamadı.",
@@ -788,14 +809,37 @@ async function handleProviderFeed({
       });
 
 
+    if (
+      !feed ||
+      typeof feed !==
+      "object"
+    ) {
+
+      throw new Error(
+        `${provider.shortName} geçerli bir feed döndürmedi.`
+      );
+
+    }
+
+
     const items =
       Array.isArray(
-        feed &&
         feed.items
       )
-
         ? feed.items
-
+            .filter(
+              item =>
+                item &&
+                typeof item ===
+                "object"
+            )
+            .map(
+              item =>
+                normalizeFeedItem(
+                  item,
+                  provider
+                )
+            )
         : [];
 
 
@@ -834,7 +878,9 @@ async function handleProviderFeed({
 
   }
 
-  catch (error) {
+  catch (
+    error
+  ) {
 
     return json(
       {
@@ -842,19 +888,16 @@ async function handleProviderFeed({
         ok:
           false,
 
-        source: {
+        version:
+          VERSION,
 
-          id:
-            provider.id,
-
-          name:
-            provider.name
-
-        },
+        source:
+          createSourceInfo(
+            provider
+          ),
 
         error:
-          provider.shortName +
-          " verileri alınamadı.",
+          `${provider.shortName} verileri alınamadı.`,
 
         detail:
           errorMessage(
@@ -889,6 +932,8 @@ async function buildUnifiedFeed({
 
 
   /* -------------------------------------------------------
+     Belirli kaynaklar istenmişse filtrele
+
      Örnek:
      /api/feed?sources=tyf,tbf
      ------------------------------------------------------- */
@@ -914,6 +959,10 @@ async function buildUnifiedFeed({
   }
 
 
+  /* -------------------------------------------------------
+     Geçerli kaynak yok
+     ------------------------------------------------------- */
+
   if (
     !providers.length
   ) {
@@ -927,7 +976,24 @@ async function buildUnifiedFeed({
         [],
 
       errors:
-        []
+        requestedSources.length
+
+          ? [
+              {
+
+                sourceId:
+                  null,
+
+                source:
+                  null,
+
+                error:
+                  "İstenen aktif kaynak bulunamadı."
+
+              }
+            ]
+
+          : []
 
     };
 
@@ -936,8 +1002,9 @@ async function buildUnifiedFeed({
 
   /* -------------------------------------------------------
      Kaynakları paralel oku.
-     TBF hata verirse TYF devam eder.
-     TYF hata verirse TBF devam eder.
+
+     Bir federasyon hata verirse
+     diğer federasyonlar çalışmaya devam eder.
      ------------------------------------------------------- */
 
   const results =
@@ -957,6 +1024,19 @@ async function buildUnifiedFeed({
                 env
 
             });
+
+
+          if (
+            !feed ||
+            typeof feed !==
+            "object"
+          ) {
+
+            throw new Error(
+              `${provider.shortName} geçerli feed döndürmedi.`
+            );
+
+          }
 
 
           return {
@@ -987,6 +1067,10 @@ async function buildUnifiedFeed({
   const errors =
     [];
 
+
+  /* -------------------------------------------------------
+     Sonuçları birleştir
+     ------------------------------------------------------- */
 
   for (
     let index = 0;
@@ -1023,27 +1107,36 @@ async function buildUnifiedFeed({
       );
 
 
-      if (
+      const providerItems =
         Array.isArray(
           feed.items
         )
+          ? feed.items
+          : [];
+
+
+      for (
+        const item
+        of providerItems
       ) {
 
-        for (
-          const item
-          of feed.items
+        if (
+          !item ||
+          typeof item !==
+          "object"
         ) {
 
-          items.push(
-
-            normalizeFeedItem(
-              item,
-              provider
-            )
-
-          );
+          continue;
 
         }
+
+
+        items.push(
+          normalizeFeedItem(
+            item,
+            provider
+          )
+        );
 
       }
 
@@ -1072,7 +1165,7 @@ async function buildUnifiedFeed({
 
 
   /* -------------------------------------------------------
-     Tekrarları temizle
+     Kaynaklar arası tekrarları temizle
      ------------------------------------------------------- */
 
   const uniqueItems =
@@ -1124,37 +1217,33 @@ function normalizeFeedItem(
 
 
     sourceId:
-
-      item.sourceId ||
-      provider.id,
+      normalizeSourceId(
+        item.sourceId ||
+        provider.id
+      ),
 
 
     source:
-
       item.source ||
       provider.name,
 
 
     sourceShortName:
-
       item.sourceShortName ||
       provider.shortName,
 
 
     sourceType:
-
       item.sourceType ||
       provider.sourceType,
 
 
     sport:
-
       item.sport ||
       provider.sport,
 
 
     verified:
-
       typeof item.verified ===
       "boolean"
 
@@ -1198,26 +1287,23 @@ function dedupeUnifiedItems(
 
     const id =
       String(
-        item.id ||
-        item.externalId ||
+        item?.id ||
+        item?.externalId ||
         ""
       )
         .trim();
 
 
     const url =
-      String(
-        item.url ||
-        ""
-      )
-        .trim()
-        .toLowerCase();
+      normalizeUrl(
+        item?.url
+      );
 
 
     const title =
       normalizeTitle(
-        item.originalTitle ||
-        item.title
+        item?.originalTitle ||
+        item?.title
       );
 
 
@@ -1324,8 +1410,7 @@ function compareFeedItems(
 
 
   if (
-    scoreA !==
-    scoreB
+    scoreA !== scoreB
   ) {
 
     return (
@@ -1337,19 +1422,13 @@ function compareFeedItems(
 
 
   return (
-
-    Number(
-      b.timestamp ||
-      0
+    safeNumber(
+      b?.timestamp
     )
-
     -
-
-    Number(
-      a.timestamp ||
-      0
+    safeNumber(
+      a?.timestamp
     )
-
   );
 
 }
@@ -1365,7 +1444,7 @@ function getItemScore(
 
   const finalScore =
     Number(
-      item.finalScore
+      item?.finalScore
     );
 
 
@@ -1381,16 +1460,14 @@ function getItemScore(
 
 
   const relevance =
-    Number(
-      item.relevanceScore ||
-      0
+    safeNumber(
+      item?.relevanceScore
     );
 
 
   const quality =
-    Number(
-      item.qualityScore ||
-      0
+    safeNumber(
+      item?.qualityScore
     );
 
 
@@ -1581,10 +1658,7 @@ function parseRequestedSources(
           ","
         )
         .map(
-          value =>
-            value
-              .trim()
-              .toLowerCase()
+          normalizeSourceId
         )
         .filter(
           Boolean
@@ -1620,9 +1694,13 @@ async function readJsonBody(
 
   try {
 
-    return JSON.parse(
-      text
-    );
+    const parsed =
+      JSON.parse(
+        text
+      );
+
+
+    return parsed;
 
   }
 
@@ -1648,7 +1726,10 @@ function validateFeedback(
   if (
     !payload ||
     typeof payload !==
-    "object"
+    "object" ||
+    Array.isArray(
+      payload
+    )
   ) {
 
     throw new Error(
@@ -1701,7 +1782,9 @@ function validateFeedback(
       payload.action
     )
       .trim()
-      .toLowerCase();
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
 
 
   if (
@@ -1719,6 +1802,34 @@ function validateFeedback(
 
   payload.action =
     action;
+
+
+  if (
+    payload.sourceId
+  ) {
+
+    payload.sourceId =
+      normalizeSourceId(
+        payload.sourceId
+      );
+
+  }
+
+
+  if (
+    payload.category
+  ) {
+
+    payload.category =
+      String(
+        payload.category
+      )
+        .trim()
+        .toLocaleLowerCase(
+          "tr-TR"
+        );
+
+  }
 
 }
 
@@ -1815,6 +1926,26 @@ function normalizePath(
 
 
 /* =========================================================
+   SOURCE ID NORMALİZE
+   ========================================================= */
+
+function normalizeSourceId(
+  value
+) {
+
+  return String(
+    value ||
+    ""
+  )
+    .trim()
+    .toLocaleLowerCase(
+      "tr-TR"
+    );
+
+}
+
+
+/* =========================================================
    BAŞLIK NORMALİZE
    ========================================================= */
 
@@ -1847,6 +1978,117 @@ function normalizeTitle(
 
 
 /* =========================================================
+   URL NORMALİZE
+   ========================================================= */
+
+function normalizeUrl(
+  value
+) {
+
+  const text =
+    String(
+      value ||
+      ""
+    )
+      .trim();
+
+
+  if (
+    !text
+  ) {
+
+    return "";
+
+  }
+
+
+  try {
+
+    const url =
+      new URL(
+        text
+      );
+
+
+    url.hash =
+      "";
+
+
+    return url
+      .href
+      .replace(
+        /\/$/,
+        ""
+      )
+      .toLowerCase();
+
+  }
+
+  catch {
+
+    return text
+      .replace(
+        /#.*$/,
+        ""
+      )
+      .replace(
+        /\/$/,
+        ""
+      )
+      .toLowerCase();
+
+  }
+
+}
+
+
+/* =========================================================
+   LEARNING KV VAR MI?
+   ========================================================= */
+
+function hasLearningKv(
+  env
+) {
+
+  return Boolean(
+
+    env?.SPORNRD_LEARNING &&
+
+    typeof env.SPORNRD_LEARNING.get ===
+    "function" &&
+
+    typeof env.SPORNRD_LEARNING.put ===
+    "function"
+
+  );
+
+}
+
+
+/* =========================================================
+   GÜVENLİ SAYI
+   ========================================================= */
+
+function safeNumber(
+  value
+) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
+
+}
+
+
+/* =========================================================
    HATA
    ========================================================= */
 
@@ -1870,4 +2112,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-}
+             }
