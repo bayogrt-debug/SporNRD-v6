@@ -2,7 +2,7 @@
    SporNRD
    worker/intelligence/defaultWeights.js
 
-   Varsayılan öğrenme ağırlıkları
+   Varsayılan öğrenme ve sıralama ağırlıkları
    SporNRD v6.0.4
    ========================================================= */
 
@@ -10,11 +10,11 @@
 /* =========================================================
    KULLANICI AKSİYON AĞIRLIKLARI
 
-   Pozitif değer:
-   içerik / kategori / kaynak daha değerli
+   Pozitif:
+   Kullanıcı içeriği değerli buluyor.
 
-   Negatif değer:
-   içerik / kategori / kaynak daha düşük değerli
+   Negatif:
+   Kullanıcı içeriği görmek istemiyor.
    ========================================================= */
 
 export const ACTION_WEIGHT = {
@@ -65,34 +65,54 @@ export const ACTION_WEIGHT = {
 
 
 /* =========================================================
-   EDİTÖR / SIRALAMA AĞIRLIKLARI
-
-   relevanceEngine.js veya ilerideki motorlar
-   doğrudan kullanabilir.
+   SIRALAMA MOTORU AĞIRLIKLARI
    ========================================================= */
 
 export const DEFAULT_WEIGHTS = {
 
+  /* Haberin temel SporNRD ilgi puanı */
+
   relevance:
     1.0,
+
+
+  /* Başlık + açıklama + görsel kalitesi */
 
   quality:
     0.7,
 
+
+  /* Haber güncelliği */
+
   freshness:
     0.8,
+
+
+  /* Resmî / güvenilir kaynak */
 
   sourceTrust:
     1.0,
 
+
+  /* Kullanıcı davranışlarından öğrenme */
+
   learning:
     0.6,
+
+
+  /* Acil / önemli içerik */
 
   urgency:
     0.4,
 
+
+  /* Kullanıcının işlem yapması gereken içerik */
+
   actionRequired:
     0.4,
+
+
+  /* Doğrulanmış federasyon / kaynak */
 
   verifiedSource:
     0.5
@@ -110,9 +130,9 @@ export const DEFAULT_LEARNING_STATE = {
     1,
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KATEGORİ TERCİHLERİ
-     ------------------------------------------------------- */
+     ======================================================= */
 
   categoryBoosts: {
 
@@ -134,30 +154,25 @@ export const DEFAULT_LEARNING_STATE = {
   },
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      FEDERASYON / KAYNAK TERCİHLERİ
 
-     Örnek:
-     tyf: 0.8
-     tbf: 1.2
-
-     Başlangıçta boş.
-     ------------------------------------------------------- */
+     Zamanla örnek:
+     tyf: 1.2
+     tbf: 0.8
+     tvf: 2.1
+     ======================================================= */
 
   sourceBoosts:
     {},
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      BAŞLIK STİLİ ÖĞRENMESİ
 
-     İleride:
-     direct
-     informative
-     action
-     location
-     fact-rich
-     ------------------------------------------------------- */
+     Kullanıcının hangi tür başlıklara daha fazla
+     Woow / Kaydet / Paylaş verdiğini öğrenebilir.
+     ======================================================= */
 
   headlineStyleBoosts: {
 
@@ -173,6 +188,9 @@ export const DEFAULT_LEARNING_STATE = {
     location:
       0,
 
+    date:
+      0,
+
     "fact-rich":
       0,
 
@@ -185,9 +203,9 @@ export const DEFAULT_LEARNING_STATE = {
   },
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      ETKİLEŞİM SAYILARI
-     ------------------------------------------------------- */
+     ======================================================= */
 
   actionCounts: {
 
@@ -227,9 +245,9 @@ export const DEFAULT_LEARNING_STATE = {
   },
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      GENEL İSTATİSTİKLER
-     ------------------------------------------------------- */
+     ======================================================= */
 
   totalSignals:
     0,
