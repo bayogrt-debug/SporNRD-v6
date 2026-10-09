@@ -1,21 +1,23 @@
-import {
-  scoreTitleCandidate,
-  scoreSummaryCandidate
-} from "./qualityEngine.js";
-
-
 /* =========================================================
-   SporNRD v6
-   AKILLI EDİTÖR MOTORU
+   SporNRD
+   worker/intelligence/editorialEngine.js
 
-   Görevleri:
-   - Gerçeklerden başlık adayları üretmek
-   - Birden fazla özet üretmek
-   - Clickbait'i sınırlamak
-   - Hedef kitleye göre dili değiştirmek
-   - En kaliteli başlığı seçmek
-   - En kaliteli özeti seçmek
+   Akıllı başlık + özet üretim motoru
+   SporNRD v6.0.4
    ========================================================= */
+
+
+import {
+  cleanHtml,
+  normalize,
+  splitSentences
+} from "../utils/html.js";
+
+
+import {
+  scoreHeadline,
+  scoreSummary
+} from "./qualityEngine.js";
 
 
 /* =========================================================
@@ -28,39 +30,41 @@ export function buildEditorial({
   category = "announcement",
   facts = {},
   pdfUrl = ""
-}) {
+} = {}) {
+
+  /* =======================================================
+     BAŞLIK ADAYLARI
+     ======================================================= */
 
   const titleCandidates =
-    generateTitleCandidates({
+    buildTitleCandidates(
       originalTitle,
       category,
       facts
-    });
+    );
 
 
-  const rankedTitles =
+  const scoredTitles =
     titleCandidates
 
       .map(
-        candidate => {
+        candidate => ({
 
-          return {
+          title:
+            candidate.title,
 
-            ...candidate,
+          style:
+            candidate.style,
 
-            score:
-              scoreTitleCandidate(
-                candidate.text,
-                {
-                  originalTitle,
-                  category,
-                  facts
-                }
+          score:
+            safeScore(
+              scoreHeadline(
+                candidate.title,
+                facts
               )
+            )
 
-          };
-
-        }
+        })
       )
 
       .sort(
@@ -71,47 +75,69 @@ export function buildEditorial({
 
 
   const selectedTitle =
-    rankedTitles.length
+    scoredTitles[0] ||
+    {
 
-      ? rankedTitles[0].text
-
-      : fallbackTitle(
+      title:
+        cleanDisplayTitle(
           originalTitle
-        );
+        ),
 
+      style:
+        "source",
+
+      score:
+        0
+
+    };
+
+
+  /* =======================================================
+     ÖZET ADAYLARI
+     ======================================================= */
 
   const summaryCandidates =
-    generateSummaryCandidates({
-      originalTitle,
-      originalText,
-      category,
-      facts,
-      pdfUrl
+    buildSummaryCandidates({
+
+      originalTitle:
+        originalTitle,
+
+      originalText:
+        originalText,
+
+      category:
+        category,
+
+      facts:
+        facts,
+
+      pdfUrl:
+        pdfUrl
+
     });
 
 
-  const rankedSummaries =
+  const scoredSummaries =
     summaryCandidates
 
       .map(
-        candidate => {
+        candidate => ({
 
-          return {
+          summary:
+            candidate.summary,
 
-            ...candidate,
+          style:
+            candidate.style,
 
-            score:
-              scoreSummaryCandidate(
-                candidate.text,
-                {
-                  category,
-                  facts
-                }
+          score:
+            safeScore(
+              scoreSummary(
+                candidate.summary,
+                facts
               )
+            )
 
-          };
-
-        }
+        })
       )
 
       .sort(
@@ -122,80 +148,93 @@ export function buildEditorial({
 
 
   const selectedSummary =
-    rankedSummaries.length
+    scoredSummaries[0] ||
+    {
 
-      ? rankedSummaries[0].text
+      summary:
+        fallbackSummary(
+          category,
+          pdfUrl
+        ),
 
-      : fallbackSummary(
-          facts
-        );
+      style:
+        "fallback",
 
+      score:
+        0
+
+    };
+
+
+  /* =======================================================
+     GENEL KALİTE
+     ======================================================= */
 
   const qualityScore =
-    calculateOverallEditorialScore(
-      rankedTitles,
-      rankedSummaries
+    Math.round(
+
+      (
+        selectedTitle.score +
+        selectedSummary.score
+      )
+      /
+      2
+
     );
 
+
+  /* =======================================================
+     SONUÇ
+     ======================================================= */
 
   return {
 
     title:
-      selectedTitle,
+      selectedTitle.title,
 
     summary:
-      selectedSummary,
-
-    actionLabel:
-      createActionLabel(
-        category,
-        facts
-      ),
-
-    tags:
-      createTags(
-        category,
-        facts
-      ),
-
-    qualityScore:
-      qualityScore,
+      selectedSummary.summary,
 
 
-    /* Öğrenme motoru için adaylar */
+    /* Öğrenme sistemi için */
+
+    headlineStyle:
+      selectedTitle.style,
+
+    summaryStyle:
+      selectedSummary.style,
+
 
     titleCandidates:
-      rankedTitles.map(
-        item => ({
-          text:
-            item.text,
-
-          style:
-            item.style,
-
-          score:
-            round(
-              item.score
-            )
-        })
+      scoredTitles.slice(
+        0,
+        4
       ),
 
 
     summaryCandidates:
-      rankedSummaries.map(
-        item => ({
-          text:
-            item.text,
+      scoredSummaries.slice(
+        0,
+        3
+      ),
 
-          style:
-            item.style,
 
-          score:
-            round(
-              item.score
-            )
-        })
-      )
+    actionLabel:
+      actionLabelFor(
+        category,
+        facts
+      ),
+
+
+    tags:
+      buildTags(
+        category,
+        facts
+      ),
+
+
+    qualityScore:
+      qualityScore
 
   };
 
@@ -206,44 +245,377 @@ export function buildEditorial({
    BAŞLIK ADAYLARI
    ========================================================= */
 
-function generateTitleCandidates({
+function buildTitleCandidates(
   originalTitle,
   category,
   facts
-}) {
+) {
+
+  const normalizedTitle =
+    normalize(
+      originalTitle
+    );
+
 
   const candidates =
     [];
 
 
-  const topic =
-    clean(
-      facts.topic
+  /* =======================================================
+     SEM SONUÇLARI
+     ======================================================= */
+
+  if (
+    facts.isSemResult ||
+    (
+      normalizedTitle.includes(
+        "SEM"
+      ) &&
+      normalizedTitle.includes(
+        "KAYIT HAKKI KAZANAN"
+      )
+    )
+  ) {
+
+    candidates.push(
+
+      {
+        title:
+          "SEM’de kayıt hakkı kazanan yüzücüler açıklandı 🏊",
+
+        style:
+          "direct"
+      },
+
+      {
+        title:
+          "SEM yüzme sonuçları belli oldu: Kayıt hakkı kazanan sporcular açıklandı",
+
+        style:
+          "informative"
+      },
+
+      {
+        title:
+          "SEM yüzme listesi yayımlandı: Kayıt hakkı kazanan sporcular belli oldu",
+
+        style:
+          "action"
+      }
+
     );
 
-
-  const location =
-    validLocation(
-      facts.location
-    );
+  }
 
 
-  const eventDate =
-    clean(
+  /* =======================================================
+     BEBEK YÜZME SEMİNERİ
+     ======================================================= */
+
+  if (
+    facts.isBabySwimming ||
+    (
+      normalizedTitle.includes(
+        "BEBEK"
+      ) &&
+      normalizedTitle.includes(
+        "SEMINER"
+      )
+    )
+  ) {
+
+    const when =
       facts.eventDate
+        ? `: ${facts.eventDate}`
+        : "";
+
+
+    const where =
+      validLocation(
+        facts.location
+      )
+        ? `${facts.location}’da`
+        : "";
+
+
+    candidates.push(
+
+      {
+        title:
+          `Bebek yüzme gelişim semineri ${where}${when} 🏊‍♀️`
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim(),
+
+        style:
+          "fact-rich"
+      },
+
+      {
+        title:
+          `Bebek yüzme eğitimi için yeni seminer duyuruldu${
+            validLocation(
+              facts.location
+            )
+              ? `: ${facts.location}`
+              : ""
+          }`,
+
+        style:
+          "location"
+      },
+
+      {
+        title:
+          `TYF’den bebek yüzme gelişim semineri duyurusu${when}`,
+
+        style:
+          "informative"
+      }
+
     );
 
-
-  const dateRange =
-    clean(
-      facts.dateRange
-    );
+  }
 
 
-  const grade =
-    clean(
+  /* =======================================================
+     ANTRENÖR KURSU
+     ======================================================= */
+
+  if (
+    facts.isCoachCourse ||
+    (
+      normalizedTitle.includes(
+        "ANTRENOR"
+      ) &&
+      normalizedTitle.includes(
+        "KURS"
+      )
+    )
+  ) {
+
+    const grade =
       facts.grade
+        ? `${facts.grade}. Kademe `
+        : "";
+
+
+    const place =
+      validLocation(
+        facts.location
+      )
+        ? ` ${facts.location}’da`
+        : "";
+
+
+    const when =
+      facts.eventDate
+        ? `: ${facts.eventDate}`
+        : "";
+
+
+    candidates.push(
+
+      {
+        title:
+          `${grade}yüzme antrenörlüğü kursu${place}${when}`,
+
+        style:
+          "fact-rich"
+      },
+
+      {
+        title:
+          `${grade}antrenörlük kursu için yeni dönem duyuruldu${place}`,
+
+        style:
+          "location"
+      },
+
+      {
+        title:
+          `Yüzme antrenörleri için ${grade.toLocaleLowerCase(
+            "tr-TR"
+          )}kurs duyurusu yayımlandı`,
+
+        style:
+          "direct"
+      }
+
     );
+
+  }
+
+
+  /* =======================================================
+     ANTRENÖR VİZE
+     ======================================================= */
+
+  if (
+    facts.isCoachVisa ||
+    normalizedTitle.includes(
+      "ANTRENOR VIZE"
+    )
+  ) {
+
+    candidates.push(
+
+      {
+        title:
+          "Yüzme antrenörleri için vize işlemleri duyuruldu",
+
+        style:
+          "direct"
+      },
+
+      {
+        title:
+          "Antrenör vize süreci için yeni TYF duyurusu",
+
+        style:
+          "informative"
+      },
+
+      {
+        title:
+          "Yüzme antrenörlerinin vize işlemlerinde yeni bilgilendirme",
+
+        style:
+          "action"
+      }
+
+    );
+
+  }
+
+
+  /* =======================================================
+     TOHM
+     ======================================================= */
+
+  if (
+    facts.isTohm ||
+    (
+      normalizedTitle.includes(
+        "TOHM"
+      ) &&
+      normalizedTitle.includes(
+        "BASVURU"
+      )
+    )
+  ) {
+
+    candidates.push(
+
+      {
+        title:
+          "TOHM sporcu başvurularında yeni dönem",
+
+        style:
+          "direct"
+      },
+
+      {
+        title:
+          "TOHM başvuruları için yeni bilgilendirme yayımlandı",
+
+        style:
+          "informative"
+      },
+
+      {
+        title:
+          "TOHM’a başvuracak sporcular için önemli duyuru",
+
+        style:
+          "action"
+      }
+
+    );
+
+  }
+
+
+  /* =======================================================
+     YARIŞMA
+     ======================================================= */
+
+  if (
+    category ===
+    "event"
+  ) {
+
+    const cleaned =
+      cleanDisplayTitle(
+        stripBilingualTail(
+          originalTitle
+        )
+      );
+
+
+    candidates.push(
+
+      {
+        title:
+          `${cleaned} 🏆`,
+
+        style:
+          "source"
+      },
+
+      {
+        title:
+          `Yüzmede yeni yarışma duyurusu: ${cleaned}`,
+
+        style:
+          "direct"
+      }
+
+    );
+
+  }
+
+
+  /* =======================================================
+     EĞİTİM
+     ======================================================= */
+
+  if (
+    category ===
+    "education"
+  ) {
+
+    const cleaned =
+      cleanDisplayTitle(
+        stripBilingualTail(
+          originalTitle
+        )
+      );
+
+
+    candidates.push(
+
+      {
+        title:
+          cleaned,
+
+        style:
+          "source"
+      },
+
+      {
+        title:
+          `Yüzme camiasına yeni eğitim duyurusu: ${cleaned}`,
+
+        style:
+          "informative"
+      }
+
+    );
+
+  }
 
 
   /* =======================================================
@@ -255,447 +627,29 @@ function generateTitleCandidates({
     "athlete"
   ) {
 
-    if (
-      facts.isSemResult
-    ) {
+    candidates.push(
 
-      candidates.push({
-
-        text:
-          "SEM’de kayıt hakkı kazanan yüzücüler açıklandı 🏊",
-
-        style:
-          "direct"
-
-      });
-
-
-      candidates.push({
-
-        text:
-          "SEM yüzme sonuçları belli oldu: Kayıt hakkı kazanan sporcular açıklandı",
-
-        style:
-          "informative"
-
-      });
-
-
-      if (
-        facts.actionRequired
-      ) {
-
-        candidates.push({
-
-          text:
-            "SEM sonuçları açıklandı: Hak kazanan sporcular için kayıt süreci başladı",
-
-          style:
-            "action"
-
-        });
-
-      }
-
-    }
-
-
-    else if (
-      facts.isTohm
-    ) {
-
-      candidates.push({
-
-        text:
-          "TOHM sporcu sürecinde yeni dönem başladı",
-
-        style:
-          "direct"
-
-      });
-
-
-      candidates.push({
-
-        text:
-          "TOHM sporcu başvurularıyla ilgili yeni duyuru yayımlandı",
-
-        style:
-          "informative"
-
-      });
-
-    }
-
-
-    else {
-
-      candidates.push({
-
-        text:
-          topic
-            ? topic +
-              ": Sporcuları ilgilendiren yeni gelişme"
-            : "Yüzücüleri ilgilendiren yeni duyuru yayımlandı",
-
-        style:
-          "interest"
-
-      });
-
-
-      candidates.push({
-
-        text:
-          cleanTitle(
-            originalTitle
+      {
+        title:
+          cleanDisplayTitle(
+            stripBilingualTail(
+              originalTitle
+            )
           ),
 
         style:
           "source"
+      },
 
-      });
-
-    }
-
-  }
-
-
-  /* =======================================================
-     ANTRENÖR
-     ======================================================= */
-
-  else if (
-    category ===
-    "coach"
-  ) {
-
-    if (
-      facts.isCoachCourse
-    ) {
-
-      const base =
-        grade
-
-          ? grade +
-            ". Kademe yüzme antrenörlüğü kursu"
-
-          : "Yüzme antrenörlüğü kursu";
-
-
-      if (
-        location &&
-        eventDate
-      ) {
-
-        candidates.push({
-
-          text:
-            base +
-            " " +
-            location +
-            "’da: " +
-            eventDate,
-
-          style:
-            "fact-rich"
-
-        });
-
-      }
-
-
-      if (
-        location
-      ) {
-
-        candidates.push({
-
-          text:
-            base +
-            " " +
-            location +
-            "’da düzenlenecek",
-
-          style:
-            "location"
-
-        });
-
-      }
-
-
-      candidates.push({
-
-        text:
-          base +
-          " için yeni başvuru duyurusu",
-
-        style:
-          "action"
-
-      });
-
-    }
-
-
-    else if (
-      facts.isCoachVisa
-    ) {
-
-      candidates.push({
-
-        text:
-          "Yüzme antrenörleri için vize işlemleri açıklandı",
+      {
+        title:
+          "Yüzücüleri ilgilendiren yeni TYF duyurusu",
 
         style:
           "direct"
-
-      });
-
-
-      candidates.push({
-
-        text:
-          "Antrenörler dikkat: Yeni vize duyurusu yayımlandı",
-
-        style:
-          "interest"
-
-      });
-
-    }
-
-
-    else {
-
-      candidates.push({
-
-        text:
-          topic
-            ? topic +
-              ": Antrenörleri ilgilendiren yeni duyuru"
-            : "Yüzme antrenörlerini ilgilendiren yeni duyuru",
-
-        style:
-          "direct"
-
-      });
-
-
-      candidates.push({
-
-        text:
-          cleanTitle(
-            originalTitle
-          ),
-
-        style:
-          "source"
-
-      });
-
-    }
-
-  }
-
-
-  /* =======================================================
-     EĞİTİM / SEMİNER
-     ======================================================= */
-
-  else if (
-    category ===
-    "education"
-  ) {
-
-    if (
-      facts.isBabySwimming
-    ) {
-
-      if (
-        location &&
-        eventDate
-      ) {
-
-        candidates.push({
-
-          text:
-            "Bebek yüzme gelişim semineri " +
-            location +
-            "’da: " +
-            eventDate +
-            " 🏊",
-
-          style:
-            "fact-rich"
-
-        });
-
       }
 
-
-      candidates.push({
-
-        text:
-          "Bebek yüzme gelişim semineri için yeni dönem başlıyor",
-
-        style:
-          "interest"
-
-      });
-
-
-      candidates.push({
-
-        text:
-          "Bebek yüzme gelişim seminerinin detayları açıklandı",
-
-        style:
-          "informative"
-
-      });
-
-    }
-
-
-    else {
-
-      if (
-        topic &&
-        location
-      ) {
-
-        candidates.push({
-
-          text:
-            topic +
-            " " +
-            location +
-            "’da düzenlenecek",
-
-          style:
-            "location"
-
-        });
-
-      }
-
-
-      if (
-        topic
-      ) {
-
-        candidates.push({
-
-          text:
-            topic +
-            " için yeni eğitim duyurusu",
-
-          style:
-            "direct"
-
-        });
-
-      }
-
-
-      candidates.push({
-
-        text:
-          cleanTitle(
-            originalTitle
-          ),
-
-        style:
-          "source"
-
-      });
-
-    }
-
-  }
-
-
-  /* =======================================================
-     YARIŞMA
-     ======================================================= */
-
-  else if (
-    category ===
-    "event"
-  ) {
-
-    if (
-      topic &&
-      location
-    ) {
-
-      candidates.push({
-
-        text:
-          topic +
-          " " +
-          location +
-          "’da 🏆",
-
-        style:
-          "location"
-
-      });
-
-    }
-
-
-    if (
-      topic &&
-      eventDate
-    ) {
-
-      candidates.push({
-
-        text:
-          topic +
-          ": " +
-          eventDate,
-
-        style:
-          "date"
-
-      });
-
-    }
-
-
-    if (
-      topic
-    ) {
-
-      candidates.push({
-
-        text:
-          topic +
-          " için geri sayım başladı 🏆",
-
-        style:
-          "interest"
-
-      });
-
-    }
-
-
-    candidates.push({
-
-      text:
-        cleanTitle(
-          originalTitle
-        ),
-
-      style:
-        "source"
-
-    });
+    );
 
   }
 
@@ -704,49 +658,54 @@ function generateTitleCandidates({
      GENEL DUYURU
      ======================================================= */
 
-  else {
+  if (
+    category ===
+    "announcement"
+  ) {
 
-    if (
-      facts.actionRequired &&
-      topic
-    ) {
-
-      candidates.push({
-
-        text:
-          topic +
-          ": Yapılması gerekenler açıklandı",
-
-        style:
-          "action"
-
-      });
-
-    }
+    const cleaned =
+      cleanDisplayTitle(
+        stripBilingualTail(
+          originalTitle
+        )
+      );
 
 
-    if (
-      topic
-    ) {
+    candidates.push(
 
-      candidates.push({
-
-        text:
-          topic +
-          " hakkında yeni duyuru yayımlandı",
+      {
+        title:
+          cleaned,
 
         style:
-          "direct"
+          "source"
+      },
 
-      });
+      {
+        title:
+          `TYF’den yeni duyuru: ${cleaned}`,
 
-    }
+        style:
+          "informative"
+      }
 
+    );
+
+  }
+
+
+  /* =======================================================
+     YEDEK
+     ======================================================= */
+
+  if (
+    !candidates.length
+  ) {
 
     candidates.push({
 
-      text:
-        cleanTitle(
+      title:
+        cleanDisplayTitle(
           originalTitle
         ),
 
@@ -758,23 +717,9 @@ function generateTitleCandidates({
   }
 
 
-  /* =======================================================
-     BOŞ / TEKRAR ADAYLARI TEMİZLE
-     ======================================================= */
-
-  return uniqueCandidates(
+  return uniqueTitleCandidates(
     candidates
-  )
-
-    .filter(
-      item =>
-        item.text.length >= 12
-    )
-
-    .slice(
-      0,
-      6
-    );
+  );
 
 }
 
@@ -783,108 +728,123 @@ function generateTitleCandidates({
    ÖZET ADAYLARI
    ========================================================= */
 
-function generateSummaryCandidates({
+function buildSummaryCandidates({
+
   originalTitle,
   originalText,
   category,
   facts,
   pdfUrl
+
 }) {
 
-  const candidates =
+  const title =
+    normalize(
+      originalTitle
+    );
+
+
+  const body =
+    cleanHtml(
+      originalText
+    );
+
+
+  const summaries =
     [];
 
 
-  const location =
-    validLocation(
-      facts.location
-    );
-
-
-  const eventDate =
-    clean(
-      facts.eventDate
-    );
-
-
-  const dateRange =
-    clean(
-      facts.dateRange
-    );
-
-
-  const deadline =
-    clean(
-      facts.deadlineText
-    );
-
-
   /* =======================================================
-     SEM SONUCU
+     SEM
      ======================================================= */
 
   if (
-    facts.isSemResult
+    facts.isSemResult ||
+    (
+      title.includes(
+        "SEM"
+      ) &&
+      title.includes(
+        "KAYIT HAKKI KAZANAN"
+      )
+    )
   ) {
 
-    let first =
-      "TYF, SEM yüzme branşında kayıt hakkı kazanan sporcuları açıkladı.";
+    const first =
+      facts.dateRange
+
+        ? `${facts.dateRange} tarihleri arasında yapılan başvuruların ardından SEM yüzme branşında kayıt hakkı kazanan sporcular açıklandı.`
+
+        : "SEM yüzme branşında kayıt hakkı kazanan sporcular açıklandı.";
 
 
-    if (
-      dateRange
-    ) {
+    const second =
+      facts.businessDays
 
-      first =
-        dateRange +
-        " tarihleri arasında yapılan başvuruların ardından SEM yüzme branşında kayıt hakkı kazanan sporcular açıklandı.";
+        ? `Hak kazanan sporcuların kayıt işlemlerini ${facts.businessDays} iş günü içinde tamamlaması gerekiyor.`
 
-    }
+        : facts.deadlineText
 
+          ? `Hak kazanan sporcuların kayıt işlemlerini ${facts.deadlineText} tarihine kadar tamamlaması gerekiyor.`
 
-    let second =
-      "Hak kazanan sporcuların kayıt işlemlerini federasyonun belirlediği süreçte tamamlaması gerekiyor.";
+          : "Hak kazanan sporcuların kayıt sürecini resmî duyurudaki takvime göre tamamlaması gerekiyor.";
 
 
-    if (
-      deadline
-    ) {
+    summaries.push({
 
-      second =
-        "Hak kazanan sporcuların kayıt işlemlerini " +
-        deadline +
-        " içinde tamamlaması gerekiyor.";
-
-    }
-
-
-    candidates.push({
-
-      text:
-        first +
-        " " +
-        second,
+      summary:
+        `${first} ${second}`,
 
       style:
         "action"
 
     });
 
+  }
 
-    candidates.push({
 
-      text:
-        "SEM yüzme branşındaki sonuçlar açıklandı. " +
-        (
-          deadline
-            ? "Listede yer alan sporcular için kayıt süresi " +
-              deadline +
-              "."
-            : "Listede yer alan sporcuların kayıt sürecini resmî duyurudan takip etmesi gerekiyor."
-        ),
+  /* =======================================================
+     BEBEK YÜZME
+     ======================================================= */
+
+  if (
+    facts.isBabySwimming ||
+    (
+      title.includes(
+        "BEBEK"
+      ) &&
+      title.includes(
+        "SEMINER"
+      )
+    )
+  ) {
+
+    const when =
+      facts.eventDate
+        ? `${facts.eventDate} tarihlerinde`
+        : "yaklaşan dönemde";
+
+
+    const where =
+      validLocation(
+        facts.location
+      )
+        ? `${facts.location}’da`
+        : "";
+
+
+    summaries.push({
+
+      summary:
+        `TYF, Bebek Yüzme Gelişim Semineri’ni ${when} ${where} düzenleyecek. Katılım, program ve başvuru ayrıntıları federasyonun resmî duyurusunda yer alıyor.`
+          .replace(
+            /\s+/g,
+            " "
+          )
+          .trim(),
 
       style:
-        "short"
+        "fact-rich"
 
     });
 
@@ -895,82 +855,128 @@ function generateSummaryCandidates({
      ANTRENÖR KURSU
      ======================================================= */
 
-  else if (
-    facts.isCoachCourse
+  if (
+    facts.isCoachCourse ||
+    (
+      title.includes(
+        "ANTRENOR"
+      ) &&
+      title.includes(
+        "KURS"
+      )
+    )
   ) {
 
-    let first =
-      "TYF, yüzme antrenörlüğü kursuna ilişkin yeni duyuruyu yayımladı.";
-
-
-    if (
+    const grade =
       facts.grade
-    ) {
-
-      first =
-        "TYF, " +
-        facts.grade +
-        ". Kademe yüzme antrenörlüğü kursunun ayrıntılarını açıkladı.";
-
-    }
+        ? `${facts.grade}. Kademe `
+        : "";
 
 
     const details =
-      [];
+      [
 
+        facts.eventDate,
 
-    if (
-      eventDate
-    ) {
+        validLocation(
+          facts.location
+        )
+          ? facts.location
+          : ""
 
-      details.push(
-        eventDate
-      );
-
-    }
-
-
-    if (
-      location
-    ) {
-
-      details.push(
-        location
-      );
-
-    }
-
-
-    if (
-      details.length
-    ) {
-
-      first +=
-        " Kurs " +
-        details.join(
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
           " · "
-        ) +
-        " bilgileriyle duyuruldu.";
+        );
+
+
+    let text =
+      `TYF, ${grade}yüzme antrenörlüğü kursuna ilişkin yeni duyuruyu yayımladı.`;
+
+
+    if (
+      details
+    ) {
+
+      text +=
+        ` Kurs ${details} bilgileriyle duyuruldu.`;
 
     }
 
 
-    candidates.push({
+    if (
+      facts.deadlineText
+    ) {
 
-      text:
-        first +
-        " Başvuru, katılım ve gerekli belgeler resmî duyuruda yer alıyor.",
+      text +=
+        ` Son başvuru/kayıt bilgisi: ${facts.deadlineText}.`;
+
+    }
+
+
+    text +=
+      pdfUrl
+
+        ? " Başvuru ve katılım ayrıntıları resmî PDF duyurusunda yer alıyor."
+
+        : " Başvuru ve katılım ayrıntıları resmî kaynakta yer alıyor.";
+
+
+    summaries.push({
+
+      summary:
+        text,
 
       style:
         "informative"
 
     });
 
+  }
 
-    candidates.push({
 
-      text:
-        "Antrenörlerin kurs tarihleri, başvuru şartları ve gerekli belgeleri TYF’nin resmî duyurusundan kontrol etmesi gerekiyor.",
+  /* =======================================================
+     ANTRENÖR VİZE
+     ======================================================= */
+
+  if (
+    facts.isCoachVisa ||
+    title.includes(
+      "ANTRENOR VIZE"
+    )
+  ) {
+
+    summaries.push({
+
+      summary:
+        "TYF, yüzme antrenörlerinin vize işlemlerine ilişkin yeni bilgilendirme yayımladı. İşlem koşulları ve gerekli adımlar resmî duyuruda yer alıyor.",
+
+      style:
+        "informative"
+
+    });
+
+  }
+
+
+  /* =======================================================
+     TOHM
+     ======================================================= */
+
+  if (
+    facts.isTohm &&
+    title.includes(
+      "BASVURU"
+    )
+  ) {
+
+    summaries.push({
+
+      summary:
+        "TYF, TOHM sporcu başvurularına ilişkin yeni bilgilendirme yayımladı. Başvuru koşulları, tarihler ve gerekli belgeler için resmî duyurunun kontrol edilmesi gerekiyor.",
 
       style:
         "action"
@@ -981,129 +987,71 @@ function generateSummaryCandidates({
 
 
   /* =======================================================
-     BEBEK YÜZME SEMİNERİ
+     GERÇEK METİNDEN EN İYİ CÜMLELER
      ======================================================= */
 
-  else if (
-    facts.isBabySwimming
+  const factual =
+    bestSentences(
+
+      body,
+
+      [
+
+        "başvuru",
+        "kayıt",
+        "gerekmektedir",
+        "tarih",
+        "sporcu",
+        "antrenör",
+        "şampiyona",
+        "müsabaka",
+        "duyurulur",
+        "son başvuru",
+        "katılım"
+
+      ],
+
+      2
+
+    );
+
+
+  if (
+    factual
   ) {
 
-    let text =
-      "TYF, Bebek Yüzme Gelişim Semineri’nin yeni dönemini duyurdu.";
+    summaries.push({
 
-
-    if (
-      eventDate &&
-      location
-    ) {
-
-      text =
-        "TYF, Bebek Yüzme Gelişim Semineri’ni " +
-        eventDate +
-        " tarihlerinde " +
-        location +
-        "’da düzenleyecek.";
-
-    }
-
-
-    candidates.push({
-
-      text:
-        text +
-        " Katılım, program ve başvuru ayrıntıları federasyonun resmî duyurusunda yer alıyor.",
+      summary:
+        shorten(
+          factual,
+          360
+        ),
 
       style:
-        "informative"
-
-    });
-
-
-    candidates.push({
-
-      text:
-        "Bebek yüzme alanıyla ilgilenen antrenörler ve uzmanlar için düzenlenen seminerin tarih, program ve katılım bilgileri açıklandı.",
-
-      style:
-        "audience"
-
+        "source"
     });
 
   }
 
 
   /* =======================================================
-     YARIŞMA
+     KATEGORİ YEDEKLERİ
      ======================================================= */
 
-  else if (
+  if (
     category ===
     "event"
   ) {
 
-    let text =
-      "TYF yeni yarışma veya şampiyona duyurusunu yayımladı.";
+    summaries.push({
 
-
-    if (
-      facts.topic
-    ) {
-
-      text =
-        "TYF, " +
-        lowerFirst(
-          facts.topic
-        ) +
-        " için organizasyon ayrıntılarını açıkladı.";
-
-    }
-
-
-    const details =
-      [];
-
-
-    if (
-      eventDate
-    ) {
-
-      details.push(
-        eventDate
-      );
-
-    }
-
-
-    if (
-      location
-    ) {
-
-      details.push(
-        location
-      );
-
-    }
-
-
-    if (
-      details.length
-    ) {
-
-      text +=
-        " Etkinlik " +
-        details.join(
-          " · "
-        ) +
-        " bilgileriyle duyuruldu.";
-
-    }
-
-
-    candidates.push({
-
-      text:
-        text +
-        " Katılım ve organizasyon ayrıntıları resmî kaynakta yer alıyor.",
+      summary:
+        `TYF, ${toSentenceCase(
+          stripBilingualTail(
+            originalTitle
+          )
+        )} için yeni yarışma duyurusunu yayımladı. Katılım, tarih ve organizasyon ayrıntıları resmî kaynakta yer alıyor.`,
 
       style:
         "informative"
@@ -1113,19 +1061,15 @@ function generateSummaryCandidates({
   }
 
 
-  /* =======================================================
-     EĞİTİM
-     ======================================================= */
-
-  else if (
+  if (
     category ===
     "education"
   ) {
 
-    candidates.push({
+    summaries.push({
 
-      text:
-        "TYF, yüzme camiasına yönelik yeni eğitim veya seminer duyurusunu yayımladı. Tarih, program, katılım ve başvuru ayrıntıları resmî kaynakta yer alıyor.",
+      summary:
+        "TYF, yüzme camiasına yönelik yeni bir eğitim veya seminer duyurusu yayımladı. Tarih, katılım ve başvuru ayrıntıları resmî kaynakta yer alıyor.",
 
       style:
         "informative"
@@ -1135,19 +1079,15 @@ function generateSummaryCandidates({
   }
 
 
-  /* =======================================================
-     SPORCU
-     ======================================================= */
-
-  else if (
+  if (
     category ===
     "athlete"
   ) {
 
-    candidates.push({
+    summaries.push({
 
-      text:
-        "TYF, sporcuları ilgilendiren yeni bir resmî duyuru yayımladı. Kayıt, başvuru veya katılım bilgileri federasyonun resmî kaynağında yer alıyor.",
+      summary:
+        "TYF, sporcuları ilgilendiren yeni bir resmî duyuru yayımladı. Kayıt, başvuru veya katılım ayrıntıları federasyonun resmî kaynağında yer alıyor.",
 
       style:
         "informative"
@@ -1157,98 +1097,29 @@ function generateSummaryCandidates({
   }
 
 
-  /* =======================================================
-     GENEL
-     ======================================================= */
-
-  else {
-
-    candidates.push({
-
-      text:
-        "Türkiye Yüzme Federasyonu yeni bir resmî duyuru yayımladı. Sporcu, antrenör veya kulüpleri ilgilendiren ayrıntılar federasyonun resmî kaynağında yer alıyor.",
-
-      style:
-        "general"
-
-    });
-
-  }
-
-
-  /* =======================================================
-     GERÇEK METİNDEN YEDEK ÖZET
-     ======================================================= */
-
-  const extracted =
-    extractUsefulSentences(
-      originalText
-    );
-
-
   if (
-    extracted
+    !summaries.length
   ) {
 
-    candidates.push({
+    summaries.push({
 
-      text:
-        extracted,
+      summary:
+        fallbackSummary(
+          category,
+          pdfUrl
+        ),
 
       style:
-        "source-derived"
+        "fallback"
 
     });
 
   }
 
 
-  /* =======================================================
-     PDF VARSA BİLGİ
-     ======================================================= */
-
-  if (
-    pdfUrl
-  ) {
-
-    candidates.push({
-
-      text:
-        "Federasyon duyurusunda başvuru, katılım ve diğer ayrıntılar için ayrıca resmî PDF dokümanı yayımlandı.",
-
-      style:
-        "document"
-
-    });
-
-  }
-
-
-  return uniqueCandidates(
-    candidates
-  )
-
-    .filter(
-      item =>
-        item.text.length >= 40
-    )
-
-    .map(
-      item => ({
-        ...item,
-
-        text:
-          shorten(
-            item.text,
-            360
-          )
-      })
-    )
-
-    .slice(
-      0,
-      6
-    );
+  return uniqueSummaryCandidates(
+    summaries
+  );
 
 }
 
@@ -1257,13 +1128,15 @@ function generateSummaryCandidates({
    AKSİYON BUTONU
    ========================================================= */
 
-function createActionLabel(
+function actionLabelFor(
   category,
   facts
 ) {
 
   if (
-    facts.isSemResult
+    facts.isSemResult ||
+    facts.topic ===
+    "SEM sonuçları"
   ) {
 
     return "Listeyi Kontrol Et";
@@ -1272,7 +1145,9 @@ function createActionLabel(
 
 
   if (
-    facts.isCoachCourse
+    facts.isCoachCourse ||
+    facts.topic ===
+    "Antrenör kursu"
   ) {
 
     return "Kurs Detayları";
@@ -1281,7 +1156,9 @@ function createActionLabel(
 
 
   if (
-    facts.isCoachVisa
+    facts.isCoachVisa ||
+    facts.topic ===
+    "Antrenör vize"
   ) {
 
     return "Vize Detayları";
@@ -1290,7 +1167,9 @@ function createActionLabel(
 
 
   if (
-    facts.isTohm
+    facts.isTohm ||
+    facts.topic ===
+    "TOHM"
   ) {
 
     return "Başvuruyu İncele";
@@ -1328,7 +1207,7 @@ function createActionLabel(
   }
 
 
-  return "Detayı Gör";
+  return "Detay";
 
 }
 
@@ -1337,7 +1216,7 @@ function createActionLabel(
    ETİKETLER
    ========================================================= */
 
-function createTags(
+function buildTags(
   category,
   facts
 ) {
@@ -1397,7 +1276,9 @@ function createTags(
 
 
   if (
-    facts.isSem
+    facts.isSem ||
+    facts.topic ===
+    "SEM sonuçları"
   ) {
 
     tags.push(
@@ -1408,7 +1289,9 @@ function createTags(
 
 
   if (
-    facts.isTohm
+    facts.isTohm ||
+    facts.topic ===
+    "TOHM"
   ) {
 
     tags.push(
@@ -1423,8 +1306,7 @@ function createTags(
   ) {
 
     tags.push(
-      facts.grade +
-      ". Kademe"
+      `${facts.grade}. Kademe`
     );
 
   }
@@ -1445,186 +1327,11 @@ function createTags(
 
   return [
     ...new Set(
-      tags
+      tags.filter(
+        Boolean
+      )
     )
   ];
-
-}
-
-
-/* =========================================================
-   GENEL EDİTÖR PUANI
-   ========================================================= */
-
-function calculateOverallEditorialScore(
-  titles,
-  summaries
-) {
-
-  const titleScore =
-    titles.length
-
-      ? Number(
-          titles[0].score || 0
-        )
-
-      : 0;
-
-
-  const summaryScore =
-    summaries.length
-
-      ? Number(
-          summaries[0].score || 0
-        )
-
-      : 0;
-
-
-  return round(
-
-    (
-      titleScore *
-      0.55
-    )
-
-    +
-
-    (
-      summaryScore *
-      0.45
-    )
-
-  );
-
-}
-
-
-/* =========================================================
-   KAYNAK METİNDEN ÖZET
-   ========================================================= */
-
-function extractUsefulSentences(
-  text
-) {
-
-  const source =
-    clean(
-      text
-    );
-
-
-  if (
-    source.length < 80
-  ) {
-
-    return "";
-
-  }
-
-
-  const sentences =
-    source.match(
-      /[^.!?]+[.!?]+|[^.!?]+$/g
-    ) || [];
-
-
-  const useful =
-    sentences
-
-      .map(
-        item =>
-          item.trim()
-      )
-
-      .filter(
-        sentence => {
-
-          const lower =
-            sentence
-              .toLocaleLowerCase(
-                "tr-TR"
-              );
-
-
-          return (
-
-            sentence.length >= 35 &&
-
-            (
-              lower.includes(
-                "başvuru"
-              ) ||
-
-              lower.includes(
-                "kayıt"
-              ) ||
-
-              lower.includes(
-                "sporcu"
-              ) ||
-
-              lower.includes(
-                "antrenör"
-              ) ||
-
-              lower.includes(
-                "tarih"
-              ) ||
-
-              lower.includes(
-                "seminer"
-              ) ||
-
-              lower.includes(
-                "kurs"
-              ) ||
-
-              lower.includes(
-                "şampiyona"
-              )
-
-            )
-
-          );
-
-        }
-      )
-
-      .slice(
-        0,
-        2
-      );
-
-
-  return shorten(
-    useful.join(
-      " "
-    ),
-    340
-  );
-
-}
-
-
-/* =========================================================
-   YEDEK BAŞLIK
-   ========================================================= */
-
-function fallbackTitle(
-  originalTitle
-) {
-
-  const cleaned =
-    cleanTitle(
-      originalTitle
-    );
-
-
-  return (
-    cleaned ||
-    "Türkiye Yüzme Federasyonu yeni duyuru yayımladı"
-  );
 
 }
 
@@ -1634,205 +1341,197 @@ function fallbackTitle(
    ========================================================= */
 
 function fallbackSummary(
-  facts
+  category,
+  pdfUrl
 ) {
 
-  if (
-    facts.actionRequired
-  ) {
+  const map = {
 
-    return (
-      "Türkiye Yüzme Federasyonu yeni bir duyuru yayımladı. Kullanıcıların gerekli işlemleri ve tarihleri resmî kaynaktan kontrol etmesi gerekiyor."
-    );
+    coach:
+      "TYF, antrenörleri ilgilendiren yeni bir resmî duyuru yayımladı.",
 
-  }
+    athlete:
+      "TYF, sporcuları ilgilendiren yeni bir resmî duyuru yayımladı.",
+
+    event:
+      "TYF, yeni bir yarışma veya şampiyona duyurusu yayımladı.",
+
+    education:
+      "TYF, yeni bir eğitim veya seminer duyurusu yayımladı.",
+
+    announcement:
+      "TYF, yeni bir resmî spor duyurusu yayımladı."
+
+  };
 
 
   return (
-    "Türkiye Yüzme Federasyonu yeni bir resmî spor duyurusu yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor."
+    (
+      map[
+        category
+      ] ||
+      map.announcement
+    )
+    +
+    " "
+    +
+    (
+      pdfUrl
+        ? "Ayrıntılar resmî PDF duyurusunda yer alıyor."
+        : "Ayrıntılar resmî kaynakta yer alıyor."
+    )
   );
 
 }
 
 
 /* =========================================================
-   BAŞLIK TEMİZLE
+   GERÇEK METİNDEN EN İYİ CÜMLELER
    ========================================================= */
 
-function cleanTitle(
-  value
+function bestSentences(
+  text,
+  keywords,
+  count
 ) {
 
-  let text =
-    clean(
-      value
-    );
-
-
-  text =
-    text.replace(
-      /\s+INTERNATIONAL\b[\s\S]*$/i,
-      ""
-    );
-
-
-  text =
-    text.replace(
-      /\s+SHORT\s+COURSE\b[\s\S]*$/i,
-      ""
-    );
-
-
-  if (
-    text.length > 110
-  ) {
-
-    text =
-      shorten(
-        text,
-        110
-      );
-
-  }
-
-
-  return sentenceCase(
-    text
-  );
-
-}
-
-
-/* =========================================================
-   BENZERSİZ ADAYLAR
-   ========================================================= */
-
-function uniqueCandidates(
-  candidates
-) {
-
-  const result =
-    [];
-
-
-  const used =
-    new Set();
-
-
-  for (
-    const item
-    of candidates
-  ) {
-
-    const text =
-      clean(
-        item.text
-      );
-
-
-    if (
-      !text
-    ) {
-
-      continue;
-
-    }
-
-
-    const key =
+  const sentences =
+    splitSentences(
       text
-        .toLocaleLowerCase(
-          "tr-TR"
-        );
-
-
-    if (
-      used.has(
-        key
-      )
-    ) {
-
-      continue;
-
-    }
-
-
-    used.add(
-      key
     );
 
 
-    result.push({
+  const ranked =
+    sentences.map(
+      (
+        sentence,
+        index
+      ) => {
 
-      ...item,
+        const lower =
+          String(
+            sentence ||
+            ""
+          )
+            .toLocaleLowerCase(
+              "tr-TR"
+            );
 
-      text:
-        text
 
-    });
-
-  }
+        let score =
+          0;
 
 
-  return result;
+        for (
+          const keyword
+          of keywords
+        ) {
+
+          if (
+            lower.includes(
+              String(
+                keyword
+              )
+                .toLocaleLowerCase(
+                  "tr-TR"
+                )
+            )
+          ) {
+
+            score +=
+              3;
+
+          }
+
+        }
+
+
+        if (
+          /\d/.test(
+            sentence
+          )
+        ) {
+
+          score +=
+            1;
+
+        }
+
+
+        return {
+
+          sentence:
+            sentence,
+
+          index:
+            index,
+
+          score:
+            score
+
+        };
+
+      }
+    );
+
+
+  return ranked
+
+    .filter(
+      item =>
+        item.score >
+        0
+    )
+
+    .sort(
+      (a, b) =>
+        b.score -
+        a.score
+    )
+
+    .slice(
+      0,
+      count
+    )
+
+    .sort(
+      (a, b) =>
+        a.index -
+        b.index
+    )
+
+    .map(
+      item =>
+        item.sentence
+    )
+
+    .join(
+      " "
+    );
 
 }
 
 
 /* =========================================================
-   KONUM KONTROL
+   ÇİFT DİLLİ BAŞLIK KUYRUĞUNU TEMİZLE
    ========================================================= */
 
-function validLocation(
-  location
+function stripBilingualTail(
+  title
 ) {
 
-  const value =
-    clean(
-      location
-    );
-
-
-  if (
-    !value ||
-    value === "Türkiye"
-  ) {
-
-    return "";
-
-  }
-
-
-  return value;
-
-}
-
-
-/* =========================================================
-   METİN TEMİZLE
-   ========================================================= */
-
-function clean(
-  value
-) {
-
-  return String(
-    value || ""
+  return cleanHtml(
+    title
   )
 
     .replace(
-      /<[^>]+>/g,
-      " "
+      /\s+INTERNATIONAL\b[\s\S]*$/i,
+      ""
     )
 
     .replace(
-      /[\u00A0\u2007\u202F]/g,
-      " "
-    )
-
-    .replace(
-      /\s+/g,
-      " "
+      /\s+SHORT\s+COURSE\b[\s\S]*$/i,
+      ""
     )
 
     .trim();
@@ -1841,15 +1540,45 @@ function clean(
 
 
 /* =========================================================
+   BAŞLIK TEMİZLE
+   ========================================================= */
+
+function cleanDisplayTitle(
+  title
+) {
+
+  const text =
+    toSentenceCase(
+      cleanHtml(
+        title
+      )
+    );
+
+
+  return (
+    text.length <= 105
+
+      ? text
+
+      : shorten(
+          text,
+          105
+        )
+  );
+
+}
+
+
+/* =========================================================
    CÜMLE BİÇİMİ
    ========================================================= */
 
-function sentenceCase(
+function toSentenceCase(
   value
 ) {
 
   const text =
-    clean(
+    cleanHtml(
       value
     );
 
@@ -1864,10 +1593,9 @@ function sentenceCase(
 
 
   const lower =
-    text
-      .toLocaleLowerCase(
-        "tr-TR"
-      );
+    text.toLocaleLowerCase(
+      "tr-TR"
+    );
 
 
   return (
@@ -1884,42 +1612,6 @@ function sentenceCase(
 
 
 /* =========================================================
-   İLK HARF KÜÇÜK
-   ========================================================= */
-
-function lowerFirst(
-  value
-) {
-
-  const text =
-    clean(
-      value
-    );
-
-
-  if (
-    !text
-  ) {
-
-    return "";
-
-  }
-
-
-  return (
-    text
-      .charAt(0)
-      .toLocaleLowerCase(
-        "tr-TR"
-      )
-    +
-    text.slice(1)
-  );
-
-}
-
-
-/* =========================================================
    METİN KISALT
    ========================================================= */
 
@@ -1929,7 +1621,7 @@ function shorten(
 ) {
 
   const text =
-    clean(
+    cleanHtml(
       value
     );
 
@@ -1943,24 +1635,24 @@ function shorten(
   }
 
 
-  const partial =
+  const part =
     text.slice(
       0,
       max
     );
 
 
-  const lastSpace =
-    partial.lastIndexOf(
+  const space =
+    part.lastIndexOf(
       " "
     );
 
 
   return (
-    partial.slice(
+    part.slice(
       0,
-      lastSpace > 0
-        ? lastSpace
+      space > 0
+        ? space
         : max
     )
     +
@@ -1971,18 +1663,204 @@ function shorten(
 
 
 /* =========================================================
-   PUAN YUVARLA
+   KONUM GEÇERLİ Mİ?
    ========================================================= */
 
-function round(
+function validLocation(
   value
 ) {
 
-  return Math.round(
-    Number(
-      value || 0
-    ) *
-    10
-  ) / 10;
+  const location =
+    String(
+      value ||
+      ""
+    )
+      .trim();
+
+
+  return Boolean(
+    location &&
+    location !==
+    "Türkiye"
+  );
 
 }
+
+
+/* =========================================================
+   BAŞLIK ADAYLARINI TEKİLLEŞTİR
+   ========================================================= */
+
+function uniqueTitleCandidates(
+  candidates
+) {
+
+  const result =
+    [];
+
+
+  const seen =
+    new Set();
+
+
+  for (
+    const candidate
+    of candidates
+  ) {
+
+    const title =
+      cleanHtml(
+        candidate?.title ||
+        ""
+      );
+
+
+    if (
+      !title
+    ) {
+
+      continue;
+
+    }
+
+
+    const key =
+      title.toLocaleLowerCase(
+        "tr-TR"
+      );
+
+
+    if (
+      seen.has(
+        key
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    seen.add(
+      key
+    );
+
+
+    result.push({
+
+      title:
+        title,
+
+      style:
+        candidate.style ||
+        "source"
+
+    });
+
+  }
+
+
+  return result;
+
+}
+
+
+/* =========================================================
+   ÖZET ADAYLARINI TEKİLLEŞTİR
+   ========================================================= */
+
+function uniqueSummaryCandidates(
+  candidates
+) {
+
+  const result =
+    [];
+
+
+  const seen =
+    new Set();
+
+
+  for (
+    const candidate
+    of candidates
+  ) {
+
+    const summary =
+      cleanHtml(
+        candidate?.summary ||
+        ""
+      );
+
+
+    if (
+      !summary
+    ) {
+
+      continue;
+
+    }
+
+
+    const key =
+      summary.toLocaleLowerCase(
+        "tr-TR"
+      );
+
+
+    if (
+      seen.has(
+        key
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    seen.add(
+      key
+    );
+
+
+    result.push({
+
+      summary:
+        summary,
+
+      style:
+        candidate.style ||
+        "source"
+
+    });
+
+  }
+
+
+  return result;
+
+}
+
+
+/* =========================================================
+   PUAN GÜVENLİĞİ
+   ========================================================= */
+
+function safeScore(
+  value
+) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
+
+      }
