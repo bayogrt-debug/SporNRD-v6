@@ -1,66 +1,145 @@
 /* =========================================================
-   SporNRD Worker
-   v6.0.2
-   TYF + TBF
-   GitHub düz dosya yapısı
+   SporNRD
+   worker/worker.js
+
+   Sürüm: 6.0.2
+   Mimari: Multi Source Modular
+
+   AKTİF KAYNAKLAR
+   ---------------------------------------------------------
+   1. Türkiye Yüzme Federasyonu
+   2. Türkiye Basketbol Federasyonu
+
+   ENDPOINTLER
+   ---------------------------------------------------------
+   /
+   /api/health
+   /api/sources
+   /api/feed
+   /api/tyf
+   /api/tbf
+   /api/feedback
+   /api/learning
    ========================================================= */
+
 
 import {
   getTyfFeed
-} from "./tyf.js";
+} from "./sources/tyf.js";
+
 
 import {
   getTbfFeed
-} from "./tbf.js";
+} from "./sources/tbf.js";
+
 
 import {
   recordFeedback
-} from "./feedbackEngine.js";
+} from "./learning/feedbackEngine.js";
+
 
 import {
   readLearningState
-} from "./learningStore.js";
+} from "./learning/learningStore.js";
+
 
 import {
   CORS,
   json
-} from "./response.js";
-
-
-const VERSION = "6.0.3";
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 30;
+} from "./utils/response.js";
 
 
 /* =========================================================
-   KAYNAKLAR
+   SİSTEM
    ========================================================= */
 
-const SOURCES = {
+const VERSION =
+  "6.0.2";
+
+
+const DEFAULT_LIMIT =
+  20;
+
+
+const MAX_LIMIT =
+  30;
+
+
+/* =========================================================
+   KAYNAK KAYIT MERKEZİ
+   ========================================================= */
+
+const SOURCE_PROVIDERS = {
+
+  /* -------------------------------------------------------
+     TÜRKİYE YÜZME FEDERASYONU
+     ------------------------------------------------------- */
 
   tyf: {
-    id: "tyf",
-    name: "Türkiye Yüzme Federasyonu",
-    shortName: "TYF",
-    sport: "Yüzme",
-    sourceType: "FEDERASYON",
-    verified: true,
-    enabled: true,
-    endpoint: "/api/tyf",
-    getFeed: getTyfFeed
+
+    id:
+      "tyf",
+
+    name:
+      "Türkiye Yüzme Federasyonu",
+
+    shortName:
+      "TYF",
+
+    sport:
+      "Yüzme",
+
+    sourceType:
+      "FEDERASYON",
+
+    verified:
+      true,
+
+    enabled:
+      true,
+
+    endpoint:
+      "/api/tyf",
+
+    getFeed:
+      getTyfFeed
+
   },
 
+
+  /* -------------------------------------------------------
+     TÜRKİYE BASKETBOL FEDERASYONU
+     ------------------------------------------------------- */
+
   tbf: {
-    id: "tbf",
-    name: "Türkiye Basketbol Federasyonu",
-    shortName: "TBF",
-    sport: "Basketbol",
-    sourceType: "FEDERASYON",
-    verified: true,
-    enabled: true,
-    endpoint: "/api/tbf",
-    getFeed: getTbfFeed
+
+    id:
+      "tbf",
+
+    name:
+      "Türkiye Basketbol Federasyonu",
+
+    shortName:
+      "TBF",
+
+    sport:
+      "Basketbol",
+
+    sourceType:
+      "FEDERASYON",
+
+    verified:
+      true,
+
+    enabled:
+      true,
+
+    endpoint:
+      "/api/tbf",
+
+    getFeed:
+      getTbfFeed
+
   }
 
 };
@@ -72,47 +151,68 @@ const SOURCES = {
 
 export default {
 
-  async fetch(request, env) {
+  async fetch(
+    request,
+    env
+  ) {
 
-    /* -----------------------------------------------------
+    /* =====================================================
        CORS
-       ----------------------------------------------------- */
+       ===================================================== */
 
-    if (request.method === "OPTIONS") {
+    if (
+      request.method ===
+      "OPTIONS"
+    ) {
 
-      return new Response(null, {
-        status: 204,
-        headers: CORS
-      });
+      return new Response(
+        null,
+        {
+
+          status:
+            204,
+
+          headers:
+            CORS
+
+        }
+      );
 
     }
 
 
-    const url = new URL(request.url);
+    const url =
+      new URL(
+        request.url
+      );
 
-    const path = normalizePath(
-      url.pathname
-    );
+
+    const pathname =
+      normalizePath(
+        url.pathname
+      );
 
 
-    /* -----------------------------------------------------
-       ANA DURUM
-       ----------------------------------------------------- */
+    /* =====================================================
+       ANA SERVİS
+       ===================================================== */
 
     if (
-      path === "/" &&
+      pathname === "/" &&
       request.method === "GET"
     ) {
 
-      const activeSources =
-        getActiveSources();
+      const providers =
+        getActiveProviders();
+
 
       return json({
 
-        ok: true,
+        ok:
+          true,
 
         service:
-          "SporNRD Akıllı Spor Editörü",
+          "SporNRD Öğrenen Spor Editörü",
 
         status:
           "running",
@@ -121,35 +221,40 @@ export default {
           VERSION,
 
         architecture:
-          "multi-source",
+          "multi-source-modular",
 
         activeSourceCount:
-          activeSources.length,
+          providers.length,
 
         activeSources:
-          activeSources.map(source => ({
+          providers.map(
+            provider => ({
 
-            id:
-              source.id,
+              id:
+                provider.id,
 
-            name:
-              source.name,
+              name:
+                provider.name,
 
-            shortName:
-              source.shortName,
+              shortName:
+                provider.shortName,
 
-            sport:
-              source.sport,
+              sport:
+                provider.sport,
 
-            verified:
-              source.verified
+              verified:
+                provider.verified
 
-          })),
+            })
+          ),
 
         learning:
+
           env &&
           env.SPORNRD_LEARNING
+
             ? "global-kv"
+
             : "local-fallback",
 
         endpoints: {
@@ -182,76 +287,88 @@ export default {
     }
 
 
-    /* -----------------------------------------------------
+    /* =====================================================
        HEALTH
-       ----------------------------------------------------- */
+       ===================================================== */
 
     if (
-      path === "/api/health" &&
+      pathname === "/api/health" &&
       request.method === "GET"
     ) {
 
       return json({
 
-        ok: true,
+        ok:
+          true,
 
         status:
           "healthy",
+
+        service:
+          "SporNRD",
 
         version:
           VERSION,
 
         timestamp:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
 
         activeSourceCount:
-          getActiveSources().length
+          getActiveProviders()
+            .length
 
       });
 
     }
 
 
-    /* -----------------------------------------------------
-       KAYNAK LİSTESİ
-       ----------------------------------------------------- */
+    /* =====================================================
+       KAYNAKLAR
+       ===================================================== */
 
     if (
-      path === "/api/sources" &&
+      pathname === "/api/sources" &&
       request.method === "GET"
     ) {
 
       const sources =
-        getActiveSources()
-          .map(source => ({
+        getActiveProviders()
+          .map(
+            provider => ({
 
-            id:
-              source.id,
+              id:
+                provider.id,
 
-            name:
-              source.name,
+              name:
+                provider.name,
 
-            shortName:
-              source.shortName,
+              shortName:
+                provider.shortName,
 
-            sport:
-              source.sport,
+              sport:
+                provider.sport,
 
-            sourceType:
-              source.sourceType,
+              sourceType:
+                provider.sourceType,
 
-            verified:
-              source.verified,
+              verified:
+                provider.verified,
 
-            endpoint:
-              source.endpoint
+              enabled:
+                provider.enabled,
 
-          }));
+              endpoint:
+                provider.endpoint
+
+            })
+          );
 
 
       return json({
 
-        ok: true,
+        ok:
+          true,
 
         count:
           sources.length,
@@ -264,65 +381,84 @@ export default {
     }
 
 
-    /* -----------------------------------------------------
-       BİRLEŞİK AKIŞ
+    /* =====================================================
+       BİRLEŞİK SPORNRD AKIŞI
+
        TYF + TBF
-       ----------------------------------------------------- */
+       ===================================================== */
 
     if (
-      path === "/api/feed" &&
+      pathname === "/api/feed" &&
       request.method === "GET"
     ) {
 
       try {
 
         const limit =
-          getLimit(url);
+          getLimit(
+            url
+          );
 
 
         const requestedSources =
-          getRequestedSources(url);
+          parseRequestedSources(
+            url
+          );
 
 
         const result =
-          await createUnifiedFeed({
+          await buildUnifiedFeed({
 
-            env,
-            limit,
-            requestedSources
+            env:
+              env,
+
+            limit:
+              limit,
+
+            requestedSources:
+              requestedSources
 
           });
 
 
-        return json({
+        return json(
+          {
 
-          ok: true,
+            ok:
+              true,
 
-          type:
-            "SPORNRD_FEED",
+            type:
+              "SPORNRD_FEED",
 
-          version:
-            VERSION,
+            version:
+              VERSION,
 
-          fetchedAt:
-            new Date().toISOString(),
+            fetchedAt:
+              new Date()
+                .toISOString(),
 
-          sourceCount:
-            result.sources.length,
+            sourceCount:
+              result.sources.length,
 
-          sources:
-            result.sources,
+            sources:
+              result.sources,
 
-          count:
-            result.items.length,
+            count:
+              result.items.length,
 
-          items:
-            result.items,
+            items:
+              result.items,
 
-          errors:
-            result.errors
+            errors:
+              result.errors
 
-        });
+          },
+
+          200,
+
+          120
+
+        );
 
       }
 
@@ -331,16 +467,21 @@ export default {
         return json(
           {
 
-            ok: false,
+            ok:
+              false,
 
             error:
-              "SporNRD akışı oluşturulamadı.",
+              "SporNRD birleşik akışı oluşturulamadı.",
 
             detail:
-              getErrorMessage(error)
+              errorMessage(
+                error
+              )
 
           },
+
           502
+
         );
 
       }
@@ -348,57 +489,60 @@ export default {
     }
 
 
-    /* -----------------------------------------------------
-       TEK FEDERASYON
+    /* =====================================================
+       TEK FEDERASYON ENDPOINTİ
+
        /api/tyf
        /api/tbf
-       ----------------------------------------------------- */
+       ===================================================== */
 
-    const source =
-      findSourceByEndpoint(path);
+    const provider =
+      findProviderByEndpoint(
+        pathname
+      );
 
 
     if (
-      source &&
+      provider &&
       request.method === "GET"
     ) {
 
-      return handleSingleSource({
+      return handleProviderFeed({
 
-        source,
-        url,
-        env
+        provider:
+          provider,
+
+        url:
+          url,
+
+        env:
+          env
 
       });
 
     }
 
 
-    /* -----------------------------------------------------
+    /* =====================================================
        FEEDBACK
-       ----------------------------------------------------- */
+       ===================================================== */
 
     if (
-      path === "/api/feedback" &&
+      pathname === "/api/feedback" &&
       request.method === "POST"
     ) {
 
       try {
 
         const payload =
-          await request.json();
-
-
-        if (
-          !payload ||
-          !payload.action
-        ) {
-
-          throw new Error(
-            "Feedback action alanı gerekli."
+          await readJsonBody(
+            request
           );
 
-        }
+
+        validateFeedback(
+          payload
+        );
 
 
         const result =
@@ -410,7 +554,8 @@ export default {
 
         return json({
 
-          ok: true,
+          ok:
+            true,
 
           persisted:
             Boolean(
@@ -419,10 +564,17 @@ export default {
             ),
 
           mode:
+
             result &&
             result.persisted
+
               ? "global-kv"
-              : "local-fallback"
+
+              : "local-fallback",
+
+          receivedAt:
+            new Date()
+              .toISOString()
 
         });
 
@@ -433,16 +585,21 @@ export default {
         return json(
           {
 
-            ok: false,
+            ok:
+              false,
 
             error:
               "Feedback işlenemedi.",
 
             detail:
-              getErrorMessage(error)
+              errorMessage(
+                error
+              )
 
           },
+
           400
+
         );
 
       }
@@ -450,32 +607,38 @@ export default {
     }
 
 
-    /* -----------------------------------------------------
-       ÖĞRENME DURUMU
-       ----------------------------------------------------- */
+    /* =====================================================
+       ÖĞRENME
+       ===================================================== */
 
     if (
-      path === "/api/learning" &&
+      pathname === "/api/learning" &&
       request.method === "GET"
     ) {
 
       try {
 
         const learning =
-          await readLearningState(env);
+          await readLearningState(
+            env
+          );
 
 
         return json({
 
-          ok: true,
+          ok:
+            true,
 
           version:
             VERSION,
 
           mode:
+
             env &&
             env.SPORNRD_LEARNING
+
               ? "global-kv"
+
               : "local-fallback",
 
           learning:
@@ -490,16 +653,21 @@ export default {
         return json(
           {
 
-            ok: false,
+            ok:
+              false,
 
             error:
               "Öğrenme durumu okunamadı.",
 
             detail:
-              getErrorMessage(error)
+              errorMessage(
+                error
+              )
 
           },
+
           500
+
         );
 
       }
@@ -507,20 +675,55 @@ export default {
     }
 
 
-    /* -----------------------------------------------------
-       ENDPOINT YOK
-       ----------------------------------------------------- */
+    /* =====================================================
+       BİLİNEN ENDPOINT / YANLIŞ METHOD
+       ===================================================== */
+
+    if (
+      isKnownPath(
+        pathname
+      )
+    ) {
+
+      return json(
+        {
+
+          ok:
+            false,
+
+          error:
+            "Bu endpoint için HTTP yöntemi desteklenmiyor.",
+
+          method:
+            request.method,
+
+          path:
+            pathname
+
+        },
+
+        405
+
+      );
+
+    }
+
+
+    /* =====================================================
+       404
+       ===================================================== */
 
     return json(
       {
 
-        ok: false,
+        ok:
+          false,
 
         error:
-          "Endpoint bulunamadı",
+          "Endpoint bulunamadı.",
 
         path:
-          path,
+          pathname,
 
         availableEndpoints: [
 
@@ -543,7 +746,9 @@ export default {
         ]
 
       },
+
       404
+
     );
 
   }
@@ -552,26 +757,33 @@ export default {
 
 
 /* =========================================================
-   TEK KAYNAK
+   TEK FEDERASYON AKIŞI
    ========================================================= */
 
-async function handleSingleSource({
-  source,
+async function handleProviderFeed({
+
+  provider,
   url,
   env
+
 }) {
 
   try {
 
     const limit =
-      getLimit(url);
+      getLimit(
+        url
+      );
 
 
     const feed =
-      await source.getFeed({
+      await provider.getFeed({
 
-        limit,
-        env
+        limit:
+          limit,
+
+        env:
+          env
 
       });
 
@@ -581,31 +793,44 @@ async function handleSingleSource({
         feed &&
         feed.items
       )
+
         ? feed.items
+
         : [];
 
 
-    return json({
+    return json(
+      {
 
-      ok: true,
+        ok:
+          true,
 
-      version:
-        VERSION,
+        version:
+          VERSION,
 
-      source:
-        feed.source ||
-        createSourceInfo(source),
+        source:
+          feed.source ||
+          createSourceInfo(
+            provider
+          ),
 
-      fetchedAt:
-        new Date().toISOString(),
+        fetchedAt:
+          new Date()
+            .toISOString(),
 
-      count:
-        items.length,
+        count:
+          items.length,
 
-      items:
-        items
+        items:
+          items
 
-    });
+      },
+
+      200,
+
+      180
+
+    );
 
   }
 
@@ -614,27 +839,32 @@ async function handleSingleSource({
     return json(
       {
 
-        ok: false,
+        ok:
+          false,
 
         source: {
 
           id:
-            source.id,
+            provider.id,
 
           name:
-            source.name
+            provider.name
 
         },
 
         error:
-          source.shortName +
+          provider.shortName +
           " verileri alınamadı.",
 
         detail:
-          getErrorMessage(error)
+          errorMessage(
+            error
+          )
 
       },
+
       502
+
     );
 
   }
@@ -646,15 +876,22 @@ async function handleSingleSource({
    BİRLEŞİK AKIŞ
    ========================================================= */
 
-async function createUnifiedFeed({
+async function buildUnifiedFeed({
+
   env,
   limit,
   requestedSources
+
 }) {
 
-  let sources =
-    getActiveSources();
+  let providers =
+    getActiveProviders();
 
+
+  /* -------------------------------------------------------
+     Örnek:
+     /api/feed?sources=tyf,tbf
+     ------------------------------------------------------- */
 
   if (
     requestedSources.length
@@ -666,61 +903,107 @@ async function createUnifiedFeed({
       );
 
 
-    sources =
-      sources.filter(
-        source =>
+    providers =
+      providers.filter(
+        provider =>
           requested.has(
-            source.id
+            provider.id
           )
       );
 
   }
 
 
+  if (
+    !providers.length
+  ) {
+
+    return {
+
+      sources:
+        [],
+
+      items:
+        [],
+
+      errors:
+        []
+
+    };
+
+  }
+
+
+  /* -------------------------------------------------------
+     Kaynakları paralel oku.
+     TBF hata verirse TYF devam eder.
+     TYF hata verirse TBF devam eder.
+     ------------------------------------------------------- */
+
   const results =
     await Promise.allSettled(
 
-      sources.map(
-        async source => {
+      providers.map(
+
+        async provider => {
 
           const feed =
-            await source.getFeed({
+            await provider.getFeed({
 
               limit:
                 MAX_LIMIT,
 
-              env
+              env:
+                env
 
             });
 
 
           return {
-            source,
-            feed
+
+            provider:
+              provider,
+
+            feed:
+              feed
+
           };
 
         }
+
       )
 
     );
 
 
-  const items = [];
-  const successfulSources = [];
-  const errors = [];
+  const items =
+    [];
+
+
+  const sources =
+    [];
+
+
+  const errors =
+    [];
 
 
   for (
-    let i = 0;
-    i < results.length;
-    i++
+    let index = 0;
+    index < results.length;
+    index++
   ) {
 
     const result =
-      results[i];
+      results[
+        index
+      ];
 
-    const source =
-      sources[i];
+
+    const provider =
+      providers[
+        index
+      ];
 
 
     if (
@@ -732,9 +1015,11 @@ async function createUnifiedFeed({
         result.value.feed;
 
 
-      successfulSources.push(
+      sources.push(
         feed.source ||
-        createSourceInfo(source)
+        createSourceInfo(
+          provider
+        )
       );
 
 
@@ -750,10 +1035,12 @@ async function createUnifiedFeed({
         ) {
 
           items.push(
-            normalizeItem(
+
+            normalizeFeedItem(
               item,
-              source
+              provider
             )
+
           );
 
         }
@@ -767,13 +1054,13 @@ async function createUnifiedFeed({
       errors.push({
 
         sourceId:
-          source.id,
+          provider.id,
 
         source:
-          source.name,
+          provider.name,
 
         error:
-          getErrorMessage(
+          errorMessage(
             result.reason
           )
 
@@ -784,19 +1071,29 @@ async function createUnifiedFeed({
   }
 
 
-  const uniqueItems =
-    removeDuplicates(items);
+  /* -------------------------------------------------------
+     Tekrarları temizle
+     ------------------------------------------------------- */
 
+  const uniqueItems =
+    dedupeUnifiedItems(
+      items
+    );
+
+
+  /* -------------------------------------------------------
+     Puan + tarihe göre sırala
+     ------------------------------------------------------- */
 
   uniqueItems.sort(
-    sortItems
+    compareFeedItems
   );
 
 
   return {
 
     sources:
-      successfulSources,
+      sources,
 
     items:
       uniqueItems.slice(
@@ -813,43 +1110,57 @@ async function createUnifiedFeed({
 
 
 /* =========================================================
-   HABERİ ORTAK FORMATA GETİR
+   ORTAK HABER MODELİ
    ========================================================= */
 
-function normalizeItem(
+function normalizeFeedItem(
   item,
-  source
+  provider
 ) {
 
   return {
 
     ...item,
 
+
     sourceId:
+
       item.sourceId ||
-      source.id,
+      provider.id,
+
 
     source:
+
       item.source ||
-      source.name,
+      provider.name,
+
 
     sourceShortName:
+
       item.sourceShortName ||
-      source.shortName,
+      provider.shortName,
+
 
     sourceType:
+
       item.sourceType ||
-      source.sourceType,
+      provider.sourceType,
+
 
     sport:
+
       item.sport ||
-      source.sport,
+      provider.sport,
+
 
     verified:
+
       typeof item.verified ===
       "boolean"
+
         ? item.verified
-        : source.verified
+
+        : provider.verified
 
   };
 
@@ -857,18 +1168,27 @@ function normalizeItem(
 
 
 /* =========================================================
-   TEKRAR TEMİZLE
+   KAYNAKLAR ARASI TEKRAR
    ========================================================= */
 
-function removeDuplicates(
+function dedupeUnifiedItems(
   items
 ) {
 
-  const output = [];
+  const output =
+    [];
 
-  const ids = new Set();
-  const urls = new Set();
-  const titles = new Set();
+
+  const usedIds =
+    new Set();
+
+
+  const usedUrls =
+    new Set();
+
+
+  const usedTitles =
+    new Set();
 
 
   for (
@@ -881,7 +1201,8 @@ function removeDuplicates(
         item.id ||
         item.externalId ||
         ""
-      ).trim();
+      )
+        .trim();
 
 
     const url =
@@ -902,7 +1223,9 @@ function removeDuplicates(
 
     if (
       id &&
-      ids.has(id)
+      usedIds.has(
+        id
+      )
     ) {
 
       continue;
@@ -912,7 +1235,9 @@ function removeDuplicates(
 
     if (
       url &&
-      urls.has(url)
+      usedUrls.has(
+        url
+      )
     ) {
 
       continue;
@@ -922,7 +1247,9 @@ function removeDuplicates(
 
     if (
       title &&
-      titles.has(title)
+      usedTitles.has(
+        title
+      )
     ) {
 
       continue;
@@ -930,22 +1257,42 @@ function removeDuplicates(
     }
 
 
-    if (id) {
-      ids.add(id);
+    if (
+      id
+    ) {
+
+      usedIds.add(
+        id
+      );
+
     }
 
 
-    if (url) {
-      urls.add(url);
+    if (
+      url
+    ) {
+
+      usedUrls.add(
+        url
+      );
+
     }
 
 
-    if (title) {
-      titles.add(title);
+    if (
+      title
+    ) {
+
+      usedTitles.add(
+        title
+      );
+
     }
 
 
-    output.push(item);
+    output.push(
+      item
+    );
 
   }
 
@@ -956,38 +1303,53 @@ function removeDuplicates(
 
 
 /* =========================================================
-   SIRALA
+   AKIŞ SIRALAMASI
    ========================================================= */
 
-function sortItems(
+function compareFeedItems(
   a,
   b
 ) {
 
   const scoreA =
-    getScore(a);
+    getItemScore(
+      a
+    );
+
 
   const scoreB =
-    getScore(b);
+    getItemScore(
+      b
+    );
 
 
   if (
-    scoreA !== scoreB
+    scoreA !==
+    scoreB
   ) {
 
-    return scoreB - scoreA;
+    return (
+      scoreB -
+      scoreA
+    );
 
   }
 
 
   return (
+
     Number(
-      b.timestamp || 0
+      b.timestamp ||
+      0
     )
+
     -
+
     Number(
-      a.timestamp || 0
+      a.timestamp ||
+      0
     )
+
   );
 
 }
@@ -997,7 +1359,7 @@ function sortItems(
    PUAN
    ========================================================= */
 
-function getScore(
+function getItemScore(
   item
 ) {
 
@@ -1018,51 +1380,46 @@ function getScore(
   }
 
 
-  return (
+  const relevance =
     Number(
-      item.relevanceScore || 0
-    ) *
+      item.relevanceScore ||
+      0
+    );
+
+
+  const quality =
+    Number(
+      item.qualityScore ||
+      0
+    );
+
+
+  return (
+    relevance *
     10
     +
-    Number(
-      item.qualityScore || 0
-    )
+    quality
   );
 
 }
 
 
 /* =========================================================
-   AKTİF KAYNAKLAR
+   ENDPOINT → PROVIDER
    ========================================================= */
 
-function getActiveSources() {
-
-  return Object
-    .values(SOURCES)
-    .filter(
-      source =>
-        source.enabled === true &&
-        typeof source.getFeed ===
-        "function"
-    );
-
-}
-
-
-/* =========================================================
-   ENDPOINT'TEN KAYNAK BUL
-   ========================================================= */
-
-function findSourceByEndpoint(
-  path
+function findProviderByEndpoint(
+  pathname
 ) {
 
   return (
-    getActiveSources()
+    getActiveProviders()
       .find(
-        source =>
-          source.endpoint === path
+        provider =>
+          normalizePath(
+            provider.endpoint
+          ) ===
+          pathname
       )
     ||
     null
@@ -1072,32 +1429,59 @@ function findSourceByEndpoint(
 
 
 /* =========================================================
-   KAYNAK BİLGİSİ
+   AKTİF KAYNAKLAR
+   ========================================================= */
+
+function getActiveProviders() {
+
+  return Object
+    .values(
+      SOURCE_PROVIDERS
+    )
+    .filter(
+
+      provider =>
+
+        provider &&
+
+        provider.enabled ===
+        true &&
+
+        typeof provider.getFeed ===
+        "function"
+
+    );
+
+}
+
+
+/* =========================================================
+   SOURCE INFO
    ========================================================= */
 
 function createSourceInfo(
-  source
+  provider
 ) {
 
   return {
 
     id:
-      source.id,
+      provider.id,
 
     name:
-      source.name,
+      provider.name,
 
     shortName:
-      source.shortName,
-
-    sport:
-      source.sport,
+      provider.shortName,
 
     sourceType:
-      source.sourceType,
+      provider.sourceType,
+
+    sport:
+      provider.sport,
 
     verified:
-      source.verified
+      provider.verified
 
   };
 
@@ -1116,7 +1500,8 @@ function getLimit(
     parseInt(
       url.searchParams.get(
         "limit"
-      ) ||
+      )
+      ||
       String(
         DEFAULT_LIMIT
       ),
@@ -1125,7 +1510,9 @@ function getLimit(
 
 
   if (
-    !Number.isFinite(limit)
+    !Number.isFinite(
+      limit
+    )
   ) {
 
     limit =
@@ -1135,11 +1522,14 @@ function getLimit(
 
 
   return Math.max(
+
     1,
+
     Math.min(
       limit,
       MAX_LIMIT
     )
+
   );
 
 }
@@ -1147,20 +1537,29 @@ function getLimit(
 
 /* =========================================================
    SOURCES PARAMETRESİ
-
-   /api/feed?sources=tyf,tbf
    ========================================================= */
 
-function getRequestedSources(
+function parseRequestedSources(
   url
 ) {
 
   const raw =
     String(
+
       url.searchParams.get(
         "sources"
-      ) ||
+      )
+
+      ||
+
+      url.searchParams.get(
+        "source"
+      )
+
+      ||
+
       ""
+
     );
 
 
@@ -1178,18 +1577,189 @@ function getRequestedSources(
     ...new Set(
 
       raw
-        .split(",")
+        .split(
+          ","
+        )
         .map(
           value =>
             value
               .trim()
               .toLowerCase()
         )
-        .filter(Boolean)
+        .filter(
+          Boolean
+        )
 
     )
 
   ];
+
+}
+
+
+/* =========================================================
+   JSON BODY
+   ========================================================= */
+
+async function readJsonBody(
+  request
+) {
+
+  const text =
+    await request.text();
+
+
+  if (
+    !text
+  ) {
+
+    return {};
+
+  }
+
+
+  try {
+
+    return JSON.parse(
+      text
+    );
+
+  }
+
+  catch {
+
+    throw new Error(
+      "Geçersiz JSON gönderildi."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   FEEDBACK KONTROLÜ
+   ========================================================= */
+
+function validateFeedback(
+  payload
+) {
+
+  if (
+    !payload ||
+    typeof payload !==
+    "object"
+  ) {
+
+    throw new Error(
+      "Feedback verisi geçersiz."
+    );
+
+  }
+
+
+  if (
+    !payload.action
+  ) {
+
+    throw new Error(
+      "Feedback action alanı gerekli."
+    );
+
+  }
+
+
+  const allowedActions = [
+
+    "wow",
+
+    "trash",
+
+    "save",
+
+    "share",
+
+    "detail",
+
+    "source",
+
+    "fire",
+
+    "clap",
+
+    "strong",
+
+    "surprised",
+
+    "trophy"
+
+  ];
+
+
+  const action =
+    String(
+      payload.action
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    !allowedActions.includes(
+      action
+    )
+  ) {
+
+    throw new Error(
+      "Desteklenmeyen feedback türü."
+    );
+
+  }
+
+
+  payload.action =
+    action;
+
+}
+
+
+/* =========================================================
+   BİLİNEN ENDPOINT
+   ========================================================= */
+
+function isKnownPath(
+  pathname
+) {
+
+  if (
+    pathname === "/" ||
+
+    pathname ===
+    "/api/feed" ||
+
+    pathname ===
+    "/api/sources" ||
+
+    pathname ===
+    "/api/health" ||
+
+    pathname ===
+    "/api/feedback" ||
+
+    pathname ===
+    "/api/learning"
+  ) {
+
+    return true;
+
+  }
+
+
+  return Boolean(
+    findProviderByEndpoint(
+      pathname
+    )
+  );
 
 }
 
@@ -1206,15 +1776,19 @@ function normalizePath(
     String(
       value ||
       "/"
-    ).trim();
+    )
+      .trim();
 
 
   if (
-    !path.startsWith("/")
+    !path.startsWith(
+      "/"
+    )
   ) {
 
     path =
-      "/" + path;
+      "/" +
+      path;
 
   }
 
@@ -1232,7 +1806,10 @@ function normalizePath(
   }
 
 
-  return path || "/";
+  return (
+    path ||
+    "/"
+  );
 
 }
 
@@ -1273,7 +1850,7 @@ function normalizeTitle(
    HATA
    ========================================================= */
 
-function getErrorMessage(
+function errorMessage(
   error
 ) {
 
@@ -1294,5 +1871,3 @@ function getErrorMessage(
   );
 
 }
-
-
