@@ -3,25 +3,21 @@
    worker/sources/tbf.js
 
    Türkiye Basketbol Federasyonu
-   Gerçek Haber Kaynak Motoru
+   Liste tabanlı güvenli kaynak okuyucu
 
-   SporNRD v6 Multi Source
+   v6.0.3
    ========================================================= */
 
-
-const BASE_URL =
+const BASE =
   "https://www.tbf.org.tr";
 
-
-const NEWS_URL =
-  BASE_URL +
-  "/ligler/haberler/haberler";
+const NEWS =
+  BASE + "/haberler";
 
 
 const SOURCE = {
 
-  id:
-    "tbf",
+  id: "tbf",
 
   name:
     "Türkiye Basketbol Federasyonu",
@@ -39,104 +35,13 @@ const SOURCE = {
     true,
 
   website:
-    BASE_URL
+    BASE
 
 };
 
 
 /* =========================================================
-   ŞEHİRLER
-   ========================================================= */
-
-const CITIES = [
-
-  "Adana",
-  "Adıyaman",
-  "Afyonkarahisar",
-  "Ağrı",
-  "Aksaray",
-  "Amasya",
-  "Ankara",
-  "Antalya",
-  "Ardahan",
-  "Artvin",
-  "Aydın",
-  "Balıkesir",
-  "Bartın",
-  "Batman",
-  "Bayburt",
-  "Bilecik",
-  "Bingöl",
-  "Bitlis",
-  "Bolu",
-  "Burdur",
-  "Bursa",
-  "Çanakkale",
-  "Çankırı",
-  "Çorum",
-  "Denizli",
-  "Diyarbakır",
-  "Düzce",
-  "Edirne",
-  "Elazığ",
-  "Erzincan",
-  "Erzurum",
-  "Eskişehir",
-  "Gaziantep",
-  "Giresun",
-  "Gümüşhane",
-  "Hakkari",
-  "Hatay",
-  "Iğdır",
-  "Isparta",
-  "İstanbul",
-  "İzmir",
-  "Kahramanmaraş",
-  "Karabük",
-  "Karaman",
-  "Kars",
-  "Kastamonu",
-  "Kayseri",
-  "Kırıkkale",
-  "Kırklareli",
-  "Kırşehir",
-  "Kilis",
-  "Kocaeli",
-  "Konya",
-  "Kütahya",
-  "Malatya",
-  "Manisa",
-  "Mardin",
-  "Mersin",
-  "Muğla",
-  "Muş",
-  "Nevşehir",
-  "Niğde",
-  "Ordu",
-  "Osmaniye",
-  "Rize",
-  "Sakarya",
-  "Samsun",
-  "Siirt",
-  "Sinop",
-  "Sivas",
-  "Şanlıurfa",
-  "Şırnak",
-  "Tekirdağ",
-  "Tokat",
-  "Trabzon",
-  "Tunceli",
-  "Uşak",
-  "Van",
-  "Yalova",
-  "Yozgat",
-  "Zonguldak"
-
-];
-
-
-/* =========================================================
-   ANA TBF AKIŞI
+   ANA AKIŞ
    ========================================================= */
 
 export async function getTbfFeed({
@@ -144,72 +49,62 @@ export async function getTbfFeed({
   env = null
 } = {}) {
 
-  /*
-    env ileride global learning için kullanılacak.
-    Şimdilik kaynağın çalışmasını etkilemez.
-  */
-
   void env;
 
 
   const html =
-    await fetchHtml(
-      NEWS_URL
+    await getHtml(
+      NEWS
     );
 
 
-  const articleUrls =
-    extractArticleUrls(
+  const items =
+    extractNews(
       html
-    )
-      .slice(
-        0,
-        35
-      );
-
-
-  const results =
-    await Promise.allSettled(
-
-      articleUrls.map(
-        readArticle
-      )
-
     );
 
 
-  const articles =
-    results
-
-      .filter(
-        result =>
-          result.status ===
-          "fulfilled" &&
-          result.value
-      )
-
+  const filtered =
+    items
       .map(
-        result =>
-          result.value
+        createArticle
       )
+      .filter(Boolean);
 
-      .filter(
-        article =>
-          Number(
-            article.relevanceScore ||
-            0
-          ) >= 3
+
+  filtered.sort(
+    (a, b) => {
+
+      const scoreDifference =
+        Number(
+          b.finalScore || 0
+        )
+        -
+        Number(
+          a.finalScore || 0
+        );
+
+
+      if (
+        scoreDifference !== 0
+      ) {
+
+        return scoreDifference;
+
+      }
+
+
+      return (
+        Number(
+          b.timestamp || 0
+        )
+        -
+        Number(
+          a.timestamp || 0
+        )
       );
 
-
-  const uniqueArticles =
-    removeDuplicates(
-      articles
-    );
-
-
-  uniqueArticles.sort(
-    compareArticles
+    }
   );
 
 
@@ -229,7 +124,7 @@ export async function getTbfFeed({
       SOURCE,
 
     items:
-      uniqueArticles.slice(
+      filtered.slice(
         0,
         safeLimit
       )
@@ -240,366 +135,10 @@ export async function getTbfFeed({
 
 
 /* =========================================================
-   TEK HABERİ OKU
+   HTML AL
    ========================================================= */
 
-async function readArticle(
-  url
-) {
-
-  try {
-
-    const html =
-      await fetchHtml(
-        url
-      );
-
-
-    const originalTitle =
-      extractTitle(
-        html
-      );
-
-
-    if (
-      !originalTitle
-    ) {
-
-      return null;
-
-    }
-
-
-    const originalText =
-      extractArticleText(
-        html,
-        originalTitle
-      );
-
-
-    const analysis =
-      classifyArticle(
-        originalTitle,
-        originalText
-      );
-
-
-    if (
-      !analysis.keep
-    ) {
-
-      return null;
-
-    }
-
-
-    const location =
-      extractLocation(
-        originalTitle,
-        originalText
-      );
-
-
-    const eventDate =
-      extractEventDate(
-        originalTitle +
-        " " +
-        originalText
-      );
-
-
-    const deadline =
-      extractRegistrationDeadline(
-        originalText
-      );
-
-
-    const grade =
-      extractGrade(
-        originalTitle
-      );
-
-
-    const published =
-      extractPublishedDate(
-        html
-      );
-
-
-    const image =
-      extractImage(
-        html
-      );
-
-
-    const editorial =
-      buildEditorial({
-
-        originalTitle:
-          originalTitle,
-
-        originalText:
-          originalText,
-
-        category:
-          analysis.category,
-
-        location:
-          location,
-
-        eventDate:
-          eventDate,
-
-        deadline:
-          deadline,
-
-        grade:
-          grade
-
-      });
-
-
-    const qualityScore =
-      calculateQualityScore({
-
-        title:
-          editorial.title,
-
-        summary:
-          editorial.summary,
-
-        image:
-          image,
-
-        location:
-          location,
-
-        eventDate:
-          eventDate
-
-      });
-
-
-    const relevanceScore =
-      analysis.score;
-
-
-    const finalScore =
-      (
-        relevanceScore *
-        10
-      )
-      +
-      qualityScore;
-
-
-    return {
-
-      id:
-        makeId(
-          url
-        ),
-
-      externalId:
-        makeId(
-          url
-        ),
-
-
-      /* -----------------------------------------------
-         SporNRD başlık ve açıklaması
-         ----------------------------------------------- */
-
-      title:
-        editorial.title,
-
-      summary:
-        editorial.summary,
-
-
-      /* -----------------------------------------------
-         Gerçek kaynak
-         ----------------------------------------------- */
-
-      originalTitle:
-        originalTitle,
-
-      originalText:
-        originalText,
-
-
-      /* -----------------------------------------------
-         SporNRD Editör
-         ----------------------------------------------- */
-
-      editorial:
-        true,
-
-      editorialLabel:
-        "SporNRD Özeti",
-
-      editorialVersion:
-        "6.0-TBF",
-
-
-      /* -----------------------------------------------
-         Kaynak
-         ----------------------------------------------- */
-
-      sourceId:
-        SOURCE.id,
-
-      source:
-        SOURCE.name,
-
-      sourceShortName:
-        SOURCE.shortName,
-
-      sourceType:
-        SOURCE.sourceType,
-
-      sport:
-        SOURCE.sport,
-
-      verified:
-        true,
-
-
-      /* -----------------------------------------------
-         Analiz
-         ----------------------------------------------- */
-
-      category:
-        analysis.category,
-
-      audience:
-        analysis.audience,
-
-      relevanceScore:
-        relevanceScore,
-
-      qualityScore:
-        qualityScore,
-
-      finalScore:
-        finalScore,
-
-
-      /* -----------------------------------------------
-         Haber DNA
-         ----------------------------------------------- */
-
-      topic:
-        editorial.topic,
-
-      urgency:
-        deadline
-          ? "important"
-          : "normal",
-
-      actionRequired:
-        analysis.actionRequired,
-
-      actionLabel:
-        editorial.actionLabel,
-
-      tags:
-        editorial.tags,
-
-
-      /* -----------------------------------------------
-         Gerçekler
-         ----------------------------------------------- */
-
-      facts: {
-
-        organization:
-          SOURCE.name,
-
-        sport:
-          "Basketbol",
-
-        category:
-          analysis.category,
-
-        audience:
-          analysis.audience,
-
-        location:
-          location,
-
-        eventDate:
-          eventDate,
-
-        deadline:
-          deadline,
-
-        grade:
-          grade
-
-      },
-
-
-      /* -----------------------------------------------
-         Tarih / konum
-         ----------------------------------------------- */
-
-      date:
-        published.text,
-
-      timestamp:
-        published.timestamp,
-
-      location:
-        location,
-
-
-      /* -----------------------------------------------
-         Medya
-         ----------------------------------------------- */
-
-      image:
-        image,
-
-      url:
-        url,
-
-      pdfUrl:
-        "",
-
-
-      emoji:
-        emojiFor(
-          analysis.category
-        )
-
-    };
-
-  }
-
-  catch (error) {
-
-    console.log(
-      "TBF haber detayı okunamadı:",
-      url,
-      getErrorMessage(
-        error
-      )
-    );
-
-
-    return null;
-
-  }
-
-}
-
-
-/* =========================================================
-   SAYFA ÇEK
-   ========================================================= */
-
-async function fetchHtml(
+async function getHtml(
   url
 ) {
 
@@ -617,10 +156,10 @@ async function fetchHtml(
             "text/html,application/xhtml+xml",
 
           "Accept-Language":
-            "tr-TR,tr;q=0.9,en;q=0.8",
+            "tr-TR,tr;q=0.9",
 
           "User-Agent":
-            "Mozilla/5.0 SporNRD/6.0"
+            "Mozilla/5.0 (compatible; SporNRD/6.0)"
 
         },
 
@@ -637,9 +176,7 @@ async function fetchHtml(
 
     throw new Error(
       "TBF HTTP " +
-      response.status +
-      ": " +
-      url
+      response.status
     );
 
   }
@@ -651,31 +188,26 @@ async function fetchHtml(
 
 
 /* =========================================================
-   HABER LİNKLERİNİ BUL
+   HABERLERİ LİSTE SAYFASINDAN ÇIKAR
+
+   Detay sayfasına gitmiyoruz.
+   Böylece TBF'nin 403 korumasına takılmıyoruz.
    ========================================================= */
 
-function extractArticleUrls(
+function extractNews(
   html
 ) {
 
-  const urls =
+  const output =
     [];
 
 
-  const seen =
+  const usedUrls =
     new Set();
 
 
-  /*
-    TBF'de örnekler:
-
-    /haber/...
-    /ligler/hatay/haber/...
-    /ligler/12216/haber/...
-  */
-
   const regex =
-    /href\s*=\s*["']([^"']*\/haber\/[^"'#]+)["']/gi;
+    /<a\b[^>]*href=["']([^"']*\/haber\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
 
   let match;
@@ -696,15 +228,19 @@ function extractArticleUrls(
       );
 
 
-    let absoluteUrl;
+    const block =
+      match[2];
+
+
+    let url;
 
 
     try {
 
-      absoluteUrl =
+      url =
         new URL(
           href,
-          BASE_URL
+          BASE
         ).href;
 
     }
@@ -717,31 +253,8 @@ function extractArticleUrls(
 
 
     if (
-      !absoluteUrl
-        .toLowerCase()
-        .includes(
-          "tbf.org.tr"
-        )
-    ) {
-
-      continue;
-
-    }
-
-
-    /*
-      Fragment temizle.
-    */
-
-    absoluteUrl =
-      absoluteUrl.split(
-        "#"
-      )[0];
-
-
-    if (
-      seen.has(
-        absoluteUrl
+      usedUrls.has(
+        url
       )
     ) {
 
@@ -749,145 +262,10 @@ function extractArticleUrls(
 
     }
 
-
-    seen.add(
-      absoluteUrl
-    );
-
-
-    urls.push(
-      absoluteUrl
-    );
-
-  }
-
-
-  return urls;
-
-}
-
-
-/* =========================================================
-   BAŞLIK
-   ========================================================= */
-
-function extractTitle(
-  html
-) {
-
-  const h1 =
-    html.match(
-      /<h1\b[^>]*>([\s\S]*?)<\/h1>/i
-    );
-
-
-  if (
-    h1
-  ) {
-
-    const title =
-      cleanText(
-        h1[1]
-      );
-
-
-    if (
-      title
-    ) {
-
-      return title;
-
-    }
-
-  }
-
-
-  const og1 =
-    html.match(
-      /<meta\b[^>]*(?:property|name)=["']og:title["'][^>]*content=["']([^"']+)["'][^>]*>/i
-    );
-
-
-  if (
-    og1
-  ) {
-
-    return cleanText(
-      og1[1]
-    );
-
-  }
-
-
-  const og2 =
-    html.match(
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["']og:title["'][^>]*>/i
-    );
-
-
-  if (
-    og2
-  ) {
-
-    return cleanText(
-      og2[1]
-    );
-
-  }
-
-
-  const normalTitle =
-    html.match(
-      /<title\b[^>]*>([\s\S]*?)<\/title>/i
-    );
-
-
-  return normalTitle
-    ? cleanText(
-        normalTitle[1]
-      )
-    : "";
-
-}
-
-
-/* =========================================================
-   HABER METNİ
-   ========================================================= */
-
-function extractArticleText(
-  html,
-  title
-) {
-
-  const pieces =
-    [];
-
-
-  /*
-    TBF haber detaylarında gerçek haber metni
-    çoğunlukla paragraf elementlerinde.
-  */
-
-  const regex =
-    /<(p|h2|h3|h4|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
-
-
-  let match;
-
-
-  while (
-    (
-      match =
-        regex.exec(
-          html
-        )
-    ) !== null
-  ) {
 
     const text =
       cleanText(
-        match[2]
+        block
       );
 
 
@@ -901,150 +279,452 @@ function extractArticleText(
     }
 
 
-    if (
-      normalize(
+    const parsed =
+      parseCardText(
         text
-      ) ===
-      normalize(
-        title
-      )
-    ) {
-
-      continue;
-
-    }
-
-
-    if (
-      isNoiseText(
-        text
-      )
-    ) {
-
-      continue;
-
-    }
-
-
-    pieces.push(
-      text
-    );
-
-  }
-
-
-  const unique =
-    [
-      ...new Set(
-        pieces
-      )
-    ];
-
-
-  if (
-    unique.length
-  ) {
-
-    return unique
-      .join(
-        " "
-      )
-      .slice(
-        0,
-        2600
       );
 
+
+    if (
+      !parsed.title
+    ) {
+
+      continue;
+
+    }
+
+
+    const image =
+      extractImageFromBlock(
+        block
+      );
+
+
+    usedUrls.add(
+      url
+    );
+
+
+    output.push({
+
+      url:
+        url,
+
+      title:
+        parsed.title,
+
+      summary:
+        parsed.summary,
+
+      date:
+        parsed.date,
+
+      image:
+        image
+
+    });
+
   }
 
 
-  /*
-    Yedek:
-    meta description.
-  */
-
-  const meta1 =
-    html.match(
-      /<meta\b[^>]*(?:name=["']description["']|property=["']og:description["'])[^>]*content=["']([^"']+)["'][^>]*>/i
-    );
-
-
-  if (
-    meta1
-  ) {
-
-    return cleanText(
-      meta1[1]
-    );
-
-  }
-
-
-  const meta2 =
-    html.match(
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*(?:name=["']description["']|property=["']og:description["'])[^>]*>/i
-    );
-
-
-  return meta2
-    ? cleanText(
-        meta2[1]
-      )
-    : "";
+  return output;
 
 }
 
 
 /* =========================================================
-   GEREKSİZ METİN
+   KART METNİNİ AYIR
+
+   Örnek yapı:
+   07.10.2026
+   2. Kademe Antrenör Kursu...
+   07.10.2026
+   2. Kademe Antrenör Kursu...
+   Devamını Gör
    ========================================================= */
 
-function isNoiseText(
-  value
+function parseCardText(
+  input
 ) {
 
-  const text =
-    normalize(
-      value
+  let text =
+    cleanText(
+      input
+    )
+      .replace(
+        /Devamını\s+Gör/gi,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+
+  const dateRegex =
+    /\b(\d{1,2})[.](\d{1,2})[.](20\d{2})\b/g;
+
+
+  const dates =
+    [
+      ...text.matchAll(
+        dateRegex
+      )
+    ];
+
+
+  if (
+    !dates.length
+  ) {
+
+    return {
+
+      date:
+        "",
+
+      title:
+        text,
+
+      summary:
+        ""
+
+    };
+
+  }
+
+
+  const first =
+    dates[0];
+
+
+  const dateText =
+    first[0];
+
+
+  let title =
+    "";
+
+
+  let summary =
+    "";
+
+
+  if (
+    dates.length >= 2
+  ) {
+
+    const second =
+      dates[1];
+
+
+    title =
+      text
+        .slice(
+          first.index +
+          first[0].length,
+          second.index
+        )
+        .trim();
+
+
+    summary =
+      text
+        .slice(
+          second.index +
+          second[0].length
+        )
+        .trim();
+
+  }
+
+  else {
+
+    const remainder =
+      text
+        .slice(
+          first.index +
+          first[0].length
+        )
+        .trim();
+
+
+    const sentence =
+      remainder.match(
+        /^(.{20,160}?)(?=\s{2,}|[.!?]\s|$)/
+      );
+
+
+    if (
+      sentence
+    ) {
+
+      title =
+        sentence[1]
+          .trim();
+
+
+      summary =
+        remainder
+          .slice(
+            sentence[1].length
+          )
+          .trim();
+
+    }
+
+    else {
+
+      title =
+        remainder;
+
+    }
+
+  }
+
+
+  return {
+
+    date:
+      dateText,
+
+    title:
+      title,
+
+    summary:
+      summary
+
+  };
+
+}
+
+
+/* =========================================================
+   HABER MODELİ
+   ========================================================= */
+
+function createArticle(
+  raw
+) {
+
+  const analysis =
+    classify(
+      raw.title,
+      raw.summary
     );
 
 
-  const noise = [
+  if (
+    !analysis.keep
+  ) {
 
-    "TUM HAKLARI SAKLIDIR",
+    return null;
 
-    "TURKIYE BASKETBOL FEDERASYONU KAZLICESME",
-
-    "GIZLILIK",
-
-    "CEREZ",
-
-    "KVKK",
-
-    "FACEBOOK",
-
-    "INSTAGRAM",
-
-    "YOUTUBE",
-
-    "TWITTER",
-
-    "ILETISIM",
-
-    "DEVAMINI GOR",
-
-    "ANA SAYFA",
-
-    "HIZLI ERISIM"
-
-  ];
+  }
 
 
-  return noise.some(
-    item =>
-      text.includes(
-        item
+  const location =
+    findLocation(
+      raw.title +
+      " " +
+      raw.summary
+    );
+
+
+  const eventDate =
+    findEventDate(
+      raw.title +
+      " " +
+      raw.summary
+    );
+
+
+  const editorial =
+    createEditorial({
+
+      title:
+        raw.title,
+
+      summary:
+        raw.summary,
+
+      category:
+        analysis.category,
+
+      location:
+        location,
+
+      eventDate:
+        eventDate
+
+    });
+
+
+  const timestamp =
+    parseDateTimestamp(
+      raw.date
+    );
+
+
+  const qualityScore =
+    calculateQuality({
+
+      title:
+        editorial.title,
+
+      summary:
+        editorial.summary,
+
+      image:
+        raw.image,
+
+      location:
+        location,
+
+      eventDate:
+        eventDate
+
+    });
+
+
+  return {
+
+    id:
+      createId(
+        raw.url
+      ),
+
+    externalId:
+      createId(
+        raw.url
+      ),
+
+
+    title:
+      editorial.title,
+
+    summary:
+      editorial.summary,
+
+
+    originalTitle:
+      raw.title,
+
+    originalText:
+      raw.summary,
+
+
+    editorial:
+      true,
+
+    editorialLabel:
+      "SporNRD Özeti",
+
+    editorialVersion:
+      "6.0.3-TBF",
+
+
+    sourceId:
+      "tbf",
+
+    source:
+      SOURCE.name,
+
+    sourceShortName:
+      "TBF",
+
+    sourceType:
+      "FEDERASYON",
+
+    verified:
+      true,
+
+    sport:
+      "Basketbol",
+
+
+    category:
+      analysis.category,
+
+    audience:
+      analysis.audience,
+
+    relevanceScore:
+      analysis.score,
+
+    qualityScore:
+      qualityScore,
+
+    finalScore:
+      (
+        analysis.score *
+        10
       )
-  );
+      +
+      qualityScore,
+
+
+    topic:
+      editorial.topic,
+
+    urgency:
+      analysis.actionRequired
+        ? "important"
+        : "normal",
+
+    actionRequired:
+      analysis.actionRequired,
+
+    actionLabel:
+      editorial.actionLabel,
+
+    tags:
+      editorial.tags,
+
+
+    facts: {
+
+      sport:
+        "Basketbol",
+
+      organization:
+        SOURCE.name,
+
+      location:
+        location,
+
+      eventDate:
+        eventDate
+
+    },
+
+
+    date:
+      raw.date,
+
+    timestamp:
+      timestamp,
+
+    location:
+      location,
+
+
+    image:
+      raw.image,
+
+    url:
+      raw.url,
+
+    pdfUrl:
+      "",
+
+
+    emoji:
+      getEmoji(
+        analysis.category
+      )
+
+  };
 
 }
 
@@ -1053,9 +733,9 @@ function isNoiseText(
    SINIFLANDIRMA
    ========================================================= */
 
-function classifyArticle(
+function classify(
   title,
-  body
+  summary
 ) {
 
   const titleText =
@@ -1068,16 +748,14 @@ function classifyArticle(
     normalize(
       title +
       " " +
-      body
+      summary
     );
 
 
-  /* -------------------------------------------------------
-     Akışa alınmayacak içerikler
-     ------------------------------------------------------- */
+  /* Gereksiz içerikler */
 
   if (
-    hasAny(
+    containsAny(
       titleText,
       [
 
@@ -1087,13 +765,9 @@ function classifyArticle(
 
         "DISIPLIN KURULU",
 
-        "YONETIM KURULU",
-
-        "BASKAN MESAJI",
-
         "ZIYARET",
 
-        "HAKEM GOREVLENDIRMELERI"
+        "BASKAN MESAJI"
 
       ]
     )
@@ -1121,20 +795,16 @@ function classifyArticle(
   }
 
 
-  /* -------------------------------------------------------
-     ANTRENÖR
-     ------------------------------------------------------- */
+  /* Antrenör */
 
   if (
-    hasAny(
+    containsAny(
       titleText,
       [
 
         "ANTRENOR",
 
-        "ANTRENORLUK",
-
-        "BASANTRENOR"
+        "ANTRENORLUK"
 
       ]
     )
@@ -1155,13 +825,11 @@ function classifyArticle(
         10,
 
       actionRequired:
-        hasAny(
+        containsAny(
           allText,
           [
             "BASVURU",
-            "KAYIT",
-            "SONA ERECEK",
-            "SONA ERECEKTIR"
+            "KAYIT"
           ]
         )
 
@@ -1170,30 +838,20 @@ function classifyArticle(
   }
 
 
-  /* -------------------------------------------------------
-     SPORCU / OYUNCU / MİLLİ TAKIM
-     ------------------------------------------------------- */
+  /* Sporcu / milli takım */
 
   if (
-    hasAny(
+    containsAny(
       titleText,
       [
+
+        "MILLI TAKIM",
 
         "SPORCU",
 
         "OYUNCU",
 
-        "MILLI TAKIM",
-
-        "MILLI TAKIMIMIZ",
-
         "ADAY KADRO",
-
-        "KADROSU",
-
-        "U14",
-
-        "U15",
 
         "U16",
 
@@ -1231,22 +889,20 @@ function classifyArticle(
   }
 
 
-  /* -------------------------------------------------------
-     EĞİTİM
-     ------------------------------------------------------- */
+  /* Eğitim */
 
   if (
-    hasAny(
+    containsAny(
       titleText,
       [
 
-        "SEMINER",
-
         "EGITIM",
+
+        "SEMINER",
 
         "SERTIFIKA",
 
-        "AKADEMI"
+        "KURS"
 
       ]
     )
@@ -1267,7 +923,7 @@ function classifyArticle(
         8,
 
       actionRequired:
-        hasAny(
+        containsAny(
           allText,
           [
             "BASVURU",
@@ -1280,20 +936,12 @@ function classifyArticle(
   }
 
 
-  /* -------------------------------------------------------
-     YARIŞMA / LİG / KUPA
-     ------------------------------------------------------- */
+  /* Organizasyon */
 
   if (
-    hasAny(
+    containsAny(
       titleText,
       [
-
-        "FIBA",
-
-        "EUROLEAGUE",
-
-        "EUROCUP",
 
         "LIG",
 
@@ -1301,19 +949,17 @@ function classifyArticle(
 
         "SAMPIYON",
 
-        "SAMPIYONA",
-
         "FINAL",
-
-        "FINAL FOUR",
-
-        "MUSABAKA",
 
         "MAC",
 
-        "SEZONU BASLIYOR",
+        "MUSABAKA",
 
-        "SEZON BASLIYOR"
+        "FIBA",
+
+        "EUROCUP",
+
+        "EUROLEAGUE"
 
       ]
     )
@@ -1341,12 +987,10 @@ function classifyArticle(
   }
 
 
-  /* -------------------------------------------------------
-     ÖNEMLİ DUYURU
-     ------------------------------------------------------- */
+  /* Başvuru / önemli duyuru */
 
   if (
-    hasAny(
+    containsAny(
       allText,
       [
 
@@ -1356,9 +1000,7 @@ function classifyArticle(
 
         "DUYURU",
 
-        "FAALIYET PROGRAMI",
-
-        "PROGRAMI ACIKLANDI"
+        "FAALIYET PROGRAMI"
 
       ]
     )
@@ -1386,19 +1028,24 @@ function classifyArticle(
   }
 
 
+  /*
+    Genel basketbol haberlerini de artık
+    tamamen çöpe atmıyoruz.
+  */
+
   return {
 
     keep:
-      false,
+      true,
 
     category:
-      "announcement",
+      "event",
 
     audience:
       "general",
 
     score:
-      0,
+      4,
 
     actionRequired:
       false
@@ -1412,34 +1059,30 @@ function classifyArticle(
    SPORNRD EDİTÖR
    ========================================================= */
 
-function buildEditorial({
+function createEditorial({
 
-  originalTitle,
-  originalText,
+  title,
+  summary,
   category,
   location,
-  eventDate,
-  deadline,
-  grade
+  eventDate
 
 }) {
 
-  let title =
+  let newTitle =
     cleanText(
-      originalTitle
+      title
     );
 
 
-  let summary =
-    "";
+  let newSummary =
+    cleanText(
+      summary
+    );
 
 
   let actionLabel =
-    "Detayı Gör";
-
-
-  let topic =
-    title;
+    "Haberi İncele";
 
 
   const tags =
@@ -1448,128 +1091,10 @@ function buildEditorial({
     ];
 
 
-  /* -------------------------------------------------------
-     ANTRENÖR KURSU
-     ------------------------------------------------------- */
-
   if (
-    category === "coach" &&
-    normalize(
-      originalTitle
-    ).includes(
-      "KURS"
-    )
-  ) {
-
-    const level =
-      grade
-        ? grade +
-          ". Kademe"
-
-        : "Basketbol";
-
-
-    title =
-      level +
-      " basketbol antrenör kursu";
-
-
-    if (
-      location !==
-      "Türkiye"
-    ) {
-
-      title +=
-        " " +
-        location +
-        "’da";
-
-    }
-
-
-    if (
-      eventDate
-    ) {
-
-      title +=
-        ": " +
-        eventDate;
-
-    }
-
-
-    topic =
-      level +
-      " Basketbol Antrenör Kursu";
-
-
-    summary =
-      "TBF, " +
-      level +
-      " Basketbol Antrenör Kursu’nun ayrıntılarını açıkladı.";
-
-
-    if (
-      eventDate &&
-      location !==
-      "Türkiye"
-    ) {
-
-      summary =
-        "TBF, " +
-        level +
-        " Basketbol Antrenör Kursu’nu " +
-        eventDate +
-        " tarihlerinde " +
-        location +
-        "’da düzenleyecek.";
-
-    }
-
-
-    if (
-      deadline
-    ) {
-
-      summary +=
-        " Kayıtlar " +
-        deadline +
-        " tarihinde sona erecek.";
-
-    }
-
-
-    summary +=
-      " Başvuru ve katılım ayrıntıları federasyonun resmî duyurusunda yer alıyor.";
-
-
-    actionLabel =
-      "Kurs Detayları";
-
-
-    tags.push(
-      "Antrenör",
-      "Kurs"
-    );
-
-  }
-
-
-  /* -------------------------------------------------------
-     DİĞER ANTRENÖR İÇERİĞİ
-     ------------------------------------------------------- */
-
-  else if (
     category ===
     "coach"
   ) {
-
-    summary =
-      createSourceSummary(
-        originalText,
-        "TBF, basketbol antrenörlerini ilgilendiren yeni bir resmî duyuru yayımladı."
-      );
-
 
     actionLabel =
       "Antrenör Duyurusunu İncele";
@@ -1582,21 +1107,10 @@ function buildEditorial({
   }
 
 
-  /* -------------------------------------------------------
-     SPORCU
-     ------------------------------------------------------- */
-
   else if (
     category ===
     "athlete"
   ) {
-
-    summary =
-      createSourceSummary(
-        originalText,
-        "TBF, basketbolcuları veya milli takım sporcularını ilgilendiren yeni bir gelişmeyi duyurdu."
-      );
-
 
     actionLabel =
       "Sporcu Duyurusunu İncele";
@@ -1609,21 +1123,10 @@ function buildEditorial({
   }
 
 
-  /* -------------------------------------------------------
-     EĞİTİM
-     ------------------------------------------------------- */
-
   else if (
     category ===
     "education"
   ) {
-
-    summary =
-      createSourceSummary(
-        originalText,
-        "TBF, basketbol camiasına yönelik yeni eğitim veya seminer duyurusunu yayımladı."
-      );
-
 
     actionLabel =
       "Eğitimi İncele";
@@ -1636,25 +1139,10 @@ function buildEditorial({
   }
 
 
-  /* -------------------------------------------------------
-     YARIŞMA
-     ------------------------------------------------------- */
-
   else if (
     category ===
     "event"
   ) {
-
-    summary =
-      createSourceSummary(
-        originalText,
-        "TBF, basketbol organizasyonlarıyla ilgili yeni gelişmeyi duyurdu."
-      );
-
-
-    actionLabel =
-      "Haberi İncele";
-
 
     tags.push(
       "Yarışma"
@@ -1663,18 +1151,7 @@ function buildEditorial({
   }
 
 
-  /* -------------------------------------------------------
-     GENEL
-     ------------------------------------------------------- */
-
   else {
-
-    summary =
-      createSourceSummary(
-        originalText,
-        "Türkiye Basketbol Federasyonu yeni bir resmî duyuru yayımladı."
-      );
-
 
     tags.push(
       "Duyuru"
@@ -1684,7 +1161,6 @@ function buildEditorial({
 
 
   if (
-    location &&
     location !==
     "Türkiye"
   ) {
@@ -1696,25 +1172,36 @@ function buildEditorial({
   }
 
 
+  if (
+    !newSummary ||
+    newSummary.length < 25
+  ) {
+
+    newSummary =
+      "Türkiye Basketbol Federasyonu bu konuyla ilgili yeni bir resmî içerik yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor.";
+
+  }
+
+
   return {
 
     title:
       shorten(
-        title,
+        newTitle,
         120
       ),
 
     summary:
       shorten(
-        summary,
+        newSummary,
         360
       ),
 
+    topic:
+      newTitle,
+
     actionLabel:
       actionLabel,
-
-    topic:
-      topic,
 
     tags:
       [
@@ -1729,49 +1216,35 @@ function buildEditorial({
 
 
 /* =========================================================
-   GERÇEK METİNDEN ÖZET
+   GÖRSEL
    ========================================================= */
 
-function createSourceSummary(
-  originalText,
-  fallback
+function extractImageFromBlock(
+  html
 ) {
 
-  const text =
-    cleanText(
-      originalText
-    );
+  const patterns = [
 
+    /<img\b[^>]*src=["']([^"']+)["'][^>]*>/i,
 
-  if (
-    text.length < 50
-  ) {
+    /<img\b[^>]*(?:data-src|data-original)=["']([^"']+)["'][^>]*>/i
 
-    return (
-      fallback +
-      " Ayrıntılar federasyonun resmî kaynağında yer alıyor."
-    );
-
-  }
-
-
-  const sentences =
-    splitSentences(
-      text
-    );
-
-
-  const selected =
-    [];
+  ];
 
 
   for (
-    const sentence
-    of sentences
+    const pattern
+    of patterns
   ) {
 
+    const match =
+      html.match(
+        pattern
+      );
+
+
     if (
-      sentence.length < 25
+      !match
     ) {
 
       continue;
@@ -1779,141 +1252,95 @@ function createSourceSummary(
     }
 
 
-    if (
-      isNoiseText(
-        sentence
-      )
-    ) {
+    try {
 
-      continue;
+      return new URL(
+        decodeEntities(
+          match[1]
+        ),
+        BASE
+      ).href;
 
     }
 
+    catch {
 
-    selected.push(
-      sentence
-    );
-
-
-    if (
-      selected.length >= 2
-    ) {
-
-      break;
+      /* devam */
 
     }
 
   }
 
 
-  if (
-    !selected.length
-  ) {
-
-    return fallback;
-
-  }
-
-
-  return selected.join(
-    " "
-  );
+  return "";
 
 }
 
 
 /* =========================================================
-   YAYIN TARİHİ
+   KONUM
    ========================================================= */
 
-function extractPublishedDate(
-  html
+function findLocation(
+  text
 ) {
 
-  const text =
-    cleanText(
-      html
+  const cities = [
+
+    "Adana",
+    "Ankara",
+    "Antalya",
+    "Aydın",
+    "Balıkesir",
+    "Bursa",
+    "Denizli",
+    "Diyarbakır",
+    "Erzurum",
+    "Eskişehir",
+    "Gaziantep",
+    "İstanbul",
+    "İzmir",
+    "Kayseri",
+    "Kocaeli",
+    "Konya",
+    "Manisa",
+    "Mersin",
+    "Muğla",
+    "Sakarya",
+    "Samsun",
+    "Trabzon",
+    "Şanlıurfa"
+
+  ];
+
+
+  const normalized =
+    normalize(
+      text
     );
 
 
-  /*
-    TBF:
-    Yayın Tarihi: 07.10.2026
-  */
-
-  const preferred =
-    text.match(
-      /Yayın\s*Tarihi\s*:\s*(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})/i
-    );
-
-
-  const fallback =
-    text.match(
-      /\b(\d{1,2})[.](\d{1,2})[.](20\d{2})\b/
-    );
-
-
-  const match =
-    preferred ||
-    fallback;
-
-
-  if (
-    !match
+  for (
+    const city
+    of cities
   ) {
 
-    return {
+    if (
+      normalized.includes(
+        normalize(
+          city
+        )
+      )
+    ) {
 
-      text:
-        "",
+      return city;
 
-      timestamp:
-        0
-
-    };
+    }
 
   }
 
 
-  const day =
-    Number(
-      match[1]
-    );
-
-
-  const month =
-    Number(
-      match[2]
-    );
-
-
-  const year =
-    Number(
-      match[3]
-    );
-
-
-  return {
-
-    text:
-      pad2(
-        day
-      ) +
-      "." +
-      pad2(
-        month
-      ) +
-      "." +
-      year,
-
-    timestamp:
-      Date.UTC(
-        year,
-        month - 1,
-        day
-      )
-
-  };
+  return "Türkiye";
 
 }
 
@@ -1922,26 +1349,22 @@ function extractPublishedDate(
    ETKİNLİK TARİHİ
    ========================================================= */
 
-function extractEventDate(
-  value
+function findEventDate(
+  text
 ) {
-
-  const text =
-    cleanText(
-      value
-    );
-
 
   const months =
     "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık";
 
 
-  /* -------------------------------------------------------
-     25 Ekim - 1 Kasım 2026
-     ------------------------------------------------------- */
+  const value =
+    cleanText(
+      text
+    );
+
 
   let match =
-    text.match(
+    value.match(
 
       new RegExp(
 
@@ -1977,351 +1400,60 @@ function extractEventDate(
   }
 
 
-  /* -------------------------------------------------------
-     24 - 31 Ekim 2026
-     ------------------------------------------------------- */
-
-  match =
-    text.match(
-
-      new RegExp(
-
-        "(\\d{1,2})\\s*[-–]\\s*(\\d{1,2})\\s+(" +
-        months +
-        ")\\s+(20\\d{2})",
-
-        "i"
-
-      )
-
-    );
-
-
-  if (
-    match
-  ) {
-
-    return (
-      match[1] +
-      "–" +
-      match[2] +
-      " " +
-      match[3] +
-      " " +
-      match[4]
-    );
-
-  }
-
-
   return "";
 
 }
 
 
 /* =========================================================
-   KAYIT SON TARİHİ
+   TARİH → TIMESTAMP
    ========================================================= */
 
-function extractRegistrationDeadline(
-  value
-) {
-
-  const text =
-    cleanText(
-      value
-    );
-
-
-  const months =
-    "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık";
-
-
-  /*
-    Örnek:
-    kurs kayıtları 15 Ekim saat 16:00'da sona erecektir.
-  */
-
-  let match =
-    text.match(
-
-      new RegExp(
-
-        "kayıt(?:ları|lar)?[^.]{0,80}?" +
-        "(\\d{1,2})\\s+(" +
-        months +
-        ")" +
-        "(?:\\s+(20\\d{2}))?" +
-        "[^.]{0,30}?" +
-        "(\\d{1,2}:\\d{2})" +
-        "[^.]*(?:sona\\s+erecek|sona\\s+erecektir)",
-
-        "i"
-
-      )
-
-    );
-
-
-  if (
-    !match
-  ) {
-
-    /*
-      Daha genel yedek.
-    */
-
-    match =
-      text.match(
-
-        new RegExp(
-
-          "(\\d{1,2})\\s+(" +
-          months +
-          ")" +
-          "(?:\\s+(20\\d{2}))?" +
-          "\\s+(?:saat\\s+)?" +
-          "(\\d{1,2}:\\d{2})" +
-          "[^.]*(?:sona\\s+erecek|sona\\s+erecektir)",
-
-          "i"
-
-        )
-
-      );
-
-  }
-
-
-  if (
-    !match
-  ) {
-
-    return "";
-
-  }
-
-
-  let result =
-    match[1] +
-    " " +
-    match[2];
-
-
-  if (
-    match[3]
-  ) {
-
-    result +=
-      " " +
-      match[3];
-
-  }
-
-
-  if (
-    match[4]
-  ) {
-
-    result +=
-      " " +
-      match[4];
-
-  }
-
-
-  return result;
-
-}
-
-
-/* =========================================================
-   KADEME
-   ========================================================= */
-
-function extractGrade(
+function parseDateTimestamp(
   value
 ) {
 
   const match =
     String(
-      value ||
-      ""
+      value || ""
+    ).match(
+      /(\d{1,2})[.](\d{1,2})[.](20\d{2})/
+    );
+
+
+  if (
+    !match
+  ) {
+
+    return 0;
+
+  }
+
+
+  return Date.UTC(
+
+    Number(
+      match[3]
+    ),
+
+    Number(
+      match[2]
+    ) - 1,
+
+    Number(
+      match[1]
     )
-      .match(
-        /(\d+)\.\s*Kademe/i
-      );
 
-
-  return match
-    ? match[1]
-    : "";
+  );
 
 }
 
 
 /* =========================================================
-   KONUM
+   KALİTE
    ========================================================= */
 
-function extractLocation(
-  title,
-  body
-) {
-
-  /*
-    Önce başlığa bakıyoruz.
-    Başlık en güvenilir alan.
-  */
-
-  const normalizedTitle =
-    normalize(
-      title
-    );
-
-
-  for (
-    const city
-    of CITIES
-  ) {
-
-    if (
-      normalizedTitle.includes(
-        normalize(
-          city
-        )
-      )
-    ) {
-
-      return city;
-
-    }
-
-  }
-
-
-  /*
-    Gövdede yalnızca
-    "Konya'da / Mersin’de / İstanbul'da"
-    gibi açık kullanım varsa kabul et.
-  */
-
-  const normalizedBody =
-    normalize(
-      body
-    );
-
-
-  for (
-    const city
-    of CITIES
-  ) {
-
-    const cityText =
-      normalize(
-        city
-      );
-
-
-    const pattern =
-      new RegExp(
-
-        "\\b" +
-        escapeRegex(
-          cityText
-        ) +
-        "\\s*['’]?(?:DA|DE|TA|TE)\\b",
-
-        "i"
-
-      );
-
-
-    if (
-      pattern.test(
-        normalizedBody
-      )
-    ) {
-
-      return city;
-
-    }
-
-  }
-
-
-  return "Türkiye";
-
-}
-
-
-/* =========================================================
-   GÖRSEL
-   ========================================================= */
-
-function extractImage(
-  html
-) {
-
-  const patterns = [
-
-    /<meta\b[^>]*(?:property|name)=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
-
-    /<meta\b[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["']og:image["'][^>]*>/i
-
-  ];
-
-
-  for (
-    const pattern
-    of patterns
-  ) {
-
-    const match =
-      html.match(
-        pattern
-      );
-
-
-    if (
-      !match
-    ) {
-
-      continue;
-
-    }
-
-
-    try {
-
-      return new URL(
-        decodeEntities(
-          match[1]
-        ),
-        BASE_URL
-      ).href;
-
-    }
-
-    catch {
-
-      /* diğer kalıba geç */
-
-    }
-
-  }
-
-
-  return "";
-
-}
-
-
-/* =========================================================
-   KALİTE PUANI
-   ========================================================= */
-
-function calculateQualityScore({
+function calculateQuality({
 
   title,
   summary,
@@ -2332,27 +1464,23 @@ function calculateQualityScore({
 }) {
 
   let score =
-    35;
+    40;
 
 
   if (
-    title &&
-    title.length >= 20 &&
-    title.length <= 120
+    title.length >= 20
   ) {
 
-    score += 18;
+    score += 15;
 
   }
 
 
   if (
-    summary &&
-    summary.length >= 60 &&
-    summary.length <= 360
+    summary.length >= 50
   ) {
 
-    score += 18;
+    score += 15;
 
   }
 
@@ -2361,18 +1489,17 @@ function calculateQualityScore({
     image
   ) {
 
-    score += 12;
+    score += 10;
 
   }
 
 
   if (
-    location &&
     location !==
     "Türkiye"
   ) {
 
-    score += 8;
+    score += 10;
 
   }
 
@@ -2381,7 +1508,7 @@ function calculateQualityScore({
     eventDate
   ) {
 
-    score += 9;
+    score += 10;
 
   }
 
@@ -2395,159 +1522,10 @@ function calculateQualityScore({
 
 
 /* =========================================================
-   TEKRAR TEMİZLE
-   ========================================================= */
-
-function removeDuplicates(
-  items
-) {
-
-  const output =
-    [];
-
-
-  const titles =
-    new Set();
-
-
-  const urls =
-    new Set();
-
-
-  for (
-    const item
-    of items
-  ) {
-
-    const titleKey =
-      normalize(
-        item.originalTitle ||
-        item.title
-      );
-
-
-    const urlKey =
-      String(
-        item.url ||
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    if (
-      titleKey &&
-      titles.has(
-        titleKey
-      )
-    ) {
-
-      continue;
-
-    }
-
-
-    if (
-      urlKey &&
-      urls.has(
-        urlKey
-      )
-    ) {
-
-      continue;
-
-    }
-
-
-    if (
-      titleKey
-    ) {
-
-      titles.add(
-        titleKey
-      );
-
-    }
-
-
-    if (
-      urlKey
-    ) {
-
-      urls.add(
-        urlKey
-      );
-
-    }
-
-
-    output.push(
-      item
-    );
-
-  }
-
-
-  return output;
-
-}
-
-
-/* =========================================================
-   SIRALAMA
-   ========================================================= */
-
-function compareArticles(
-  a,
-  b
-) {
-
-  const scoreA =
-    Number(
-      a.finalScore ||
-      0
-    );
-
-
-  const scoreB =
-    Number(
-      b.finalScore ||
-      0
-    );
-
-
-  if (
-    scoreA !== scoreB
-  ) {
-
-    return (
-      scoreB -
-      scoreA
-    );
-
-  }
-
-
-  return (
-    Number(
-      b.timestamp ||
-      0
-    )
-    -
-    Number(
-      a.timestamp ||
-      0
-    )
-  );
-
-}
-
-
-/* =========================================================
    ID
    ========================================================= */
 
-function makeId(
+function createId(
   value
 ) {
 
@@ -2557,8 +1535,7 @@ function makeId(
 
   const text =
     String(
-      value ||
-      ""
+      value || ""
     );
 
 
@@ -2601,7 +1578,7 @@ function makeId(
    EMOJİ
    ========================================================= */
 
-function emojiFor(
+function getEmoji(
   category
 ) {
 
@@ -2613,11 +1590,11 @@ function emojiFor(
     athlete:
       "🏀",
 
-    event:
-      "🏆",
-
     education:
       "🎓",
+
+    event:
+      "🏆",
 
     announcement:
       "📢"
@@ -2636,14 +1613,14 @@ function emojiFor(
 
 
 /* =========================================================
-   HTML ENTITY ÇÖZ
+   HTML ENTITY
    ========================================================= */
 
 function decodeEntities(
   value
 ) {
 
-  const named = {
+  const map = {
 
     amp:
       "&",
@@ -2663,148 +1640,98 @@ function decodeEntities(
     gt:
       ">",
 
-    uuml:
-      "ü",
-
-    Uuml:
-      "Ü",
-
-    ouml:
-      "ö",
-
-    Ouml:
-      "Ö",
-
-    ccedil:
-      "ç",
-
-    Ccedil:
-      "Ç",
-
-    scedil:
-      "ş",
-
-    Scedil:
-      "Ş",
-
-    gbreve:
-      "ğ",
-
-    Gbreve:
-      "Ğ",
-
     rsquo:
       "’",
-
-    lsquo:
-      "‘",
-
-    ldquo:
-      "“",
-
-    rdquo:
-      "”",
 
     ndash:
       "–",
 
     mdash:
-      "—",
-
-    hellip:
-      "…"
+      "—"
 
   };
 
 
   return String(
-    value ||
-    ""
-  )
+    value || ""
+  ).replace(
 
-    .replace(
+    /&(#x?[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]+);/g,
 
-      /&(#x?[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]+);/g,
+    function (
+      original,
+      entity
+    ) {
 
-      function (
-        original,
-        entity
+      if (
+        entity.startsWith(
+          "#"
+        )
       ) {
 
+        const hex =
+          entity
+            .charAt(1)
+            .toLowerCase() ===
+          "x";
+
+
+        const raw =
+          hex
+            ? entity.slice(2)
+            : entity.slice(1);
+
+
+        const number =
+          parseInt(
+            raw,
+            hex
+              ? 16
+              : 10
+          );
+
+
         if (
-          entity.startsWith(
-            "#"
+          Number.isFinite(
+            number
           )
         ) {
 
-          const isHex =
-            entity
-              .charAt(1)
-              .toLowerCase() ===
-            "x";
+          try {
 
-
-          const raw =
-            isHex
-              ? entity.slice(2)
-              : entity.slice(1);
-
-
-          const code =
-            parseInt(
-              raw,
-              isHex
-                ? 16
-                : 10
+            return String.fromCodePoint(
+              number
             );
-
-
-          if (
-            Number.isFinite(
-              code
-            )
-          ) {
-
-            try {
-
-              return String
-                .fromCodePoint(
-                  code
-                );
-
-            }
-
-            catch {
-
-              return original;
-
-            }
 
           }
 
+          catch {
 
-          return original;
+            return original;
+
+          }
 
         }
 
-
-        return Object
-          .prototype
-          .hasOwnProperty
-          .call(
-            named,
-            entity
-          )
-
-          ? named[
-              entity
-            ]
-
-          : original;
-
       }
 
-    );
+
+      return Object.prototype
+        .hasOwnProperty
+        .call(
+          map,
+          entity
+        )
+
+        ? map[
+            entity
+          ]
+
+        : original;
+
+    }
+
+  );
 
 }
 
@@ -2819,8 +1746,7 @@ function cleanText(
 
   return decodeEntities(
     String(
-      value ||
-      ""
+      value || ""
     )
   )
 
@@ -2855,7 +1781,7 @@ function cleanText(
 
 
 /* =========================================================
-   NORMALIZE
+   NORMALİZE
    ========================================================= */
 
 function normalize(
@@ -2863,8 +1789,7 @@ function normalize(
 ) {
 
   return String(
-    value ||
-    ""
+    value || ""
   )
 
     .toLocaleUpperCase(
@@ -2905,10 +1830,10 @@ function normalize(
 
 
 /* =========================================================
-   ARRAY KEYWORD
+   KEYWORD
    ========================================================= */
 
-function hasAny(
+function containsAny(
   text,
   values
 ) {
@@ -2919,37 +1844,6 @@ function hasAny(
         value
       )
   );
-
-}
-
-
-/* =========================================================
-   CÜMLELER
-   ========================================================= */
-
-function splitSentences(
-  value
-) {
-
-  const matches =
-    String(
-      value ||
-      ""
-    ).match(
-      /[^.!?]+[.!?]+|[^.!?]+$/g
-    );
-
-
-  return matches
-    ? matches
-        .map(
-          sentence =>
-            sentence.trim()
-        )
-        .filter(
-          Boolean
-        )
-    : [];
 
 }
 
@@ -2978,92 +1872,28 @@ function shorten(
   }
 
 
-  const partial =
+  const part =
     text.slice(
       0,
       max
     );
 
 
-  const space =
-    partial.lastIndexOf(
+  const lastSpace =
+    part.lastIndexOf(
       " "
     );
 
 
   return (
-    partial.slice(
+    part.slice(
       0,
-      space > 0
-        ? space
+      lastSpace > 0
+        ? lastSpace
         : max
     )
     +
     "…"
   );
 
-}
-
-
-/* =========================================================
-   REGEX ESCAPE
-   ========================================================= */
-
-function escapeRegex(
-  value
-) {
-
-  return String(
-    value ||
-    ""
-  ).replace(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&"
-  );
-
-}
-
-
-/* =========================================================
-   2 HANE
-   ========================================================= */
-
-function pad2(
-  value
-) {
-
-  return String(
-    value
-  ).padStart(
-    2,
-    "0"
-  );
-
-}
-
-
-/* =========================================================
-   HATA
-   ========================================================= */
-
-function getErrorMessage(
-  error
-) {
-
-  if (
-    error &&
-    typeof error.message ===
-    "string"
-  ) {
-
-    return error.message;
-
-  }
-
-
-  return String(
-    error ||
-    "Bilinmeyen hata"
-  );
-
-      }
+    }
