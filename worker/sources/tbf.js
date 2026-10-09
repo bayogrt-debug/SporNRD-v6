@@ -5,11 +5,24 @@
    Türkiye Basketbol Federasyonu
    Liste tabanlı güvenli kaynak okuyucu
 
-   v6.0.4
+   SporNRD v6.0.4
+   ========================================================= */
+
+
+import {
+  cleanHtml,
+  decodeEntities,
+  normalize
+} from "../utils/html.js";
+
+
+/* =========================================================
+   KAYNAK AYARLARI
    ========================================================= */
 
 const BASE =
   "https://www.tbf.org.tr";
+
 
 const NEWS =
   `${BASE}/haberler`;
@@ -50,7 +63,7 @@ const MAX_LIMIT =
 
 
 const MAX_SCAN =
-  40;
+  50;
 
 
 /* =========================================================
@@ -154,8 +167,10 @@ export async function getTbfFeed({
 } = {}) {
 
   /*
-    Global learning daha sonra burada kullanılabilir.
-    Şimdilik TBF kaynağının çalışmasını etkilemez.
+    TBF için learning entegrasyonu ileride
+    ortak relevance motoruna bağlanabilir.
+
+    Şimdilik kaynak okumasını etkilemez.
   */
 
   void env;
@@ -186,11 +201,26 @@ export async function getTbfFeed({
 
       .filter(
         Boolean
-      )
-
-      .sort(
-        compareArticles
       );
+
+
+  /* -------------------------------------------------------
+     Aynı haberleri temizle
+     ------------------------------------------------------- */
+
+  const uniqueItems =
+    dedupeArticles(
+      items
+    );
+
+
+  /* -------------------------------------------------------
+     Puan + tarih
+     ------------------------------------------------------- */
+
+  uniqueItems.sort(
+    compareArticles
+  );
 
 
   return {
@@ -201,7 +231,7 @@ export async function getTbfFeed({
       },
 
     items:
-      items.slice(
+      uniqueItems.slice(
         0,
         normalizeLimit(
           limit
@@ -238,7 +268,7 @@ async function getHtml(
             "tr-TR,tr;q=0.9,en;q=0.8",
 
           "User-Agent":
-            "Mozilla/5.0 (compatible; SporNRD/6.0)"
+            "Mozilla/5.0 (compatible; SporNRD/6.0.4)"
 
         },
 
@@ -260,7 +290,23 @@ async function getHtml(
   }
 
 
-  return response.text();
+  const html =
+    await response.text();
+
+
+  if (
+    !html ||
+    html.length < 100
+  ) {
+
+    throw new Error(
+      "TBF boş veya geçersiz HTML döndürdü."
+    );
+
+  }
+
+
+  return html;
 
 }
 
@@ -268,8 +314,11 @@ async function getHtml(
 /* =========================================================
    HABERLERİ LİSTE SAYFASINDAN ÇIKAR
 
-   TBF detay sayfasına bağımlı değil.
-   Haber kartlarını /haberler sayfasından okur.
+   ÖNEMLİ:
+   Komşu haberlerin metnini almıyoruz.
+
+   Sadece her /haber/... bağlantısının
+   kendi <a>...</a> kartını okuyoruz.
    ========================================================= */
 
 function extractNews(
@@ -300,36 +349,18 @@ function extractNews(
     ) !== null
   ) {
 
-    let url;
+    /* -----------------------------------------------------
+       URL
+       ----------------------------------------------------- */
 
-
-    try {
-
-      url =
-        new URL(
-          decodeEntities(
-            match[2]
-          ),
-          BASE
-        )
-          .href
-          .split(
-            "#"
-          )[0];
-
-    }
-
-    catch {
-
-      continue;
-
-    }
+    const url =
+      resolveNewsUrl(
+        match[2]
+      );
 
 
     if (
-      !isTbfUrl(
-        url
-      ) ||
+      !url ||
       usedUrls.has(
         url
       )
@@ -340,29 +371,19 @@ function extractNews(
     }
 
 
-    const anchorBlock =
-      match[4] ||
-      "";
+    /* -----------------------------------------------------
+       SADECE BU HABERİN KARTI
+       ----------------------------------------------------- */
 
-
-    const anchorText =
-      cleanText(
-        anchorBlock
-      )
-        .replace(
-          /Devamını\s+Gör/gi,
-          " "
-        )
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .trim();
+    const cardHtml =
+      String(
+        match[4] ||
+        ""
+      );
 
 
     if (
-      !anchorText ||
-      anchorText.length < 6
+      !cardHtml
     ) {
 
       continue;
@@ -370,74 +391,75 @@ function extractNews(
     }
 
 
-    /*
-      Anchor'ın yakın çevresini de okuyarak
-      tarih, görsel ve kısa açıklamayı yakalar.
-    */
-
-    const start =
-      Math.max(
-        0,
-        match.index -
-        700
-      );
-
-
-    const end =
-      Math.min(
-        html.length,
-        anchorRegex.lastIndex +
-        1200
-      );
-
-
-    const context =
-      html.slice(
-        start,
-        end
-      );
-
-
-    const contextText =
-      cleanText(
-        context
-      );
-
-
-    const title =
-      extractCardTitle(
-        anchorText,
-        contextText
+    const cardText =
+      cleanCardText(
+        cardHtml
       );
 
 
     if (
-      !title ||
-      title.length < 6
+      !cardText ||
+      cardText.length < 6
     ) {
 
       continue;
 
     }
 
+
+    /* -----------------------------------------------------
+       TARİH
+       ----------------------------------------------------- */
 
     const date =
       extractCardDate(
-        contextText
+        cardText
       );
 
 
+    /* -----------------------------------------------------
+       BAŞLIK
+       ----------------------------------------------------- */
+
+    const title =
+      extractCardTitle(
+        cardHtml,
+        cardText,
+        date
+      );
+
+
+    if (
+      !isValidTitle(
+        title
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    /* -----------------------------------------------------
+       ÖZET
+       ----------------------------------------------------- */
+
     const summary =
       extractCardSummary(
-        contextText,
+        cardHtml,
+        cardText,
         title,
         date
       );
 
 
+    /* -----------------------------------------------------
+       GÖRSEL
+       ----------------------------------------------------- */
+
     const image =
       extractImageFromBlock(
-        context
+        cardHtml
       );
 
 
@@ -474,6 +496,68 @@ function extractNews(
 
 
 /* =========================================================
+   HABER URL
+   ========================================================= */
+
+function resolveNewsUrl(
+  href
+) {
+
+  try {
+
+    const url =
+      new URL(
+        decodeEntities(
+          href
+        ),
+        BASE
+      );
+
+
+    url.hash =
+      "";
+
+
+    if (
+      !isTbfUrl(
+        url.href
+      )
+    ) {
+
+      return "";
+
+    }
+
+
+    if (
+      !url.pathname
+        .toLocaleLowerCase(
+          "tr-TR"
+        )
+        .includes(
+          "/haber/"
+        )
+    ) {
+
+      return "";
+
+    }
+
+
+    return url.href;
+
+  }
+
+  catch {
+
+    return "";
+
+  }
+
+}
+
+
+/* =========================================================
    TBF URL KONTROLÜ
    ========================================================= */
 
@@ -489,10 +573,15 @@ function isTbfUrl(
       );
 
 
+    const hostname =
+      url.hostname
+        .toLowerCase();
+
+
     return (
-      url.hostname ===
+      hostname ===
       "www.tbf.org.tr" ||
-      url.hostname ===
+      hostname ===
       "tbf.org.tr"
     );
 
@@ -509,78 +598,351 @@ function isTbfUrl(
 
 /* =========================================================
    KART BAŞLIĞI
+
+   Öncelik:
+   1. h1-h6
+   2. title class
+   3. card text
    ========================================================= */
 
 function extractCardTitle(
-  anchorText,
-  contextText
+  cardHtml,
+  cardText,
+  date
 ) {
 
-  let title =
-    anchorText
+  /* -------------------------------------------------------
+     H1-H6
+     ------------------------------------------------------- */
 
-      .replace(
-        /^\d{1,2}[.\/-]\d{1,2}[.\/-]20\d{2}\s*/i,
-        ""
-      )
-
-      .replace(
-        /Devamını\s+Gör/gi,
-        " "
-      )
-
-      .replace(
-        /\s+/g,
-        " "
-      )
-
-      .trim();
+  const headingRegex =
+    /<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi;
 
 
-  if (
-    title.length >= 6 &&
-    title.length <= 180
+  let headingMatch;
+
+
+  while (
+    (
+      headingMatch =
+        headingRegex.exec(
+          cardHtml
+        )
+    ) !== null
   ) {
 
-    return title;
+    const value =
+      cleanCandidateTitle(
+        headingMatch[1],
+        date
+      );
+
+
+    if (
+      isValidTitle(
+        value
+      )
+    ) {
+
+      return value;
+
+    }
 
   }
 
 
-  const contextWithoutDate =
-    contextText
+  /* -------------------------------------------------------
+     class="...title..."
+     ------------------------------------------------------- */
 
-      .replace(
-        /\b\d{1,2}[.\/-]\d{1,2}[.\/-]20\d{2}\b/g,
-        " "
+  const titleClassRegex =
+    /<(?:div|span|p)\b[^>]*class=["'][^"']*(?:title|baslik|headline)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p)>/gi;
+
+
+  let classMatch;
+
+
+  while (
+    (
+      classMatch =
+        titleClassRegex.exec(
+          cardHtml
+        )
+    ) !== null
+  ) {
+
+    const value =
+      cleanCandidateTitle(
+        classMatch[1],
+        date
+      );
+
+
+    if (
+      isValidTitle(
+        value
       )
+    ) {
 
-      .replace(
-        /Devamını\s+Gör/gi,
-        " "
-      )
+      return value;
 
-      .replace(
-        /\s+/g,
-        " "
-      )
+    }
 
-      .trim();
+  }
+
+
+  /* -------------------------------------------------------
+     IMG ALT fallback
+     ------------------------------------------------------- */
+
+  const altMatch =
+    cardHtml.match(
+      /<img\b[^>]*alt=["']([^"']+)["'][^>]*>/i
+    );
 
 
   if (
-    contextWithoutDate.length <= 180
+    altMatch
   ) {
 
-    return contextWithoutDate;
+    const value =
+      cleanCandidateTitle(
+        altMatch[1],
+        date
+      );
+
+
+    if (
+      isValidTitle(
+        value
+      ) &&
+      !isGenericImageAlt(
+        value
+      )
+    ) {
+
+      return value;
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     Kart metninden çıkar
+     ------------------------------------------------------- */
+
+  let text =
+    String(
+      cardText ||
+      ""
+    );
+
+
+  if (
+    date
+  ) {
+
+    text =
+      removeAll(
+        text,
+        date
+      );
+
+  }
+
+
+  text =
+    removeCtaText(
+      text
+    );
+
+
+  text =
+    collapseRepeatedText(
+      text
+    );
+
+
+  /*
+    Başlık + özet tek satırdaysa başlığı
+    ilk anlamlı cümleden almaya çalış.
+  */
+
+  const sentence =
+    text.match(
+      /^(.{6,180}?)(?:[.!?](?:\s|$)|$)/
+    );
+
+
+  if (
+    sentence
+  ) {
+
+    const candidate =
+      cleanCandidateTitle(
+        sentence[1],
+        ""
+      );
+
+
+    if (
+      isValidTitle(
+        candidate
+      )
+    ) {
+
+      return candidate;
+
+    }
 
   }
 
 
   return shorten(
-    contextWithoutDate,
-    180
+    cleanCandidateTitle(
+      text,
+      ""
+    ),
+    160
   );
+
+}
+
+
+/* =========================================================
+   BAŞLIK TEMİZLE
+   ========================================================= */
+
+function cleanCandidateTitle(
+  value,
+  date
+) {
+
+  let text =
+    cleanText(
+      value
+    );
+
+
+  if (
+    date
+  ) {
+
+    text =
+      removeAll(
+        text,
+        date
+      );
+
+  }
+
+
+  text =
+    removeCtaText(
+      text
+    );
+
+
+  text =
+    text
+
+      .replace(
+        /^[|•·\-–—:]+/,
+        ""
+      )
+
+      .replace(
+        /[|•·\-–—:]+$/,
+        ""
+      )
+
+      .replace(
+        /\s+/g,
+        " "
+      )
+
+      .trim();
+
+
+  return text;
+
+}
+
+
+/* =========================================================
+   BAŞLIK GEÇERLİ Mİ?
+   ========================================================= */
+
+function isValidTitle(
+  value
+) {
+
+  const text =
+    cleanText(
+      value
+    );
+
+
+  if (
+    !text ||
+    text.length < 6 ||
+    text.length > 200
+  ) {
+
+    return false;
+
+  }
+
+
+  if (
+    isDateOnly(
+      text
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  const normalized =
+    normalize(
+      text
+    );
+
+
+  const invalid = [
+
+    "DEVAMINI GOR",
+
+    "DETAYLAR",
+
+    "HABERLER",
+
+    "TUM HABERLER",
+
+    "DAHA FAZLA",
+
+    "INCELE"
+
+  ];
+
+
+  if (
+    invalid.some(
+      item =>
+        normalized ===
+        item
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  return true;
 
 }
 
@@ -593,18 +955,212 @@ function extractCardDate(
   text
 ) {
 
-  const match =
+  const value =
     String(
       text ||
       ""
-    )
-      .match(
-        /\b(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})\b/
-      );
+    );
+
+
+  /* -------------------------------------------------------
+     09.10.2026
+     ------------------------------------------------------- */
+
+  let match =
+    value.match(
+      /\b(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})\b/
+    );
 
 
   if (
-    !match
+    match
+  ) {
+
+    return (
+      `${pad2(match[1])}.` +
+      `${pad2(match[2])}.` +
+      `${match[3]}`
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     9 Ekim 2026
+     ------------------------------------------------------- */
+
+  match =
+    value.match(
+
+      /\b(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(20\d{2})\b/i
+
+    );
+
+
+  if (
+    match
+  ) {
+
+    return (
+      `${Number(match[1])} ` +
+      `${match[2]} ` +
+      `${match[3]}`
+    );
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
+   KART ÖZETİ
+
+   Öncelik:
+   1. description/summary class
+   2. p elementleri
+   3. kartın kalan temiz metni
+
+   Başka kartın verisi kullanılmaz.
+   ========================================================= */
+
+function extractCardSummary(
+  cardHtml,
+  cardText,
+  title,
+  date
+) {
+
+  const candidates =
+    [];
+
+
+  /* -------------------------------------------------------
+     summary / description class
+     ------------------------------------------------------- */
+
+  const summaryClassRegex =
+    /<(?:div|span|p)\b[^>]*class=["'][^"']*(?:summary|description|desc|excerpt|spot|text|content)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p)>/gi;
+
+
+  let summaryMatch;
+
+
+  while (
+    (
+      summaryMatch =
+        summaryClassRegex.exec(
+          cardHtml
+        )
+    ) !== null
+  ) {
+
+    const value =
+      cleanSummaryCandidate(
+        summaryMatch[1],
+        title,
+        date
+      );
+
+
+    if (
+      isValidSummary(
+        value
+      )
+    ) {
+
+      candidates.push(
+        value
+      );
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     P elementleri
+     ------------------------------------------------------- */
+
+  const paragraphRegex =
+    /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+
+
+  let paragraphMatch;
+
+
+  while (
+    (
+      paragraphMatch =
+        paragraphRegex.exec(
+          cardHtml
+        )
+    ) !== null
+  ) {
+
+    const value =
+      cleanSummaryCandidate(
+        paragraphMatch[1],
+        title,
+        date
+      );
+
+
+    if (
+      isValidSummary(
+        value
+      )
+    ) {
+
+      candidates.push(
+        value
+      );
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     İlk kaliteli aday
+     ------------------------------------------------------- */
+
+  const uniqueCandidates =
+    uniqueTexts(
+      candidates
+    );
+
+
+  if (
+    uniqueCandidates.length
+  ) {
+
+    return shorten(
+      uniqueCandidates[0],
+      360
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Kart metni fallback
+     ------------------------------------------------------- */
+
+  const fallback =
+    cleanSummaryCandidate(
+      cardText,
+      title,
+      date
+    );
+
+
+  if (
+    !isValidSummary(
+      fallback
+    )
   ) {
 
     return "";
@@ -612,41 +1168,34 @@ function extractCardDate(
   }
 
 
-  return (
-    `${pad2(match[1])}.` +
-    `${pad2(match[2])}.` +
-    `${match[3]}`
+  return shorten(
+    fallback,
+    360
   );
 
 }
 
 
 /* =========================================================
-   KART AÇIKLAMASI
+   ÖZET TEMİZLE
    ========================================================= */
 
-function extractCardSummary(
-  contextText,
+function cleanSummaryCandidate(
+  value,
   title,
   date
 ) {
 
   let text =
     cleanText(
-      contextText
-    )
+      value
+    );
 
-      .replace(
-        /Devamını\s+Gör/gi,
-        " "
-      )
 
-      .replace(
-        /\s+/g,
-        " "
-      )
-
-      .trim();
+  text =
+    removeCtaText(
+      text
+    );
 
 
   if (
@@ -654,14 +1203,9 @@ function extractCardSummary(
   ) {
 
     text =
-      text.replace(
-        new RegExp(
-          escapeRegex(
-            date
-          ),
-          "g"
-        ),
-        " "
+      removeAll(
+        text,
+        date
       );
 
   }
@@ -672,21 +1216,130 @@ function extractCardSummary(
   ) {
 
     text =
-      text.replace(
-        new RegExp(
-          escapeRegex(
-            title
-          ),
-          "gi"
-        ),
-        " "
+      removeAll(
+        text,
+        title
       );
 
   }
 
 
   text =
-    text
+    collapseRepeatedText(
+      text
+    );
+
+
+  return text
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+}
+
+
+/* =========================================================
+   ÖZET GEÇERLİ Mİ?
+   ========================================================= */
+
+function isValidSummary(
+  value
+) {
+
+  const text =
+    cleanText(
+      value
+    );
+
+
+  if (
+    !text ||
+    text.length < 25
+  ) {
+
+    return false;
+
+  }
+
+
+  if (
+    isDateOnly(
+      text
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  return true;
+
+}
+
+
+/* =========================================================
+   CTA METNİ TEMİZLE
+   ========================================================= */
+
+function removeCtaText(
+  value
+) {
+
+  return String(
+    value ||
+    ""
+  )
+
+    .replace(
+      /Devamını\s+Gör/gi,
+      " "
+    )
+
+    .replace(
+      /Haberi\s+Oku/gi,
+      " "
+    )
+
+    .replace(
+      /Detay(?:lar)?/gi,
+      " "
+    )
+
+    .replace(
+      /İncele/gi,
+      " "
+    )
+
+    .replace(
+      /\s+/g,
+      " "
+    )
+
+    .trim();
+
+}
+
+
+/* =========================================================
+   TEKRAR EDEN METNİ AZALT
+
+   Örnek:
+   Başlık Başlık
+   Başlık Başlık Açıklama
+   ========================================================= */
+
+function collapseRepeatedText(
+  value
+) {
+
+  let text =
+    String(
+      value ||
+      ""
+    )
       .replace(
         /\s+/g,
         " "
@@ -695,8 +1348,7 @@ function extractCardSummary(
 
 
   if (
-    !text ||
-    text.length < 25
+    !text
   ) {
 
     return "";
@@ -704,10 +1356,66 @@ function extractCardSummary(
   }
 
 
-  return shorten(
-    text,
-    420
-  );
+  const words =
+    text.split(
+      " "
+    );
+
+
+  /*
+    İlk yarı ikinci yarı ile aynıysa
+    tek yarısını tut.
+  */
+
+  if (
+    words.length >= 6 &&
+    words.length % 2 === 0
+  ) {
+
+    const half =
+      words.length /
+      2;
+
+
+    const first =
+      words
+        .slice(
+          0,
+          half
+        )
+        .join(
+          " "
+        );
+
+
+    const second =
+      words
+        .slice(
+          half
+        )
+        .join(
+          " "
+        );
+
+
+    if (
+      normalize(
+        first
+      ) ===
+      normalize(
+        second
+      )
+    ) {
+
+      text =
+        first;
+
+    }
+
+  }
+
+
+  return text;
 
 }
 
@@ -719,6 +1427,18 @@ function extractCardSummary(
 function createArticle(
   raw
 ) {
+
+  if (
+    !raw ||
+    !isValidTitle(
+      raw.title
+    )
+  ) {
+
+    return null;
+
+  }
+
 
   const analysis =
     classify(
@@ -737,7 +1457,7 @@ function createArticle(
 
 
   const combined =
-    `${raw.title} ${raw.summary}`;
+    `${raw.title} ${raw.summary || ""}`;
 
 
   const location =
@@ -826,6 +1546,10 @@ function createArticle(
 
   return {
 
+    /* -----------------------------------------------------
+       Kimlik
+       ----------------------------------------------------- */
+
     id:
       id,
 
@@ -852,7 +1576,8 @@ function createArticle(
       raw.title,
 
     originalText:
-      raw.summary,
+      raw.summary ||
+      "",
 
 
     /* -----------------------------------------------------
@@ -925,15 +1650,21 @@ function createArticle(
       editorial.topic,
 
     urgency:
-      (
-        analysis.actionRequired ||
-        deadline
-      )
-        ? "important"
-        : "normal",
+      deadline
+
+        ? "high"
+
+        : analysis.actionRequired
+
+          ? "important"
+
+          : "normal",
 
     actionRequired:
-      analysis.actionRequired,
+      Boolean(
+        analysis.actionRequired ||
+        deadline
+      ),
 
     actionLabel:
       editorial.actionLabel,
@@ -980,7 +1711,8 @@ function createArticle(
        ----------------------------------------------------- */
 
     date:
-      raw.date,
+      raw.date ||
+      "",
 
     timestamp:
       timestamp,
@@ -1003,6 +1735,10 @@ function createArticle(
     pdfUrl:
       "",
 
+
+    /* -----------------------------------------------------
+       Görsel kategori
+       ----------------------------------------------------- */
 
     emoji:
       getEmoji(
@@ -1031,12 +1767,12 @@ function classify(
 
   const allText =
     normalize(
-      `${title} ${summary}`
+      `${title || ""} ${summary || ""}`
     );
 
 
   /* -------------------------------------------------------
-     Akıştan çıkarılacak içerikler
+     Akış dışı
      ------------------------------------------------------- */
 
   if (
@@ -1052,30 +1788,25 @@ function classify(
 
         "ZIYARET",
 
-        "BASKAN MESAJI"
+        "BASKAN MESAJI",
+
+        "GENEL KURUL",
+
+        "IHALE",
+
+        "SATIN ALMA"
 
       ]
     )
   ) {
 
-    return {
-
-      keep:
-        false,
-
-      category:
-        "announcement",
-
-      audience:
-        "general",
-
-      score:
-        0,
-
-      actionRequired:
-        false
-
-    };
+    return classificationResult(
+      false,
+      "announcement",
+      "general",
+      0,
+      false
+    );
 
   }
 
@@ -1099,41 +1830,33 @@ function classify(
     )
   ) {
 
-    return {
+    return classificationResult(
 
-      keep:
-        true,
+      true,
 
-      category:
-        "coach",
+      "coach",
 
-      audience:
-        "antrenör",
+      "antrenör",
 
-      score:
-        10,
+      10,
 
-      actionRequired:
-        containsAny(
-          allText,
-          [
+      containsAny(
+        allText,
+        [
+          "BASVURU",
+          "KAYIT",
+          "SON BASVURU",
+          "KURS"
+        ]
+      )
 
-            "BASVURU",
-
-            "KAYIT",
-
-            "SON BASVURU"
-
-          ]
-        )
-
-    };
+    );
 
   }
 
 
   /* -------------------------------------------------------
-     Sporcu / Milli takım
+     Sporcu / milli takım
      ------------------------------------------------------- */
 
   if (
@@ -1171,24 +1894,13 @@ function classify(
     )
   ) {
 
-    return {
-
-      keep:
-        true,
-
-      category:
-        "athlete",
-
-      audience:
-        "sporcu",
-
-      score:
-        9,
-
-      actionRequired:
-        false
-
-    };
+    return classificationResult(
+      true,
+      "athlete",
+      "sporcu",
+      9,
+      false
+    );
 
   }
 
@@ -1208,45 +1920,39 @@ function classify(
 
         "SERTIFIKA",
 
-        "AKADEMI"
+        "AKADEMI",
+
+        "KURS"
 
       ]
     )
   ) {
 
-    return {
+    return classificationResult(
 
-      keep:
-        true,
+      true,
 
-      category:
-        "education",
+      "education",
 
-      audience:
-        "general",
+      "general",
 
-      score:
-        8,
+      8,
 
-      actionRequired:
-        containsAny(
-          allText,
-          [
+      containsAny(
+        allText,
+        [
+          "BASVURU",
+          "KAYIT"
+        ]
+      )
 
-            "BASVURU",
-
-            "KAYIT"
-
-          ]
-        )
-
-    };
+    );
 
   }
 
 
   /* -------------------------------------------------------
-     Lig / kupa / maç / organizasyon
+     Lig / kupa / maç
      ------------------------------------------------------- */
 
   if (
@@ -1276,30 +1982,23 @@ function classify(
 
         "EUROLEAGUE",
 
-        "SEZON"
+        "SEZON",
+
+        "PLAY-OFF",
+
+        "PLAYOFF"
 
       ]
     )
   ) {
 
-    return {
-
-      keep:
-        true,
-
-      category:
-        "event",
-
-      audience:
-        "general",
-
-      score:
-        7,
-
-      actionRequired:
-        false
-
-    };
+    return classificationResult(
+      true,
+      "event",
+      "general",
+      7,
+      false
+    );
 
   }
 
@@ -1321,55 +2020,75 @@ function classify(
 
         "FAALIYET PROGRAMI",
 
-        "PROGRAMI ACIKLANDI"
+        "PROGRAMI ACIKLANDI",
+
+        "TAKVIM"
 
       ]
     )
   ) {
 
-    return {
-
-      keep:
-        true,
-
-      category:
-        "announcement",
-
-      audience:
-        "general",
-
-      score:
-        5,
-
-      actionRequired:
-        true
-
-    };
+    return classificationResult(
+      true,
+      "announcement",
+      "general",
+      5,
+      true
+    );
 
   }
 
 
-  /*
-    Diğer gerçek basketbol haberlerini
-    tamamen çöpe atmıyoruz.
-  */
+  /* -------------------------------------------------------
+     Genel basketbol haberi
+     ------------------------------------------------------- */
+
+  return classificationResult(
+    true,
+    "event",
+    "general",
+    4,
+    false
+  );
+
+}
+
+
+/* =========================================================
+   SINIFLANDIRMA SONUCU
+   ========================================================= */
+
+function classificationResult(
+  keep,
+  category,
+  audience,
+  score,
+  actionRequired
+) {
 
   return {
 
     keep:
-      true,
+      Boolean(
+        keep
+      ),
 
     category:
-      "event",
+      category,
 
     audience:
-      "general",
+      audience,
 
     score:
-      4,
+      Number(
+        score ||
+        0
+      ),
 
     actionRequired:
-      false
+      Boolean(
+        actionRequired
+      )
 
   };
 
@@ -1424,9 +2143,9 @@ function createEditorial({
     ];
 
 
-  /* -------------------------------------------------------
-     Antrenör kursu
-     ------------------------------------------------------- */
+  /* =======================================================
+     ANTRENÖR KURSU
+     ======================================================= */
 
   if (
     category ===
@@ -1472,7 +2191,7 @@ function createEditorial({
 
 
     newSummary =
-      `TBF, ${level} Basketbol Antrenör Kursu’nun ayrıntılarını açıkladı.`;
+      `TBF, ${level} Basketbol Antrenör Kursu’na ilişkin yeni duyuruyu yayımladı.`;
 
 
     if (
@@ -1487,12 +2206,33 @@ function createEditorial({
     }
 
 
+    else if (
+      eventDate
+    ) {
+
+      newSummary +=
+        ` Kurs tarihi ${eventDate}.`;
+
+    }
+
+
+    else if (
+      location !==
+      "Türkiye"
+    ) {
+
+      newSummary +=
+        ` Kurs ${location}’da gerçekleştirilecek.`;
+
+    }
+
+
     if (
       deadline
     ) {
 
       newSummary +=
-        ` Kayıtlar ${deadline} tarihinde sona erecek.`;
+        ` Son başvuru/kayıt bilgisi: ${deadline}.`;
 
     }
 
@@ -1513,6 +2253,10 @@ function createEditorial({
   }
 
 
+  /* =======================================================
+     ANTRENÖR
+     ======================================================= */
+
   else if (
     category ===
     "coach"
@@ -1528,6 +2272,10 @@ function createEditorial({
 
   }
 
+
+  /* =======================================================
+     SPORCU
+     ======================================================= */
 
   else if (
     category ===
@@ -1545,6 +2293,10 @@ function createEditorial({
   }
 
 
+  /* =======================================================
+     EĞİTİM
+     ======================================================= */
+
   else if (
     category ===
     "education"
@@ -1561,19 +2313,35 @@ function createEditorial({
   }
 
 
+  /* =======================================================
+     ETKİNLİK
+     ======================================================= */
+
   else if (
     category ===
     "event"
   ) {
 
+    actionLabel =
+      "Haberi İncele";
+
+
     tags.push(
-      "Yarışma"
+      "Basketbol"
     );
 
   }
 
 
+  /* =======================================================
+     DUYURU
+     ======================================================= */
+
   else {
+
+    actionLabel =
+      "Duyuruyu İncele";
+
 
     tags.push(
       "Duyuru"
@@ -1582,7 +2350,12 @@ function createEditorial({
   }
 
 
+  /* -------------------------------------------------------
+     Konum etiketi
+     ------------------------------------------------------- */
+
   if (
+    location &&
     location !==
     "Türkiye"
   ) {
@@ -1595,7 +2368,22 @@ function createEditorial({
 
 
   /* -------------------------------------------------------
-     Açıklama yoksa güvenli yedek
+     Kademe
+     ------------------------------------------------------- */
+
+  if (
+    grade
+  ) {
+
+    tags.push(
+      `${grade}. Kademe`
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Açıklama güvenliği
      ------------------------------------------------------- */
 
   if (
@@ -1604,7 +2392,24 @@ function createEditorial({
   ) {
 
     newSummary =
-      "Türkiye Basketbol Federasyonu bu konuyla ilgili yeni bir resmî içerik yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor.";
+      fallbackSummary(
+        category
+      );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Başlık güvenliği
+     ------------------------------------------------------- */
+
+  if (
+    !newTitle ||
+    newTitle.length < 6
+  ) {
+
+    newTitle =
+      "Türkiye Basketbol Federasyonu duyurusu";
 
   }
 
@@ -1624,7 +2429,10 @@ function createEditorial({
       ),
 
     topic:
-      topic,
+      shorten(
+        topic,
+        140
+      ),
 
     actionLabel:
       actionLabel,
@@ -1632,11 +2440,51 @@ function createEditorial({
     tags:
       [
         ...new Set(
-          tags
+          tags.filter(
+            Boolean
+          )
         )
       ]
 
   };
+
+}
+
+
+/* =========================================================
+   YEDEK ÖZET
+   ========================================================= */
+
+function fallbackSummary(
+  category
+) {
+
+  const map = {
+
+    coach:
+      "Türkiye Basketbol Federasyonu, antrenörleri ilgilendiren yeni bir resmî duyuru yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor.",
+
+    athlete:
+      "Türkiye Basketbol Federasyonu, sporcuları ilgilendiren yeni bir resmî içerik yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor.",
+
+    education:
+      "Türkiye Basketbol Federasyonu, yeni bir eğitim veya seminer duyurusu yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor.",
+
+    event:
+      "Türkiye Basketbol Federasyonu yeni bir basketbol içeriği yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor.",
+
+    announcement:
+      "Türkiye Basketbol Federasyonu yeni bir resmî duyuru yayımladı. Ayrıntılar federasyonun resmî kaynağında yer alıyor."
+
+  };
+
+
+  return (
+    map[
+      category
+    ] ||
+    map.announcement
+  );
 
 }
 
@@ -1664,9 +2512,13 @@ function extractImageFromBlock(
   ) {
 
     const match =
-      html.match(
-        pattern
-      );
+      String(
+        html ||
+        ""
+      )
+        .match(
+          pattern
+        );
 
 
     if (
@@ -1680,30 +2532,49 @@ function extractImageFromBlock(
 
     try {
 
+      const raw =
+        decodeEntities(
+          match[1]
+        );
+
+
+      if (
+        !raw ||
+        /^data:/i.test(
+          raw
+        )
+      ) {
+
+        continue;
+
+      }
+
+
       const url =
         new URL(
-          decodeEntities(
-            match[1]
-          ),
+          raw,
           BASE
         ).href;
 
 
       if (
-        !/^data:/i.test(
+        isBadImage(
           url
         )
       ) {
 
-        return url;
+        continue;
 
       }
+
+
+      return url;
 
     }
 
     catch {
 
-      /* diğer kalıba geç */
+      /* sonraki pattern */
 
     }
 
@@ -1711,6 +2582,51 @@ function extractImageFromBlock(
 
 
   return "";
+
+}
+
+
+/* =========================================================
+   KÖTÜ GÖRSEL
+   ========================================================= */
+
+function isBadImage(
+  value
+) {
+
+  const text =
+    String(
+      value ||
+      ""
+    )
+      .toLowerCase();
+
+
+  const bad = [
+
+    "logo",
+
+    "favicon",
+
+    "icon",
+
+    "spinner",
+
+    "loading",
+
+    "placeholder",
+
+    "avatar"
+
+  ];
+
+
+  return bad.some(
+    item =>
+      text.includes(
+        item
+      )
+  );
 
 }
 
@@ -1734,11 +2650,23 @@ function findLocation(
     of CITIES
   ) {
 
+    const cityNormalized =
+      normalize(
+        city
+      );
+
+
+    const pattern =
+      new RegExp(
+        `(?:^|[^A-Z0-9])${escapeRegex(
+          cityNormalized
+        )}(?:[^A-Z0-9]|$)`
+      );
+
+
     if (
-      normalized.includes(
-        normalize(
-          city
-        )
+      pattern.test(
+        normalized
       )
     ) {
 
@@ -1781,7 +2709,8 @@ function findEventDate(
 
       new RegExp(
 
-        `(\\d{1,2})\\s+(${months})\\s*[-–]\\s*(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
+        `(\\d{1,2})\\s+(${months})\\s*[-–]\\s*` +
+        `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
 
         "i"
 
@@ -1795,8 +2724,8 @@ function findEventDate(
   ) {
 
     return (
-      `${match[1]} ${match[2]}` +
-      `–${match[3]} ${match[4]} ${match[5]}`
+      `${Number(match[1])} ${match[2]}` +
+      `–${Number(match[3])} ${match[4]} ${match[5]}`
     );
 
   }
@@ -1811,7 +2740,8 @@ function findEventDate(
 
       new RegExp(
 
-        `(\\d{1,2})\\s*[-–]\\s*(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
+        `(\\d{1,2})\\s*[-–]\\s*` +
+        `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
 
         "i"
 
@@ -1825,8 +2755,37 @@ function findEventDate(
   ) {
 
     return (
-      `${match[1]}–${match[2]} ` +
+      `${Number(match[1])}–${Number(match[2])} ` +
       `${match[3]} ${match[4]}`
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Tek tarih
+     ------------------------------------------------------- */
+
+  match =
+    value.match(
+
+      new RegExp(
+
+        `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
+
+        "i"
+
+      )
+
+    );
+
+
+  if (
+    match
+  ) {
+
+    return (
+      `${Number(match[1])} ${match[2]} ${match[3]}`
     );
 
   }
@@ -1855,16 +2814,20 @@ function findDeadline(
     "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık";
 
 
-  const match =
+  /* -------------------------------------------------------
+     Son başvuru 20 Ekim 2026
+     ------------------------------------------------------- */
+
+  let match =
     value.match(
 
       new RegExp(
 
+        `(?:son\\s+başvuru|son\\s+basvuru|son\\s+tarih|kayıtlar|kayitlar)` +
+        `[^.]{0,50}?` +
         `(\\d{1,2})\\s+(${months})` +
         `(?:\\s+(20\\d{2}))?` +
-        `(?:[^.]{0,40}?)(\\d{1,2}:\\d{2})?` +
-        `(?:[^.]{0,70}?)` +
-        `(?:sona\\s+erecek|sona\\s+erecektir|son\\s+basvuru|son\\s+başvuru)`,
+        `(?:[^.]{0,20}?)(\\d{1,2}:\\d{2})?`,
 
         "i"
 
@@ -1874,16 +2837,64 @@ function findDeadline(
 
 
   if (
-    !match
+    match
   ) {
 
-    return "";
+    return buildDeadlineText(
+      match
+    );
 
   }
 
 
+  /* -------------------------------------------------------
+     20 Ekim 2026 tarihinde sona erecek
+     ------------------------------------------------------- */
+
+  match =
+    value.match(
+
+      new RegExp(
+
+        `(\\d{1,2})\\s+(${months})` +
+        `(?:\\s+(20\\d{2}))?` +
+        `(?:[^.]{0,40}?)(\\d{1,2}:\\d{2})?` +
+        `(?:[^.]{0,70}?)` +
+        `(?:sona\\s+erecek|sona\\s+erecektir|son\\s+başvuru|son\\s+basvuru)`,
+
+        "i"
+
+      )
+
+    );
+
+
+  if (
+    match
+  ) {
+
+    return buildDeadlineText(
+      match
+    );
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
+   DEADLINE METNİ
+   ========================================================= */
+
+function buildDeadlineText(
+  match
+) {
+
   let result =
-    `${match[1]} ${match[2]}`;
+    `${Number(match[1])} ${match[2]}`;
 
 
   if (
@@ -1944,18 +2955,93 @@ function parseDateTimestamp(
   value
 ) {
 
-  const match =
+  const text =
     String(
       value ||
       ""
-    )
-      .match(
-        /(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})/
-      );
+    );
+
+
+  /* -------------------------------------------------------
+     09.10.2026
+     ------------------------------------------------------- */
+
+  let match =
+    text.match(
+      /(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})/
+    );
+
+
+  if (
+    match
+  ) {
+
+    return Date.UTC(
+
+      Number(
+        match[3]
+      ),
+
+      Number(
+        match[2]
+      ) - 1,
+
+      Number(
+        match[1]
+      )
+
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     9 Ekim 2026
+     ------------------------------------------------------- */
+
+  match =
+    text.match(
+      /(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(20\d{2})/i
+    );
 
 
   if (
     !match
+  ) {
+
+    return 0;
+
+  }
+
+
+  const months = [
+
+    "OCAK",
+    "SUBAT",
+    "MART",
+    "NISAN",
+    "MAYIS",
+    "HAZIRAN",
+    "TEMMUZ",
+    "AGUSTOS",
+    "EYLUL",
+    "EKIM",
+    "KASIM",
+    "ARALIK"
+
+  ];
+
+
+  const month =
+    months.indexOf(
+      normalize(
+        match[2]
+      )
+    );
+
+
+  if (
+    month < 0
   ) {
 
     return 0;
@@ -1969,9 +3055,7 @@ function parseDateTimestamp(
       match[3]
     ),
 
-    Number(
-      match[2]
-    ) - 1,
+    month,
 
     Number(
       match[1]
@@ -2065,6 +3149,104 @@ function calculateQuality({
 
 
 /* =========================================================
+   HABER TEKRARI
+   ========================================================= */
+
+function dedupeArticles(
+  items
+) {
+
+  const output =
+    [];
+
+
+  const ids =
+    new Set();
+
+
+  const urls =
+    new Set();
+
+
+  for (
+    const item
+    of items
+  ) {
+
+    const id =
+      String(
+        item?.id ||
+        ""
+      );
+
+
+    const url =
+      String(
+        item?.url ||
+        ""
+      )
+        .toLowerCase();
+
+
+    if (
+      id &&
+      ids.has(
+        id
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    if (
+      url &&
+      urls.has(
+        url
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    if (
+      id
+    ) {
+
+      ids.add(
+        id
+      );
+
+    }
+
+
+    if (
+      url
+    ) {
+
+      urls.add(
+        url
+      );
+
+    }
+
+
+    output.push(
+      item
+    );
+
+  }
+
+
+  return output;
+
+}
+
+
+/* =========================================================
    SIRALAMA
    ========================================================= */
 
@@ -2074,14 +3256,12 @@ function compareArticles(
 ) {
 
   const scoreDiff =
-    Number(
-      b?.finalScore ||
-      0
+    safeNumber(
+      b?.finalScore
     )
     -
-    Number(
-      a?.finalScore ||
-      0
+    safeNumber(
+      a?.finalScore
     );
 
 
@@ -2095,14 +3275,12 @@ function compareArticles(
 
 
   return (
-    Number(
-      b?.timestamp ||
-      0
+    safeNumber(
+      b?.timestamp
     )
     -
-    Number(
-      a?.timestamp ||
-      0
+    safeNumber(
+      a?.timestamp
     )
   );
 
@@ -2170,9 +3348,9 @@ function createId(
 
 
   for (
-    let i = 0;
-    i < text.length;
-    i++
+    let index = 0;
+    index < text.length;
+    index++
   ) {
 
     hash =
@@ -2185,11 +3363,12 @@ function createId(
       )
       +
       text.charCodeAt(
-        i
+        index
       );
 
 
-    hash |= 0;
+    hash |=
+      0;
 
   }
 
@@ -2241,175 +3420,18 @@ function getEmoji(
 
 
 /* =========================================================
-   HTML ENTITY
+   KART METNİ
    ========================================================= */
 
-function decodeEntities(
+function cleanCardText(
   value
 ) {
 
-  const named = {
-
-    amp:
-      "&",
-
-    quot:
-      "\"",
-
-    apos:
-      "'",
-
-    nbsp:
-      " ",
-
-    lt:
-      "<",
-
-    gt:
-      ">",
-
-    uuml:
-      "ü",
-
-    Uuml:
-      "Ü",
-
-    ouml:
-      "ö",
-
-    Ouml:
-      "Ö",
-
-    ccedil:
-      "ç",
-
-    Ccedil:
-      "Ç",
-
-    scedil:
-      "ş",
-
-    Scedil:
-      "Ş",
-
-    gbreve:
-      "ğ",
-
-    Gbreve:
-      "Ğ",
-
-    rsquo:
-      "’",
-
-    lsquo:
-      "‘",
-
-    ldquo:
-      "“",
-
-    rdquo:
-      "”",
-
-    ndash:
-      "–",
-
-    mdash:
-      "—",
-
-    hellip:
-      "…"
-
-  };
-
-
-  return String(
-    value ||
-    ""
-  )
-
-    .replace(
-
-      /&(#x?[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]+);/g,
-
-      function (
-        original,
-        entity
-      ) {
-
-        if (
-          entity.startsWith(
-            "#"
-          )
-        ) {
-
-          const isHex =
-            entity
-              .charAt(1)
-              .toLowerCase() ===
-            "x";
-
-
-          const raw =
-            isHex
-              ? entity.slice(2)
-              : entity.slice(1);
-
-
-          const number =
-            parseInt(
-              raw,
-              isHex
-                ? 16
-                : 10
-            );
-
-
-          if (
-            Number.isFinite(
-              number
-            )
-          ) {
-
-            try {
-
-              return String
-                .fromCodePoint(
-                  number
-                );
-
-            }
-
-            catch {
-
-              return original;
-
-            }
-
-          }
-
-
-          return original;
-
-        }
-
-
-        return Object
-          .prototype
-          .hasOwnProperty
-          .call(
-            named,
-            entity
-          )
-
-          ? named[
-              entity
-            ]
-
-          : original;
-
-      }
-
-    );
+  return removeCtaText(
+    cleanText(
+      value
+    )
+  );
 
 }
 
@@ -2422,32 +3444,9 @@ function cleanText(
   value
 ) {
 
-  return decodeEntities(
-    String(
-      value ||
-      ""
-    )
+  return cleanHtml(
+    value
   )
-
-    .replace(
-      /<script[\s\S]*?<\/script>/gi,
-      " "
-    )
-
-    .replace(
-      /<style[\s\S]*?<\/style>/gi,
-      " "
-    )
-
-    .replace(
-      /<[^>]+>/g,
-      " "
-    )
-
-    .replace(
-      /[\u00A0\u2007\u202F]/g,
-      " "
-    )
 
     .replace(
       /\s+/g,
@@ -2460,51 +3459,190 @@ function cleanText(
 
 
 /* =========================================================
-   NORMALİZE
+   AYNI METNİ KALDIR
    ========================================================= */
 
-function normalize(
+function removeAll(
+  value,
+  search
+) {
+
+  const text =
+    String(
+      value ||
+      ""
+    );
+
+
+  const target =
+    String(
+      search ||
+      ""
+    )
+      .trim();
+
+
+  if (
+    !target
+  ) {
+
+    return text;
+
+  }
+
+
+  return text
+    .replace(
+      new RegExp(
+        escapeRegex(
+          target
+        ),
+        "gi"
+      ),
+      " "
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+}
+
+
+/* =========================================================
+   TARİH Mİ?
+   ========================================================= */
+
+function isDateOnly(
   value
 ) {
 
-  return String(
-    value ||
-    ""
-  )
-
-    .toLocaleUpperCase(
-      "tr-TR"
-    )
-
-    .replaceAll(
-      "Ç",
-      "C"
-    )
-
-    .replaceAll(
-      "Ğ",
-      "G"
-    )
-
-    .replaceAll(
-      "İ",
-      "I"
-    )
-
-    .replaceAll(
-      "Ö",
-      "O"
-    )
-
-    .replaceAll(
-      "Ş",
-      "S"
-    )
-
-    .replaceAll(
-      "Ü",
-      "U"
+  const text =
+    cleanText(
+      value
     );
+
+
+  return Boolean(
+
+    /^\d{1,2}[.\/-]\d{1,2}[.\/-]20\d{2}$/.test(
+      text
+    )
+
+    ||
+
+    /^\d{1,2}\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+20\d{2}$/i.test(
+      text
+    )
+
+  );
+
+}
+
+
+/* =========================================================
+   IMG ALT GENERIC Mİ?
+   ========================================================= */
+
+function isGenericImageAlt(
+  value
+) {
+
+  const text =
+    normalize(
+      value
+    );
+
+
+  return containsAny(
+    text,
+    [
+
+      "TBF",
+
+      "LOGO",
+
+      "BASKETBOL",
+
+      "TURKIYE BASKETBOL FEDERASYONU",
+
+      "IMAGE",
+
+      "GORSEL"
+
+    ]
+  );
+
+}
+
+
+/* =========================================================
+   TEKİL METİNLER
+   ========================================================= */
+
+function uniqueTexts(
+  values
+) {
+
+  const output =
+    [];
+
+
+  const used =
+    new Set();
+
+
+  for (
+    const value
+    of values
+  ) {
+
+    const text =
+      cleanText(
+        value
+      );
+
+
+    if (
+      !text
+    ) {
+
+      continue;
+
+    }
+
+
+    const key =
+      normalize(
+        text
+      );
+
+
+    if (
+      used.has(
+        key
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    used.add(
+      key
+    );
+
+
+    output.push(
+      text
+    );
+
+  }
+
+
+  return output;
 
 }
 
@@ -2517,6 +3655,18 @@ function containsAny(
   text,
   values
 ) {
+
+  if (
+    !text ||
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
 
   return values.some(
     value =>
@@ -2544,7 +3694,8 @@ function shorten(
 
 
   if (
-    text.length <= max
+    text.length <=
+    max
   ) {
 
     return text;
@@ -2608,11 +3759,36 @@ function pad2(
 ) {
 
   return String(
-    value
+    Number(
+      value
+    )
   )
     .padStart(
       2,
       "0"
     );
 
-       }
+}
+
+
+/* =========================================================
+   SAYI
+   ========================================================= */
+
+function safeNumber(
+  value
+) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
+
+   }
