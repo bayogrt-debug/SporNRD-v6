@@ -2,7 +2,7 @@
    SporNRD
    worker/worker.js
 
-   Sürüm: 6.0.2
+   Sürüm: 6.0.3
    Mimari: Multi Source Modular
 
    AKTİF KAYNAKLAR
@@ -54,7 +54,7 @@ import {
    ========================================================= */
 
 const VERSION =
-  "6.0.2";
+  "6.0.3";
 
 
 const DEFAULT_LIMIT =
