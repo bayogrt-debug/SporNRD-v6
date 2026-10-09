@@ -27,7 +27,7 @@ import {
 } from "./response.js";
 
 
-const VERSION = "6.0.2";
+const VERSION = "6.0.3";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 30;
