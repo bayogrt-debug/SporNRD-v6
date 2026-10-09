@@ -3,6 +3,7 @@
    worker/learning/feedbackEngine.js
 
    Kullanıcı geri bildirimlerinden öğrenme motoru
+   SporNRD v6.0.4
    ========================================================= */
 
 
@@ -26,14 +27,24 @@ export async function recordFeedback(
   payload
 ) {
 
+  /* -------------------------------------------------------
+     AKSİYON
+     ------------------------------------------------------- */
+
   const action =
     String(
       payload?.action ||
       ""
     )
       .trim()
-      .toLowerCase();
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
 
+
+  /* -------------------------------------------------------
+     KATEGORİ
+     ------------------------------------------------------- */
 
   const category =
     String(
@@ -41,18 +52,39 @@ export async function recordFeedback(
       "announcement"
     )
       .trim()
-      .toLowerCase();
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
 
+
+  /* -------------------------------------------------------
+     KAYNAK
+
+     Öncelik sourceId:
+     tyf
+     tbf
+     tvf
+     ...
+
+     Böylece federasyon adı değişse bile
+     öğrenme anahtarı değişmez.
+     ------------------------------------------------------- */
 
   const source =
     String(
-      payload?.source ||
       payload?.sourceId ||
+      payload?.source ||
       "unknown"
     )
       .trim()
-      .toLowerCase();
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
 
+
+  /* -------------------------------------------------------
+     AKSİYON AĞIRLIĞI
+     ------------------------------------------------------- */
 
   const delta =
     Number(
@@ -63,9 +95,9 @@ export async function recordFeedback(
     );
 
 
-  /* -------------------------------------------------------
-     Öğrenme durumunu oku
-     ------------------------------------------------------- */
+  /* =======================================================
+     ÖĞRENME DURUMUNU OKU
+     ======================================================= */
 
   const state =
     await readLearningState(
@@ -73,14 +105,14 @@ export async function recordFeedback(
     );
 
 
-  /* -------------------------------------------------------
-     Gerekli alanları garanti altına al
-     ------------------------------------------------------- */
+  /* =======================================================
+     GEREKLİ ALANLARI GARANTİ ALTINA AL
+     ======================================================= */
 
   if (
-    !state.categoryBoosts ||
-    typeof state.categoryBoosts !==
-    "object"
+    !isPlainObject(
+      state.categoryBoosts
+    )
   ) {
 
     state.categoryBoosts =
@@ -90,9 +122,9 @@ export async function recordFeedback(
 
 
   if (
-    !state.sourceBoosts ||
-    typeof state.sourceBoosts !==
-    "object"
+    !isPlainObject(
+      state.sourceBoosts
+    )
   ) {
 
     state.sourceBoosts =
@@ -102,9 +134,9 @@ export async function recordFeedback(
 
 
   if (
-    !state.actionCounts ||
-    typeof state.actionCounts !==
-    "object"
+    !isPlainObject(
+      state.actionCounts
+    )
   ) {
 
     state.actionCounts =
@@ -113,9 +145,9 @@ export async function recordFeedback(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KATEGORİ ÖĞRENMESİ
-     ------------------------------------------------------- */
+     ======================================================= */
 
   state.categoryBoosts[
     category
@@ -139,9 +171,9 @@ export async function recordFeedback(
     );
 
 
-  /* -------------------------------------------------------
-     KAYNAK ÖĞRENMESİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     KAYNAK / FEDERASYON ÖĞRENMESİ
+     ======================================================= */
 
   state.sourceBoosts[
     source
@@ -165,9 +197,9 @@ export async function recordFeedback(
     );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      AKSİYON SAYACI
-     ------------------------------------------------------- */
+     ======================================================= */
 
   state.actionCounts[
     action
@@ -182,9 +214,9 @@ export async function recordFeedback(
     1;
 
 
-  /* -------------------------------------------------------
-     TOPLAM SİNYAL
-     ------------------------------------------------------- */
+  /* =======================================================
+     TOPLAM ÖĞRENME SİNYALİ
+     ======================================================= */
 
   state.totalSignals =
     Number(
@@ -200,9 +232,9 @@ export async function recordFeedback(
       .toISOString();
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KAYDET
-     ------------------------------------------------------- */
+     ======================================================= */
 
   const persisted =
     await writeLearningState(
@@ -210,6 +242,10 @@ export async function recordFeedback(
       state
     );
 
+
+  /* =======================================================
+     SONUÇ
+     ======================================================= */
 
   return {
 
@@ -272,6 +308,30 @@ function clamp(
     Math.min(
       max,
       numericValue
+    )
+
+  );
+
+}
+
+
+/* =========================================================
+   DÜZ NESNE KONTROLÜ
+   ========================================================= */
+
+function isPlainObject(
+  value
+) {
+
+  return Boolean(
+
+    value &&
+
+    typeof value ===
+    "object" &&
+
+    !Array.isArray(
+      value
     )
 
   );
