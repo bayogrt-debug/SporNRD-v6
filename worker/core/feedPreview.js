@@ -4,9 +4,9 @@
 
    Gerçek Kaynak → v6.1 Preview Pipeline
 
-   Sürüm: 6.1.2-preview
+   Sürüm: 6.1.3-preview
 
-   Amaç:
+   AMAÇ
    ---------------------------------------------------------
    Gerçek TYF / TBF verisini:
 
@@ -24,10 +24,13 @@
         ↓
    Persona Engine
         ↓
+   Ranking Engine
+        ↓
    SporNRD v6.1 Post
 
    zincirinden geçirmek.
 
+   =========================================================
    TEMPORAL ENGINE
    ---------------------------------------------------------
    İçeriğin gerçek tarihlerini bugünün tarihiyle
@@ -40,8 +43,6 @@
 
    kararını üretir.
 
-   ÖNEMLİ:
-   ---------------------------------------------------------
    Yayın tarihi olay tarihi değildir.
 
    Gerçek olay tarihi yoksa yayın tarihi yalnızca:
@@ -50,17 +51,43 @@
 
    için kullanılır.
 
-   ÖNEMLİ:
+   =========================================================
+   RANKING ENGINE
+   ---------------------------------------------------------
+   İçeriğin anlamını değiştirmez.
+
+   Yalnızca:
+
+   "Bu içerik kullanıcıya akışta
+   ne kadar yukarıda gösterilmeli?"
+
+   sorusunu cevaplar.
+
+   Ranking;
+
+   - relevance
+   - quality
+   - trust
+   - freshness
+   - temporal
+   - intent
+   - actionable
+   - learning
+   - interaction
+   - lifecycle
+
+   sinyallerini birlikte değerlendirir.
+
+   =========================================================
+   ÖNEMLİ
    ---------------------------------------------------------
    Bu dosya mevcut /api/feed sistemini değiştirmez.
-   Yalnızca /api/feed-preview için kullanılır.
 
-   NOT:
-   ---------------------------------------------------------
-   Ranking Engine henüz bağlanmamıştır.
+   Yalnızca:
 
-   Şimdilik mevcut comparePosts()
-   sıralaması korunmaktadır.
+   /api/feed-preview
+
+   için kullanılır.
    ========================================================= */
 
 
@@ -68,7 +95,6 @@ import {
 
   normalizeLegacyFeed,
   dedupePosts,
-  comparePosts,
   createNormalizationSummary
 
 } from "./normalizer.js";
@@ -113,12 +139,22 @@ import {
 } from "../intelligence/personaEngine.js";
 
 
+import {
+
+  applyRanking,
+  compareRankedPosts,
+  createRankingSummary,
+  RANKING_VERSION
+
+} from "../intelligence/rankingEngine.js";
+
+
 /* =========================================================
    VERSION
    ========================================================= */
 
 export const FEED_PREVIEW_VERSION =
-  "1.2";
+  "1.3";
 
 
 const DEFAULT_LIMIT =
@@ -131,9 +167,6 @@ const MAX_LIMIT =
 
 /* =========================================================
    PIPELINE TANIMI
-
-   Debug sırasında hangi motorların hangi sırayla
-   çalıştığını kolayca görmemizi sağlar.
    ========================================================= */
 
 const PIPELINE_STAGES = [
@@ -148,7 +181,9 @@ const PIPELINE_STAGES = [
 
   "lifecycle",
 
-  "persona"
+  "persona",
+
+  "ranking"
 
 ];
 
@@ -251,6 +286,9 @@ export async function buildFeedPreview({
       temporalVersion:
         TEMPORAL_VERSION,
 
+      rankingVersion:
+        RANKING_VERSION,
+
       pipeline:
         [
           ...PIPELINE_STAGES
@@ -291,6 +329,7 @@ export async function buildFeedPreview({
         requested.length
 
           ? [
+
               {
 
                 sourceId:
@@ -306,6 +345,7 @@ export async function buildFeedPreview({
                   "İstenen aktif kaynak bulunamadı."
 
               }
+
             ]
 
           : [],
@@ -329,6 +369,11 @@ export async function buildFeedPreview({
 
         lifecycle:
           createLifecycleSummary(
+            []
+          ),
+
+        ranking:
+          createRankingSummary(
             []
           )
 
@@ -431,7 +476,7 @@ export async function buildFeedPreview({
 
 
     /* -------------------------------------------------------
-       Kaynak başarısız
+       KAYNAK BAŞARISIZ
        ------------------------------------------------------- */
 
     if (
@@ -559,6 +604,8 @@ export async function buildFeedPreview({
             Eski haberleri yanlışlıkla her preview
             isteğinde yeniden "yeni" göstermemek için
             yayın tarihi biliniyorsa onu koruyoruz.
+
+            Bu işlem yayın tarihini olay tarihi yapmaz.
           */
 
           let post =
@@ -570,11 +617,12 @@ export async function buildFeedPreview({
           /* =================================================
              CONTENT INTENT ENGINE
 
-             Önce içeriğin NE ANLATTIĞINI anlamaya çalışır.
+             Önce içerik NE ANLATIYOR?
 
-             Örnek intent:
+             Örnek:
 
              result
+             achievement
              registration
              opportunity
              announcement
@@ -583,14 +631,6 @@ export async function buildFeedPreview({
              product
              news
 
-             Ayrıca başlangıç seviyesinde:
-
-             upcoming
-             ongoing
-             completed
-             unknown
-
-             kararları üretilebilir.
              ================================================= */
 
           post =
@@ -602,24 +642,32 @@ export async function buildFeedPreview({
           /* =================================================
              DISCOVERY ENGINE
 
-             Content Intent kararından sonra:
+             İçerik hangi yapıya ait?
 
-             - Branş
-             - Bölüm / provider ilişkisi
-             - Ana kategori
-             - Alt kategori
-             - Eksik filtre alanları
+             -------------------------------------------------
+             sport:
+             swimming
+             basketball
+             ...
 
-             gibi keşif kararları uygulanır.
+             -------------------------------------------------
+             section:
+             individual_athlete
+             trainer_coach
+             business_institution
 
-             Ana kategori hedefimiz:
-
+             -------------------------------------------------
+             category:
              news
              course
              event
              campaign
              jobs
              stores
+
+             -------------------------------------------------
+             subCategory:
+             kategoriye göre değişir
              ================================================= */
 
           post =
@@ -631,8 +679,7 @@ export async function buildFeedPreview({
           /* =================================================
              TEMPORAL ENGINE
 
-             Gerçek tarihleri bugünün tarihiyle
-             karşılaştırır.
+             İçerik NE ZAMAN?
 
              -------------------------------------------------
              state:
@@ -649,13 +696,17 @@ export async function buildFeedPreview({
              unknown
 
              -------------------------------------------------
-             EN ÖNEMLİ KURAL:
+             actionState:
+             open
+             closing_today
+             closed
+             possible_unverified
+             not_applicable
+
+             -------------------------------------------------
+             KRİTİK:
 
              publishedAt olay tarihi değildir.
-
-             Gerçek olay tarihi bulunamazsa
-             publishedAt yalnızca freshness / güncellik
-             dilinde kullanılır.
              ================================================= */
 
           post =
@@ -667,7 +718,7 @@ export async function buildFeedPreview({
           /* =================================================
              LIFECYCLE ENGINE
 
-             İçeriğin SporNRD yaşam döngüsünü yönetir.
+             İçeriğin SporNRD içindeki yaşam döngüsü.
 
              Örnek:
 
@@ -678,17 +729,20 @@ export async function buildFeedPreview({
              expired
              removed
 
-             Temporal ile lifecycle aynı şey değildir.
+             Temporal ile lifecycle farklı kavramlardır.
 
-             Örnek:
+             Örneğin:
 
              lifecycle.status = "new"
              temporal.state   = "past"
 
-             mümkündür.
+             olabilir.
 
              Bu:
-             "Yeni yayımlanmış ama geçmişte gerçekleşmiş olay"
+
+             "Yeni yayımlanmış fakat geçmişte
+             gerçekleşmiş olay"
+
              anlamına gelebilir.
              ================================================= */
 
@@ -701,35 +755,65 @@ export async function buildFeedPreview({
           /* =================================================
              PERSONA ENGINE
 
-             Persona artık:
+             Yapılandırılmış gerçekleri kullanıcıya
+             anlaşılır ve dikkat çekici SporNRD diliyle
+             anlatır.
 
-             - contentIntent
-             - eventStatus
-             - temporal
-             - gerçek filtre verileri
-
-             üzerinden kullanıcıya uygun dil üretmek için
-             kullanılacaktır.
-
-             Örnek:
-
+             -------------------------------------------------
              past:
-             "kazandı / tamamlandı / sona erdi"
+             oldu / kazandı / tamamlandı
 
              present:
-             "devam ediyor / bugün"
+             devam ediyor / bugün
 
              future:
-             "başlayacak / yapılacak"
+             başlayacak / yapılacak
 
-             unknown + recent publish:
-             "yeni duyuru yayımlandı"
+             unknown:
+             yalnız yayın güncelliği kullanılır
 
-             şeklinde davranabilecek altyapı hazırdır.
+             -------------------------------------------------
+             Persona gerçek üretmez.
              ================================================= */
 
           post =
             applyPersona(
+              post
+            );
+
+
+          /* =================================================
+             RANKING ENGINE
+
+             Artık postun:
+
+             - anlamı
+             - kategorisi
+             - zamanı
+             - güveni
+             - güncelliği
+             - kullanıcı açısından değeri
+             - öğrenme puanı
+             - etkileşimleri
+
+             belli.
+
+             Ranking Engine bu postun akıştaki
+             önceliğini hesaplar.
+
+             Örnek çıktı:
+
+             rankingScore: 86.4
+
+             rankingMeta.band:
+             priority
+             high
+             normal
+             low
+             ================================================= */
+
+          post =
+            applyRanking(
               post
             );
 
@@ -824,13 +908,26 @@ export async function buildFeedPreview({
   /* =======================================================
      SÜRESİ GEÇEN / KALDIRILAN POSTLARI AYIR
 
-     NOT:
-     Geçmiş bir HABER otomatik olarak expired değildir.
+     KRİTİK:
 
-     Örneğin tamamlanmış müsabaka sonucu haber olarak
-     görünmeye devam edebilir.
+     Geçmiş bir HABER otomatik expired değildir.
 
-     Burada lifecycle kararına göre filtre uygulanır.
+     Örneğin:
+
+     Fenerbahçe kupayı kazandı.
+
+     temporal.state:
+     past
+
+     eventStatus:
+     completed
+
+     olabilir.
+
+     Ancak category = news ise haber olarak görünmeye
+     devam edebilir.
+
+     Lifecycle görünürlük kararını ayrıca verir.
      ========================================================= */
 
   const visiblePosts =
@@ -849,16 +946,24 @@ export async function buildFeedPreview({
 
 
   /* =======================================================
-     SIRALA
+     RANKING SIRALAMASI
 
-     Ranking Engine henüz bağlanmadı.
+     Eski comparePosts() artık kullanılmıyor.
 
-     Şimdilik normalizer.js içindeki mevcut
-     comparePosts() korunuyor.
+     Ranking Engine'in ürettiği rankingScore
+     ana sıralama ölçütüdür.
+
+     Eşitlik durumunda rankingEngine.js:
+
+     1. quality
+     2. relevance
+     3. publishedAt
+
+     değerlerine bakar.
      ========================================================= */
 
   visiblePosts.sort(
-    comparePosts
+    compareRankedPosts
   );
 
 
@@ -893,6 +998,9 @@ export async function buildFeedPreview({
 
     temporalVersion:
       TEMPORAL_VERSION,
+
+    rankingVersion:
+      RANKING_VERSION,
 
     pipeline:
       [
@@ -957,6 +1065,11 @@ export async function buildFeedPreview({
       lifecycle:
         createLifecycleSummary(
           uniquePosts
+        ),
+
+      ranking:
+        createRankingSummary(
+          visiblePosts
         )
 
     }
@@ -1011,23 +1124,32 @@ function createIntentSummary(
   ) {
 
     incrementCounter(
+
       intents,
+
       post?.contentIntent ||
       "unknown"
+
     );
 
 
     incrementCounter(
+
       statuses,
+
       post?.eventStatus ||
       "unknown"
+
     );
 
 
     incrementCounter(
+
       treatments,
+
       post?.intentMeta?.feedTreatment ||
       "unknown"
+
     );
 
 
@@ -1133,45 +1255,63 @@ function createTemporalSummary(
 
 
     incrementCounter(
+
       states,
+
       temporal.state ||
       "unknown"
+
     );
 
 
     incrementCounter(
+
       eventStatuses,
+
       temporal.eventStatus ||
       post?.eventStatus ||
       "unknown"
+
     );
 
 
     incrementCounter(
+
       freshness,
+
       temporal.freshness ||
       "unknown"
+
     );
 
 
     incrementCounter(
+
       languageModes,
+
       temporal.languageMode ||
       "neutral"
+
     );
 
 
     incrementCounter(
+
       actionStates,
+
       temporal.actionState ||
       "unknown"
+
     );
 
 
     incrementCounter(
+
       bases,
+
       temporal.basis ||
       "none"
+
     );
 
   }
@@ -1215,6 +1355,7 @@ function createTemporalSummary(
    geçici ve güvenli referans olarak kullanılır.
 
    DİKKAT:
+
    Bu işlem yayın tarihini olay tarihi yapmaz.
    ========================================================= */
 
@@ -1256,7 +1397,9 @@ function stabilizeLegacyLifecycle(
   const publishedAt =
     cleanString(
 
-      lifecycle.publishedAt ||
+      lifecycle.publishedAt
+
+      ||
 
       source.publishedAt
 
@@ -1303,13 +1446,19 @@ function isUsableProvider(
 
   return Boolean(
 
-    provider &&
+    provider
+
+    &&
 
     typeof provider ===
-    "object" &&
+    "object"
+
+    &&
 
     provider.enabled ===
-    true &&
+    true
+
+    &&
 
     typeof provider.getFeed ===
     "function"
@@ -1343,9 +1492,11 @@ function normalizeRequestedSources(
     ...new Set(
 
       value
+
         .map(
           normalizeId
         )
+
         .filter(
           Boolean
         )
@@ -1508,7 +1659,9 @@ function normalizeId(
     value ||
     ""
   )
+
     .trim()
+
     .toLocaleLowerCase(
       "tr-TR"
     );
@@ -1525,13 +1678,15 @@ function cleanString(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
+
     .replace(
       /\s+/g,
       " "
     )
+
     .trim();
 
 }
@@ -1547,10 +1702,14 @@ function isPlainObject(
 
   return Boolean(
 
-    value &&
+    value
+
+    &&
 
     typeof value ===
-    "object" &&
+    "object"
+
+    &&
 
     !Array.isArray(
       value
