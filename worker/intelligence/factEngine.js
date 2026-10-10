@@ -3,14 +3,48 @@
    worker/intelligence/factEngine.js
 
    Ortak Yapılandırılmış Gerçek Çıkarım Motoru
-   Sürüm: 6.1.2
 
-   Amaç:
+   Sürüm: 6.1.3
+
+   AMAÇ
+   ---------------------------------------------------------
    - Başlık + gövdeyi birlikte okumak
-   - Şehir, kademe, tarih aralığı, deadline, iş günü çıkarmak
-   - Etkinlik tarihi ile son başvuru tarihini ayırmak
-   - Türkçe büyük harfli ayları (EKİM, AĞUSTOS vb.) güvenle anlamak
-   - Eski v6 alanlarını korurken yeni startDate/endDate alanlarını üretmek
+   - Şehir çıkarmak
+   - Kademe çıkarmak
+   - Gerçek etkinlik tarihini çıkarmak
+   - Tarih aralığını başlangıç / bitiş olarak ayırmak
+   - Deadline tarihini etkinlik tarihinden ayırmak
+   - İş günü bilgisi çıkarmak
+   - Türkçe büyük harfli ayları güvenli anlamak
+   - Structured ISO tarih üretmek
+   - Eski v6 alanlarını korumak
+
+   KRİTİK 6.1.3
+   ---------------------------------------------------------
+   Aşağıdaki tarih biçimlerinin tamamı desteklenir:
+
+   26-30 Ekim 2026
+   26-30 EKİM 2026
+   26-30 EKİM 2026 ANKARA
+   26-30 EKİM ANKARA 2026
+   26-30 EKİM SAMSUN 2026
+
+   26 Ekim 2026
+   26 EKİM SAMSUN 2026
+
+   25 Ekim - 1 Kasım 2026
+   25 EKİM - 1 KASIM SAMSUN 2026
+
+   26.10.2026 - 30.10.2026
+   26-30.10.2026
+
+   TEMEL KURAL
+   ---------------------------------------------------------
+   Yayın tarihi olay tarihi değildir.
+
+   source published date:
+   → burada etkinlik tarihi olarak üretilmez.
+
    ========================================================= */
 
 
@@ -20,8 +54,12 @@ import {
 } from "../utils/html.js";
 
 
+/* =========================================================
+   VERSION
+   ========================================================= */
+
 export const FACT_ENGINE_VERSION =
-  "1.2";
+  "1.3";
 
 
 /* =========================================================
@@ -121,42 +159,118 @@ const CITY_MAP = [
 
 const MONTHS = {
 
-  OCAK: 1,
-  SUBAT: 2,
-  MART: 3,
-  NISAN: 4,
-  MAYIS: 5,
-  HAZIRAN: 6,
-  TEMMUZ: 7,
-  AGUSTOS: 8,
-  EYLUL: 9,
-  EKIM: 10,
-  KASIM: 11,
-  ARALIK: 12
+  OCAK:
+    1,
+
+  SUBAT:
+    2,
+
+  MART:
+    3,
+
+  NISAN:
+    4,
+
+  MAYIS:
+    5,
+
+  HAZIRAN:
+    6,
+
+  TEMMUZ:
+    7,
+
+  AGUSTOS:
+    8,
+
+  EYLUL:
+    9,
+
+  EKIM:
+    10,
+
+  KASIM:
+    11,
+
+  ARALIK:
+    12
 
 };
 
 
 const MONTH_LABELS = {
 
-  1: "Ocak",
-  2: "Şubat",
-  3: "Mart",
-  4: "Nisan",
-  5: "Mayıs",
-  6: "Haziran",
-  7: "Temmuz",
-  8: "Ağustos",
-  9: "Eylül",
-  10: "Ekim",
-  11: "Kasım",
-  12: "Aralık"
+  1:
+    "Ocak",
+
+  2:
+    "Şubat",
+
+  3:
+    "Mart",
+
+  4:
+    "Nisan",
+
+  5:
+    "Mayıs",
+
+  6:
+    "Haziran",
+
+  7:
+    "Temmuz",
+
+  8:
+    "Ağustos",
+
+  9:
+    "Eylül",
+
+  10:
+    "Ekim",
+
+  11:
+    "Kasım",
+
+  12:
+    "Aralık"
 
 };
 
 
 const MONTH_PATTERN =
   "OCAK|SUBAT|MART|NISAN|MAYIS|HAZIRAN|TEMMUZ|AGUSTOS|EYLUL|EKIM|KASIM|ARALIK";
+
+
+/* =========================================================
+   ŞEHİR REGEX
+
+   Uzun şehirler önce değerlendirilir.
+   ========================================================= */
+
+const CITY_PATTERN =
+
+  CITY_MAP
+
+    .map(
+      item =>
+        item[0]
+    )
+
+    .sort(
+      (a, b) =>
+        b.length -
+        a.length
+    )
+
+    .map(
+      escapeRegex
+    )
+
+    .join(
+      "|"
+    );
 
 
 /* =========================================================
@@ -176,6 +290,10 @@ export function extractFacts({
     `${title} ${body}`;
 
 
+  /* =======================================================
+     KONUM
+     ========================================================= */
+
   const location =
     getLocation(
       title,
@@ -183,27 +301,14 @@ export function extractFacts({
     );
 
 
-  /* -------------------------------------------------------
-     Önce deadline bulunur.
+  /* =======================================================
+     ETKİNLİK TARİHİ
 
-     Böylece:
-     "Son başvuru 20 Ekim"
+     Önce başlık.
 
-     etkinlik tarihi sanılmaz.
-     ------------------------------------------------------- */
-
-  const deadlineInfo =
-    getDeadlineInfo(
-      combined
-    );
-
-
-  /* -------------------------------------------------------
-     Etkinlik tarihi önce başlıktan aranır.
-
-     Örnek:
-     3. Kademe ... 26-30 Ekim 2026 Ankara
-     ------------------------------------------------------- */
+     Çünkü resmi kaynak başlıklarında çoğunlukla gerçek
+     organizasyon tarihi bulunuyor.
+     ========================================================= */
 
   let eventDateInfo =
     getEventDateInfo(
@@ -215,9 +320,9 @@ export function extractFacts({
     );
 
 
-  /* -------------------------------------------------------
-     Başlıkta yoksa gövde
-     ------------------------------------------------------- */
+  /*
+    Başlıkta gerçek olay tarihi bulunmadıysa gövde.
+  */
 
   if (
     !eventDateInfo
@@ -234,6 +339,42 @@ export function extractFacts({
 
   }
 
+
+  /* =======================================================
+     DEADLINE
+
+     Etkinlik yılı bulunmuşsa yıl yazılmayan deadline için
+     ileride kullanabileceğimiz yearHint gönderilir.
+
+     Örn:
+     Kurs 26-30 Ekim 2026
+     Son başvuru 20 Ekim
+     ========================================================= */
+
+  const deadlineInfo =
+    getDeadlineInfo(
+      combined,
+      {
+
+        yearHint:
+
+          eventDateInfo?.startYear
+
+          ||
+
+          eventDateInfo?.endYear
+
+          ||
+
+          null
+
+      }
+    );
+
+
+  /* =======================================================
+     DİĞER GERÇEKLER
+     ========================================================= */
 
   const grade =
     getGrade(
@@ -271,6 +412,10 @@ export function extractFacts({
       title
     );
 
+
+  /* =======================================================
+     SONUÇ
+     ========================================================= */
 
   return {
 
@@ -312,9 +457,12 @@ export function extractFacts({
       location,
 
     city:
+
       location ===
       "Türkiye"
+
         ? ""
+
         : location,
 
     country:
@@ -331,8 +479,6 @@ export function extractFacts({
 
     /* -----------------------------------------------------
        ETKİNLİK TARİHİ
-
-       Eski ve yeni alanlar beraber tutuluyor.
        ----------------------------------------------------- */
 
     startDate:
@@ -365,7 +511,7 @@ export function extractFacts({
 
 
     /* -----------------------------------------------------
-       SON BAŞVURU / KAYIT
+       DEADLINE
        ----------------------------------------------------- */
 
     deadlineText:
@@ -407,7 +553,7 @@ export function extractFacts({
 
 
     /* -----------------------------------------------------
-       ÖZEL HABER TÜRLERİ
+       ÖZEL İÇERİK SİNYALLERİ
        ----------------------------------------------------- */
 
     isSem:
@@ -617,8 +763,7 @@ export function getGrade(
 
 
 /* =========================================================
-   ETKİNLİK TARİHİ
-   ESKİ API KORUNUYOR
+   ESKİ EVENT DATE API
    ========================================================= */
 
 export function getEventDate(
@@ -643,6 +788,10 @@ export function getEventDate(
 
 }
 
+
+/* =========================================================
+   ESKİ DATE RANGE API
+   ========================================================= */
 
 export function getDateRange(
   value
@@ -728,8 +877,7 @@ export function getEventDateInfo(
 
 
 /* =========================================================
-   DEADLINE
-   ESKİ API KORUNUYOR
+   ESKİ DEADLINE API
    ========================================================= */
 
 export function getDeadline(
@@ -756,7 +904,14 @@ export function getDeadline(
    ========================================================= */
 
 export function getDeadlineInfo(
-  value
+
+  value,
+
+  {
+    yearHint =
+      null
+  } = {}
+
 ) {
 
   const text =
@@ -776,10 +931,54 @@ export function getDeadlineInfo(
   }
 
 
-  const ranked =
+  const fullCandidates =
     findDateCandidates(
       text
+    );
+
+
+  const candidates = [
+    ...fullCandidates
+  ];
+
+
+  /*
+    Örnek:
+
+    Kurs:
+    26-30 Ekim 2026
+
+    Son başvuru:
+    20 Ekim
+
+    Etkinlik yılından deadline yılı çıkarılabilir.
+  */
+
+  if (
+    Number.isInteger(
+      Number(
+        yearHint
+      )
     )
+  ) {
+
+    candidates.push(
+
+      ...findYearlessDeadlineCandidates(
+        text,
+        Number(
+          yearHint
+        ),
+        fullCandidates
+      )
+
+    );
+
+  }
+
+
+  const ranked =
+    candidates
 
       .map(
         candidate => ({
@@ -797,16 +996,39 @@ export function getDeadlineInfo(
         })
       )
 
+      /*
+        Ufak bir "başvuru" kelimesi tek başına
+        etkinlik tarihini deadline yapmamalı.
+      */
+
       .filter(
         item =>
-          item.score >
-          0
+          item.score >=
+          4
       )
 
       .sort(
-        (a, b) =>
-          b.score -
-          a.score
+        (a, b) => {
+
+          if (
+            b.score !==
+            a.score
+          ) {
+
+            return (
+              b.score -
+              a.score
+            );
+
+          }
+
+
+          return (
+            a.candidate.index -
+            b.candidate.index
+          );
+
+        }
       );
 
 
@@ -825,7 +1047,7 @@ export function getDeadlineInfo(
 
 
   /* -------------------------------------------------------
-     Deadline bir tarih aralığıysa son tarih seçilir.
+     Deadline tarih aralığıysa son gün kullanılır.
      ------------------------------------------------------- */
 
   const selected =
@@ -935,9 +1157,10 @@ function findDateCandidates(
     [];
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     1.
      26.10.2026 - 30.10.2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   collectDateMatches(
 
@@ -988,9 +1211,10 @@ function findDateCandidates(
   );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     2.
      26-30.10.2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   collectDateMatches(
 
@@ -1041,9 +1265,10 @@ function findDateCandidates(
   );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     3.
      26 EKIM 2026 - 30 EKIM 2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   collectDateMatches(
 
@@ -1102,9 +1327,12 @@ function findDateCandidates(
   );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     4.
      25 EKIM - 1 KASIM 2026
-     ------------------------------------------------------- */
+
+     25 EKIM - 1 KASIM SAMSUN 2026
+     ========================================================= */
 
   collectDateMatches(
 
@@ -1115,15 +1343,58 @@ function findDateCandidates(
     new RegExp(
 
       `\\b(\\d{1,2})\\s+(${MONTH_PATTERN})` +
+
       `\\s*[-–—]\\s*` +
-      `(\\d{1,2})\\s+(${MONTH_PATTERN})\\s+(20\\d{2})\\b`,
+
+      `(\\d{1,2})\\s+(${MONTH_PATTERN})` +
+
+      `(?:\\s+(?:${CITY_PATTERN}))?` +
+
+      `\\s+(20\\d{2})\\b`,
 
       "g"
 
     ),
 
-    match =>
-      createDateCandidate({
+    match => {
+
+      const startMonth =
+        monthNumber(
+          match[2]
+        );
+
+
+      const endMonth =
+        monthNumber(
+          match[4]
+        );
+
+
+      const endYear =
+        Number(
+          match[5]
+        );
+
+
+      /*
+        Örnek:
+        28 Aralık - 4 Ocak 2027
+
+        başlangıç yılı:
+        2026
+      */
+
+      const startYear =
+
+        startMonth >
+        endMonth
+
+          ? endYear - 1
+
+          : endYear;
+
+
+      return createDateCandidate({
 
         match:
           match,
@@ -1134,14 +1405,10 @@ function findDateCandidates(
           ),
 
         startMonth:
-          monthNumber(
-            match[2]
-          ),
+          startMonth,
 
         startYear:
-          Number(
-            match[5]
-          ),
+          startYear,
 
         endDay:
           Number(
@@ -1149,23 +1416,28 @@ function findDateCandidates(
           ),
 
         endMonth:
-          monthNumber(
-            match[4]
-          ),
+          endMonth,
 
         endYear:
-          Number(
-            match[5]
-          )
+          endYear
 
-      })
+      });
+
+    }
 
   );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     5.
      26-30 EKIM 2026
-     ------------------------------------------------------- */
+
+     26-30 EKIM ANKARA 2026
+
+     26-30 EKIM SAMSUN 2026
+
+     KRİTİK 6.1.3 DÜZELTMESİ
+     ========================================================= */
 
   collectDateMatches(
 
@@ -1175,7 +1447,13 @@ function findDateCandidates(
 
     new RegExp(
 
-      `\\b(\\d{1,2})\\s*[-–—]\\s*(\\d{1,2})\\s+(${MONTH_PATTERN})\\s+(20\\d{2})\\b`,
+      `\\b(\\d{1,2})\\s*[-–—]\\s*` +
+
+      `(\\d{1,2})\\s+(${MONTH_PATTERN})` +
+
+      `(?:\\s+(?:${CITY_PATTERN}))?` +
+
+      `\\s+(20\\d{2})\\b`,
 
       "g"
 
@@ -1222,9 +1500,12 @@ function findDateCandidates(
   );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     6.
      26 EKIM 2026
-     ------------------------------------------------------- */
+
+     26 EKIM SAMSUN 2026
+     ========================================================= */
 
   collectDateMatches(
 
@@ -1234,7 +1515,11 @@ function findDateCandidates(
 
     new RegExp(
 
-      `\\b(\\d{1,2})\\s+(${MONTH_PATTERN})\\s+(20\\d{2})\\b`,
+      `\\b(\\d{1,2})\\s+(${MONTH_PATTERN})` +
+
+      `(?:\\s+(?:${CITY_PATTERN}))?` +
+
+      `\\s+(20\\d{2})\\b`,
 
       "g"
 
@@ -1266,9 +1551,10 @@ function findDateCandidates(
   );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     7.
      26.10.2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   collectDateMatches(
 
@@ -1304,11 +1590,12 @@ function findDateCandidates(
   );
 
 
-  /* -------------------------------------------------------
-     Uzun tarih aralığı tek tarihten önce gelsin.
-     ------------------------------------------------------- */
+  /* =======================================================
+     UZUN MATCH ÖNCE
+     ========================================================= */
 
   candidates.sort(
+
     (a, b) => {
 
       if (
@@ -1330,12 +1617,13 @@ function findDateCandidates(
       );
 
     }
+
   );
 
 
-  /* -------------------------------------------------------
-     Bir aralığın içinde tekrar bulunan tek tarihi çıkar.
-     ------------------------------------------------------- */
+  /* =======================================================
+     RANGE İÇİNDEKİ TEK TARİHLERİ AT
+     ========================================================= */
 
   const output =
     [];
@@ -1366,14 +1654,17 @@ function findDateCandidates(
 
 
     if (
-      !overlaps
+      overlaps
     ) {
 
-      output.push(
-        candidate
-      );
+      continue;
 
     }
+
+
+    output.push(
+      candidate
+    );
 
   }
 
@@ -1383,6 +1674,171 @@ function findDateCandidates(
       a.index -
       b.index
   );
+
+}
+
+
+/* =========================================================
+   YILI YAZILMAYAN DEADLINE
+
+   Örnek:
+   Etkinlik:
+   26-30 Ekim 2026
+
+   Metin:
+   Son başvuru 20 Ekim.
+
+   yearHint = 2026
+   ========================================================= */
+
+function findYearlessDeadlineCandidates(
+
+  text,
+  yearHint,
+  existingCandidates = []
+
+) {
+
+  const candidates =
+    [];
+
+
+  if (
+    !Number.isInteger(
+      yearHint
+    )
+    ||
+    yearHint < 2000
+    ||
+    yearHint > 2100
+  ) {
+
+    return candidates;
+
+  }
+
+
+  const regex =
+    new RegExp(
+
+      `\\b(\\d{1,2})\\s+(${MONTH_PATTERN})\\b`,
+
+      "g"
+
+    );
+
+
+  let match;
+
+
+  while (
+    (
+      match =
+        regex.exec(
+          text
+        )
+    ) !== null
+  ) {
+
+    const start =
+      match.index;
+
+
+    const end =
+      match.index +
+      match[0].length;
+
+
+    /*
+      Tam tarih veya tarih aralığının parçasıysa
+      yeniden ekleme.
+    */
+
+    const overlaps =
+      existingCandidates.some(
+        candidate =>
+          rangesOverlap(
+
+            start,
+
+            end,
+
+            candidate.index,
+
+            candidate.index +
+            candidate.length
+
+          )
+      );
+
+
+    if (
+      overlaps
+    ) {
+
+      continue;
+
+    }
+
+
+    const candidate =
+      createDateCandidate({
+
+        match:
+          match,
+
+        startDay:
+          Number(
+            match[1]
+          ),
+
+        startMonth:
+          monthNumber(
+            match[2]
+          ),
+
+        startYear:
+          yearHint
+
+      });
+
+
+    if (
+      !candidate
+    ) {
+
+      continue;
+
+    }
+
+
+    /*
+      Yılı olmayan tarihi yalnız deadline bağlamında
+      kabul ediyoruz.
+    */
+
+    if (
+      deadlineContextScore(
+        text,
+        candidate.index,
+        candidate.length
+      ) <
+      4
+    ) {
+
+      continue;
+
+    }
+
+
+    candidates.push(
+      candidate
+    );
+
+  }
+
+
+  return candidates;
 
 }
 
@@ -1429,6 +1885,10 @@ function collectDateMatches(
     }
 
 
+    /*
+      Sonsuz regex döngüsü güvenliği.
+    */
+
     if (
       match[0] ===
       ""
@@ -1444,7 +1904,7 @@ function collectDateMatches(
 
 
 /* =========================================================
-   TARİH NESNESİ
+   TARİH ADAYI OLUŞTUR
    ========================================================= */
 
 function createDateCandidate({
@@ -1498,6 +1958,45 @@ function createDateCandidate({
   }
 
 
+  const startDateIso =
+    formatIsoDate(
+      startDay,
+      startMonth,
+      startYear
+    );
+
+
+  const endDateIso =
+    hasEnd
+
+      ? formatIsoDate(
+          endDay,
+          endMonth,
+          endYear
+        )
+
+      : "";
+
+
+  /*
+    Bozuk tarih aralığını kabul etme.
+  */
+
+  if (
+    hasEnd
+    &&
+    compareIsoDates(
+      startDateIso,
+      endDateIso
+    ) >
+    0
+  ) {
+
+    return null;
+
+  }
+
+
   return {
 
     index:
@@ -1510,6 +2009,10 @@ function createDateCandidate({
       match[0],
 
 
+    /* -----------------------------------------------------
+       PARÇALAR
+       ----------------------------------------------------- */
+
     startDay:
       startDay,
 
@@ -1519,22 +2022,34 @@ function createDateCandidate({
     startYear:
       startYear,
 
-
     endDay:
+
       hasEnd
+
         ? endDay
+
         : null,
 
     endMonth:
+
       hasEnd
+
         ? endMonth
+
         : null,
 
     endYear:
+
       hasEnd
+
         ? endYear
+
         : null,
 
+
+    /* -----------------------------------------------------
+       LEGACY TARİH
+       ----------------------------------------------------- */
 
     startDate:
       formatNumericDate(
@@ -1544,6 +2059,7 @@ function createDateCandidate({
       ),
 
     endDate:
+
       hasEnd
 
         ? formatNumericDate(
@@ -1555,26 +2071,23 @@ function createDateCandidate({
         : "",
 
 
+    /* -----------------------------------------------------
+       STRUCTURED ISO
+       ----------------------------------------------------- */
+
     startDateIso:
-      formatIsoDate(
-        startDay,
-        startMonth,
-        startYear
-      ),
+      startDateIso,
 
     endDateIso:
-      hasEnd
+      endDateIso,
 
-        ? formatIsoDate(
-            endDay,
-            endMonth,
-            endYear
-          )
 
-        : "",
-
+    /* -----------------------------------------------------
+       DISPLAY
+       ----------------------------------------------------- */
 
     display:
+
       hasEnd
 
         ? formatHumanRange({
@@ -1614,8 +2127,11 @@ function createDateCandidate({
 
 
     precision:
+
       hasEnd
+
         ? "range"
+
         : "day"
 
   };
@@ -1654,14 +2170,6 @@ function isDeadlineContext(
 
 /* =========================================================
    DEADLINE BAĞLAM PUANI
-
-   Böylece:
-
-   26-30 Ekim 2026 Ankara.
-   Başvurular 20 Ekim 2026 tarihinde sona erecek.
-
-   örneğinde 26-30 Ekim etkinlik tarihi,
-   20 Ekim ise son başvuru olur.
    ========================================================= */
 
 function deadlineContextScore(
@@ -1678,7 +2186,7 @@ function deadlineContextScore(
       Math.max(
         0,
         index -
-        90
+        100
       ),
 
       index
@@ -1698,7 +2206,7 @@ function deadlineContextScore(
 
         index +
         length +
-        90
+        100
 
       )
 
@@ -1708,6 +2216,10 @@ function deadlineContextScore(
   let score =
     0;
 
+
+  /* -------------------------------------------------------
+     Güçlü doğrudan sinyaller
+     ------------------------------------------------------- */
 
   const directSignals = [
 
@@ -1740,10 +2252,15 @@ function deadlineContextScore(
   ) {
 
     score +=
-      8;
+      10;
 
   }
 
+
+  /*
+    Tarihten sonra "son başvuru" yazılması daha zayıf
+    bir sinyaldir.
+  */
 
   if (
     directSignals.some(
@@ -1759,6 +2276,10 @@ function deadlineContextScore(
 
   }
 
+
+  /* -------------------------------------------------------
+     Başvuru / kayıt
+     ------------------------------------------------------- */
 
   const beforeHasApplication =
     containsAny(
@@ -1777,6 +2298,10 @@ function deadlineContextScore(
     );
 
 
+  /* -------------------------------------------------------
+     Kapanış
+     ------------------------------------------------------- */
+
   const afterHasClosing =
     containsAny(
       after,
@@ -1792,7 +2317,11 @@ function deadlineContextScore(
 
         "BITIYOR",
 
-        "BITIS"
+        "BITIS",
+
+        "KAPANACAK",
+
+        "KAPANIYOR"
 
       ]
     );
@@ -1852,7 +2381,7 @@ function findNearbyTime(
       Math.max(
         0,
         index -
-        50
+        60
       ),
 
       Math.min(
@@ -1861,7 +2390,7 @@ function findNearbyTime(
 
         index +
         length +
-        70
+        80
 
       )
 
@@ -1907,23 +2436,31 @@ function findNearbyTime(
 
   if (
 
-    hour <
-    0
+    !Number.isInteger(
+      hour
+    )
 
     ||
 
-    hour >
-    23
+    !Number.isInteger(
+      minute
+    )
 
     ||
 
-    minute <
-    0
+    hour < 0
 
     ||
 
-    minute >
-    59
+    hour > 23
+
+    ||
+
+    minute < 0
+
+    ||
+
+    minute > 59
 
   ) {
 
@@ -2260,17 +2797,14 @@ function detectTopic(
 /* =========================================================
    TARİH NORMALİZASYONU
 
-   KRİTİK:
+   EKİM
+   → EKIM
 
-   /Ekim/i
+   AĞUSTOS
+   → AGUSTOS
 
-   Türkçe "EKİM" için her durumda güvenilir değildir.
-
-   Bu nedenle:
-
-   EKİM    → EKIM
-   ŞUBAT   → SUBAT
-   AĞUSTOS → AGUSTOS
+   ŞUBAT
+   → SUBAT
    ========================================================= */
 
 function normalizeDateText(
@@ -2278,7 +2812,7 @@ function normalizeDateText(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
 
@@ -2303,6 +2837,11 @@ function normalizeDateText(
 
     .replaceAll(
       "İ",
+      "I"
+    )
+
+    .replaceAll(
+      "İ",
       "I"
     )
 
@@ -2344,7 +2883,7 @@ function monthNumber(
     MONTHS[
 
       String(
-        value ||
+        value ??
         ""
       )
         .trim()
@@ -2393,33 +2932,27 @@ function isValidDateParts(
 
     ||
 
-    year <
-    2000
+    year < 2000
 
     ||
 
-    year >
-    2100
+    year > 2100
 
     ||
 
-    month <
-    1
+    month < 1
 
     ||
 
-    month >
-    12
+    month > 12
 
     ||
 
-    day <
-    1
+    day < 1
 
     ||
 
-    day >
-    31
+    day > 31
 
   ) {
 
@@ -2461,6 +2994,115 @@ function isValidDateParts(
     date.getUTCDate() ===
     day
 
+  );
+
+}
+
+
+/* =========================================================
+   TARİH KARŞILAŞTIR
+   ========================================================= */
+
+function compareIsoDates(
+  first,
+  second
+) {
+
+  const firstTime =
+    isoDateTime(
+      first
+    );
+
+
+  const secondTime =
+    isoDateTime(
+      second
+    );
+
+
+  if (
+    firstTime ===
+    null
+    ||
+    secondTime ===
+    null
+  ) {
+
+    return 0;
+
+  }
+
+
+  return (
+    firstTime -
+    secondTime
+  );
+
+}
+
+
+/* =========================================================
+   ISO → TIME
+   ========================================================= */
+
+function isoDateTime(
+  value
+) {
+
+  const match =
+    String(
+      value ||
+      ""
+    )
+      .match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+
+  if (
+    !match
+  ) {
+
+    return null;
+
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  const day =
+    Number(
+      match[3]
+    );
+
+
+  if (
+    !isValidDateParts(
+      day,
+      month,
+      year
+    )
+  ) {
+
+    return null;
+
+  }
+
+
+  return Date.UTC(
+    year,
+    month - 1,
+    day
   );
 
 }
@@ -2530,9 +3172,21 @@ function formatHumanDate({
 
   if (
 
-    !day ||
-    !month ||
+    !day
+
+    ||
+
+    !month
+
+    ||
+
     !year
+
+    ||
+
+    !MONTH_LABELS[
+      month
+    ]
 
   ) {
 
@@ -2661,6 +3315,18 @@ function containsAny(
   values
 ) {
 
+  if (
+    !text ||
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
+
   return values.some(
     value =>
       text.includes(
@@ -2730,7 +3396,7 @@ function escapeRegex(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
     .replace(
