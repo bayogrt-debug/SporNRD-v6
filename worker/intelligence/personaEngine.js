@@ -4,7 +4,7 @@
 
    SporNRD Persona / Influencer Motoru
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.1
 
    Amaç:
    ---------------------------------------------------------
@@ -12,34 +12,44 @@
    son tüketiciye sıcak, dikkat çekici,
    anlaşılır ve güvenilir SporNRD diliyle sunmak.
 
+   YENİ 6.1.1 MANTIĞI
+   ---------------------------------------------------------
+   Persona artık yalnız kategoriye bakmaz.
+
+   Öncelikle:
+   - contentIntent
+   - eventStatus
+   - actionable
+   - intentMeta.feedTreatment
+
+   alanlarını dikkate alır.
+
+   Böylece:
+   SONUÇ HABERİ
+   yaklaşan etkinlik gibi anlatılmaz.
+
    TEMEL KURAL:
    ---------------------------------------------------------
    - Gerçek veri ASLA uydurulmaz.
    - Kaynakta olmayan fiyat üretilmez.
    - Kaynakta olmayan tarih üretilmez.
+   - Kaynakta olmayan konum kesin bilgi gibi kullanılmaz.
    - Kaynakta olmayan kontenjan üretilmez.
    - Kaynakta olmayan yaş bilgisi üretilmez.
+   - Tamamlanmış olay yaklaşan etkinlik gibi sunulmaz.
    - Clickbait yapılmaz.
    - Sahte övgü yapılmaz.
    - Reklam dili kullanılmaz.
-
-   Persona:
-   ---------------------------------------------------------
-   Samimi
-   Enerjik
-   Merak uyandıran
-   Son tüketici odaklı
-   Kısa
-   Net
-   Fayda odaklı
    ========================================================= */
 
 
 import {
+
   getSport,
   getCategory,
   getSubCategory,
   getProviderType
+
 } from "../core/taxonomy.js";
 
 
@@ -48,7 +58,7 @@ import {
    ========================================================= */
 
 export const PERSONA_VERSION =
-  "1.0";
+  "1.1";
 
 
 /* =========================================================
@@ -79,7 +89,10 @@ export const PERSONA_STYLES = {
     "practical",
 
   informative:
-    "informative"
+    "informative",
+
+  result:
+    "result"
 
 };
 
@@ -92,6 +105,9 @@ export function buildPersona(
   post,
   options = {}
 ) {
+
+  void options;
+
 
   if (
     !post ||
@@ -183,9 +199,6 @@ export function buildPersona(
 
 /* =========================================================
    PERSONAYI POSTA UYGULA
-
-   Orijinal postu değiştirmez.
-   Yeni nesne döndürür.
    ========================================================= */
 
 export function applyPersona(
@@ -274,8 +287,6 @@ export function applyPersona(
 
 /* =========================================================
    PERSONA AÇISI
-
-   Postu hangi açıdan anlatacağız?
    ========================================================= */
 
 export function choosePersonaAngle(
@@ -333,6 +344,14 @@ function collectFacts(
       post.source
     )
       ? post.source
+      : {};
+
+
+  const intentMeta =
+    isPlainObject(
+      post.intentMeta
+    )
+      ? post.intentMeta
       : {};
 
 
@@ -437,6 +456,29 @@ function collectFacts(
     );
 
 
+  const contentIntent =
+    cleanString(
+      post.contentIntent
+    );
+
+
+  const eventStatus =
+    cleanString(
+      post.eventStatus
+    );
+
+
+  const actionable =
+    post.actionable ===
+    true;
+
+
+  const feedTreatment =
+    cleanString(
+      intentMeta.feedTreatment
+    );
+
+
   const used =
     [];
 
@@ -447,6 +489,28 @@ function collectFacts(
 
     used.push(
       "sport"
+    );
+
+  }
+
+
+  if (
+    contentIntent
+  ) {
+
+    used.push(
+      "contentIntent"
+    );
+
+  }
+
+
+  if (
+    eventStatus
+  ) {
+
+    used.push(
+      "eventStatus"
     );
 
   }
@@ -464,8 +528,20 @@ function collectFacts(
   }
 
 
+  /*
+    Result/completed içeriklerde konum
+    persona anlatımında kullanılmayacak.
+
+    Çünkü takım/kurum adlarından gelen
+    sahte konum ihtimali daha yüksek.
+  */
+
   if (
-    location.city
+    location.city &&
+    !isCompletedResult({
+      contentIntent,
+      eventStatus
+    })
   ) {
 
     used.push(
@@ -476,7 +552,11 @@ function collectFacts(
 
 
   if (
-    location.district
+    location.district &&
+    !isCompletedResult({
+      contentIntent,
+      eventStatus
+    })
   ) {
 
     used.push(
@@ -724,6 +804,23 @@ function collectFacts(
         lifecycle.status
       ),
 
+    contentIntent:
+      contentIntent,
+
+    eventStatus:
+      eventStatus,
+
+    actionable:
+      actionable,
+
+    opportunityScore:
+      safeNumber(
+        post.opportunityScore
+      ),
+
+    feedTreatment:
+      feedTreatment,
+
     used:
       used
 
@@ -734,6 +831,9 @@ function collectFacts(
 
 /* =========================================================
    AÇI SEÇ
+
+   KRİTİK:
+   İçeriğin anlamı kategori seçiminden önce gelir.
    ========================================================= */
 
 function chooseAngle(
@@ -741,9 +841,50 @@ function chooseAngle(
   facts
 ) {
 
-  /* -------------------------------------------------------
-     Son başvuru
-     ------------------------------------------------------- */
+  /* =======================================================
+     1. SONUÇ / TAMAMLANMIŞ OLAY
+
+     En yüksek öncelik.
+
+     Örn:
+     Şampiyon oldu
+     Kazandı
+     Final tamamlandı
+     Madalya aldı
+
+     Bunlar ASLA yaklaşan etkinlik değildir.
+     ======================================================= */
+
+  if (
+    isCompletedResult(
+      facts
+    )
+  ) {
+
+    return "result";
+
+  }
+
+
+  /* =======================================================
+     2. KAYIT / BAŞVURU
+     ======================================================= */
+
+  if (
+    facts.contentIntent ===
+    "registration"
+  ) {
+
+    return facts.deadline
+      ? "deadline"
+      : "registration";
+
+  }
+
+
+  /* =======================================================
+     3. SON BAŞVURU
+     ======================================================= */
 
   if (
     facts.lifecycleStatus ===
@@ -757,11 +898,14 @@ function chooseAngle(
   }
 
 
-  /* -------------------------------------------------------
-     Kampanya / indirim
-     ------------------------------------------------------- */
+  /* =======================================================
+     4. KAMPANYA
+     ======================================================= */
 
   if (
+    facts.contentIntent ===
+    "campaign"
+    ||
     post.category ===
     "campaigns"
     ||
@@ -774,9 +918,43 @@ function chooseAngle(
   }
 
 
-  /* -------------------------------------------------------
-     Çocuk / genç yaş grubu
-     ------------------------------------------------------- */
+  /* =======================================================
+     5. İŞ
+     ======================================================= */
+
+  if (
+    facts.contentIntent ===
+    "job"
+    ||
+    post.category ===
+    "jobs"
+  ) {
+
+    return "career";
+
+  }
+
+
+  /* =======================================================
+     6. ÜRÜN
+     ======================================================= */
+
+  if (
+    facts.contentIntent ===
+    "product"
+    ||
+    post.category ===
+    "stores"
+  ) {
+
+    return "product";
+
+  }
+
+
+  /* =======================================================
+     7. ÇOCUK / AİLE
+     ======================================================= */
 
   if (
     isChildAudience(
@@ -789,37 +967,9 @@ function chooseAngle(
   }
 
 
-  /* -------------------------------------------------------
-     İş ilanı
-     ------------------------------------------------------- */
-
-  if (
-    post.category ===
-    "jobs"
-  ) {
-
-    return "career";
-
-  }
-
-
-  /* -------------------------------------------------------
-     Mağaza
-     ------------------------------------------------------- */
-
-  if (
-    post.category ===
-    "stores"
-  ) {
-
-    return "product";
-
-  }
-
-
-  /* -------------------------------------------------------
-     Kurs
-     ------------------------------------------------------- */
+  /* =======================================================
+     8. KURS
+     ======================================================= */
 
   if (
     post.category ===
@@ -831,16 +981,36 @@ function chooseAngle(
   }
 
 
-  /* -------------------------------------------------------
-     Etkinlik
-     ------------------------------------------------------- */
+  /* =======================================================
+     9. YAKLAŞAN / AKSİYON ALINABİLİR ETKİNLİK
+     ======================================================= */
 
   if (
     post.category ===
     "events"
+    &&
+    facts.eventStatus !==
+    "completed"
+    &&
+    facts.contentIntent !==
+    "result"
   ) {
 
     return "event";
+
+  }
+
+
+  /* =======================================================
+     10. DUYURU / HABER
+     ======================================================= */
+
+  if (
+    facts.contentIntent ===
+    "announcement"
+  ) {
+
+    return "announcement";
 
   }
 
@@ -859,6 +1029,20 @@ function chooseStyle(
   facts,
   angle
 ) {
+
+  void post;
+  void facts;
+
+
+  if (
+    angle ===
+    "result"
+  ) {
+
+    return PERSONA_STYLES.result;
+
+  }
+
 
   if (
     angle ===
@@ -906,6 +1090,9 @@ function chooseStyle(
   if (
     angle ===
     "course"
+    ||
+    angle ===
+    "registration"
   ) {
 
     return PERSONA_STYLES.practical;
@@ -950,9 +1137,28 @@ function buildHeadline(
     );
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     SONUÇ
+
+     Konum kullanılmaz.
+     Katılım çağrısı kullanılmaz.
+     ======================================================= */
+
+  if (
+    angle ===
+    "result"
+  ) {
+
+    return buildResultHeadline(
+      facts
+    );
+
+  }
+
+
+  /* =======================================================
      SON TARİH
-     ------------------------------------------------------- */
+     ======================================================= */
 
   if (
     angle ===
@@ -965,7 +1171,7 @@ function buildHeadline(
     ) {
 
       return shorten(
-        `💼 ${facts.sport} tarafında başvuru düşünenler, bu ilanı gözden kaçırmayın`,
+        `💼 ${facts.sport} tarafında başvuru düşünenler, son tarihi kaçırmayın`,
         120
       );
 
@@ -978,7 +1184,7 @@ function buildHeadline(
     ) {
 
       return shorten(
-        `⏳ ${facts.sport} kursu arayanlar, kayıt tarihine dikkat`,
+        `⏳ ${facts.sport} kursunda kayıt takvimine dikkat`,
         120
       );
 
@@ -986,16 +1192,33 @@ function buildHeadline(
 
 
     return shorten(
-      `⏳ Takvime bakın: ${original}`,
+      `⏳ Son tarih yaklaşırken: ${original}`,
       120
     );
 
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     KAYIT
+     ======================================================= */
+
+  if (
+    angle ===
+    "registration"
+  ) {
+
+    return shorten(
+      `📌 ${original}`,
+      120
+    );
+
+  }
+
+
+  /* =======================================================
      AİLE / ÇOCUK
-     ------------------------------------------------------- */
+     ======================================================= */
 
   if (
     angle ===
@@ -1019,9 +1242,9 @@ function buildHeadline(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KURS
-     ------------------------------------------------------- */
+     ======================================================= */
 
   if (
     angle ===
@@ -1050,9 +1273,11 @@ function buildHeadline(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      ETKİNLİK
-     ------------------------------------------------------- */
+
+     Yalnız completed/result olmayan içerikler buraya gelir.
+     ======================================================= */
 
   if (
     angle ===
@@ -1079,9 +1304,9 @@ function buildHeadline(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KAMPANYA
-     ------------------------------------------------------- */
+     ======================================================= */
 
   if (
     angle ===
@@ -1096,7 +1321,7 @@ function buildHeadline(
       return shorten(
         `👀 %${formatNumber(
           facts.discountRate
-        )} indirimle dikkatimizi çeken bir spor fırsatı`,
+        )} indirimle dikkat çeken bir spor fırsatı`,
         120
       );
 
@@ -1104,16 +1329,16 @@ function buildHeadline(
 
 
     return shorten(
-      "👀 Spor tarafında dikkatimizi çeken yeni bir kampanya",
+      "👀 Spor tarafında dikkat çeken yeni bir kampanya",
       120
     );
 
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      İŞ
-     ------------------------------------------------------- */
+     ======================================================= */
 
   if (
     angle ===
@@ -1125,7 +1350,7 @@ function buildHeadline(
     ) {
 
       return shorten(
-        `💼 ${facts.position} arayanlar veya bu alanda çalışanlar, bu ilana bakın`,
+        `💼 ${facts.position} arayanlar, bu ilana göz atabilir`,
         120
       );
 
@@ -1133,16 +1358,16 @@ function buildHeadline(
 
 
     return shorten(
-      `💼 ${facts.sport} alanında yeni bir iş ilanı var`,
+      `💼 ${facts.sport} alanında yeni bir iş ilanı`,
       120
     );
 
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      MAĞAZA / ÜRÜN
-     ------------------------------------------------------- */
+     ======================================================= */
 
   if (
     angle ===
@@ -1178,12 +1403,72 @@ function buildHeadline(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     DUYURU
+     ======================================================= */
+
+  if (
+    angle ===
+    "announcement"
+  ) {
+
+    return shorten(
+      `📢 ${original}`,
+      120
+    );
+
+  }
+
+
+  /* =======================================================
      GENEL
-     ------------------------------------------------------- */
+     ======================================================= */
 
   return shorten(
     `${facts.sportEmoji} ${original}`,
+    120
+  );
+
+}
+
+
+/* =========================================================
+   SONUÇ BAŞLIĞI
+
+   Kaynağın gerçek başlığını temel alır.
+   Yeni olay/fakt uydurmaz.
+   ========================================================= */
+
+function buildResultHeadline(
+  facts
+) {
+
+  const original =
+    cleanResultTitle(
+      facts.originalTitle ||
+      facts.currentHeadline
+    );
+
+
+  if (
+    original
+  ) {
+
+    /*
+      Orijinal başlık zaten güçlü sonuç dili taşıyorsa
+      onu koruyoruz.
+    */
+
+    return shorten(
+      `🏆 ${original}`,
+      120
+    );
+
+  }
+
+
+  return shorten(
+    `🏆 ${facts.sport} tarafında sonuç belli oldu`,
     120
   );
 
@@ -1199,6 +1484,34 @@ function buildInfluencerText(
   facts,
   angle
 ) {
+
+  /* -------------------------------------------------------
+     RESULT her kategorinin önüne geçer.
+     ------------------------------------------------------- */
+
+  if (
+    angle ===
+    "result"
+  ) {
+
+    return buildResultText(
+      facts
+    );
+
+  }
+
+
+  if (
+    angle ===
+    "registration"
+  ) {
+
+    return buildRegistrationText(
+      facts
+    );
+
+  }
+
 
   switch (
     post.category
@@ -1253,6 +1566,137 @@ function buildInfluencerText(
 
 
 /* =========================================================
+   SONUÇ METNİ
+
+   ÖNEMLİ:
+   - Katılım çağrısı yok.
+   - Gelecek zaman yok.
+   - "Planına ekle" yok.
+   - Şehir üzerinden çıkarım yok.
+   ========================================================= */
+
+function buildResultText(
+  facts
+) {
+
+  const sentences =
+    [];
+
+
+  const originalText =
+    cleanString(
+      facts.originalText
+    );
+
+
+  const originalTitle =
+    cleanResultTitle(
+      facts.originalTitle
+    );
+
+
+  /*
+    Kaynak açıklaması varsa onu esas alıyoruz.
+  */
+
+  if (
+    originalText
+  ) {
+
+    const summary =
+      shorten(
+        originalText,
+        360
+      );
+
+
+    sentences.push(
+      summary
+    );
+
+  }
+
+  else if (
+    originalTitle
+  ) {
+
+    sentences.push(
+      `${originalTitle}.`
+    );
+
+  }
+
+  else {
+
+    sentences.push(
+      `${facts.sport} tarafında sonuçlanan bir organizasyonla ilgili yeni bilgi paylaşıldı.`
+    );
+
+  }
+
+
+  return finalizeText(
+    sentences,
+    "Sonucun ayrıntılarını resmî kaynaktan inceleyebilirsin."
+  );
+
+}
+
+
+/* =========================================================
+   KAYIT / BAŞVURU METNİ
+   ========================================================= */
+
+function buildRegistrationText(
+  facts
+) {
+
+  const sentences =
+    [];
+
+
+  const title =
+    getBaseTitle(
+      facts
+    );
+
+
+  sentences.push(
+    `${title} için kullanıcıdan işlem gerektiren bir kayıt veya başvuru süreci bulunuyor.`
+  );
+
+
+  if (
+    facts.deadline
+  ) {
+
+    sentences.push(
+      `Kaynakta belirtilen son tarih: ${facts.deadline}.`
+    );
+
+  }
+
+
+  if (
+    facts.startDate
+  ) {
+
+    sentences.push(
+      `İlgili tarih bilgisi ${facts.startDate} olarak belirtilmiş.`
+    );
+
+  }
+
+
+  return finalizeText(
+    sentences,
+    "Başvuru şartlarını ve gerekli adımları resmî kaynaktan kontrol edebilirsin."
+  );
+
+}
+
+
+/* =========================================================
    KURS METNİ
    ========================================================= */
 
@@ -1282,11 +1726,11 @@ function buildCourseText(
 
         ? `${location} çevresinde çocuğu için ${facts.sport.toLocaleLowerCase(
             "tr-TR"
-          )} seçeneği arayanların bakabileceği bir kurs bulduk.`
+          )} seçeneği arayanların bakabileceği bir kurs var.`
 
         : `Çocuğu için ${facts.sport.toLocaleLowerCase(
             "tr-TR"
-          )} kursu arayanların bakabileceği bir seçenek bulduk.`
+          )} kursu arayanların bakabileceği bir seçenek var.`
 
     );
 
@@ -1379,7 +1823,7 @@ function buildCourseText(
   ) {
 
     sentences.push(
-      `Kayıt için belirtilen son tarihi ayrıca kontrol etmekte fayda var.`
+      "Kayıt için belirtilen son tarihi ayrıca kontrol etmekte fayda var."
     );
 
   }
@@ -1395,12 +1839,17 @@ function buildCourseText(
 
 /* =========================================================
    ETKİNLİK METNİ
+
+   Bu fonksiyon RESULT için artık çağrılmaz.
    ========================================================= */
 
 function buildEventText(
   facts,
   angle
 ) {
+
+  void angle;
+
 
   const sentences =
     [];
@@ -1425,7 +1874,7 @@ function buildEventText(
   else {
 
     sentences.push(
-      `${facts.sport} tarafında yeni bir etkinlik radarımıza girdi.`
+      `${facts.sport} tarafında yaklaşan bir etkinlik bulunuyor.`
     );
 
   }
@@ -1481,7 +1930,7 @@ function buildEventText(
   ) {
 
     sentences.push(
-      "Katılım düşünüyorsan kayıt tarihini kaçırmamak önemli."
+      "Katılım düşünüyorsan kayıt tarihini kontrol etmek önemli."
     );
 
   }
@@ -1515,7 +1964,7 @@ function buildCampaignText(
     sentences.push(
       `Spor tarafında %${formatNumber(
         facts.discountRate
-      )} indirim bilgisiyle dikkat çeken bir kampanya bulduk.`
+      )} indirim bilgisiyle dikkat çeken bir kampanya var.`
     );
 
   }
@@ -1523,7 +1972,7 @@ function buildCampaignText(
   else {
 
     sentences.push(
-      "Spor tarafında yeni bir kampanya dikkatimizi çekti."
+      "Spor tarafında yeni bir kampanya var."
     );
 
   }
@@ -1569,7 +2018,7 @@ function buildCampaignText(
   ) {
 
     sentences.push(
-      "Kampanyanın geçerlilik tarihini işlem yapmadan önce kontrol etmeni öneririz."
+      "Kampanyanın geçerlilik tarihini işlem yapmadan önce kontrol etmek önemli."
     );
 
   }
@@ -1714,7 +2163,7 @@ function buildStoreText(
   ) {
 
     sentences.push(
-      `${facts.brand} imzalı ${product} spor alışverişi yapanların radarına girebilir.`
+      `${facts.brand} imzalı ${product} spor alışverişi yapanların ilgisini çekebilir.`
     );
 
   }
@@ -1722,7 +2171,7 @@ function buildStoreText(
   else {
 
     sentences.push(
-      `${product} spor alışverişi yapanların radarına girebilir.`
+      `${product} spor alışverişi yapanların ilgisini çekebilir.`
     );
 
   }
@@ -1798,7 +2247,7 @@ function buildGenericText(
   return finalizeText(
 
     [
-      `${facts.sport} tarafında dikkatimizi çeken yeni bir içerik var: ${title}.`
+      `${facts.sport} tarafında yeni bir içerik var: ${title}.`
     ],
 
     "Ayrıntıları resmî kaynaktan kontrol edebilirsin."
@@ -1810,9 +2259,6 @@ function buildGenericText(
 
 /* =========================================================
    SPORNRD NOTU
-
-   Kartın arka yüzünde ileride
-   küçük editör notu olarak kullanılabilir.
    ========================================================= */
 
 function buildSporNRDNote(
@@ -1820,6 +2266,16 @@ function buildSporNRDNote(
   facts,
   angle
 ) {
+
+  if (
+    angle ===
+    "result"
+  ) {
+
+    return "Bu içerik tamamlanmış bir sonuç/haber; yaklaşan etkinlik olarak değerlendirilmemeli.";
+
+  }
+
 
   if (
     angle ===
@@ -1880,6 +2336,74 @@ function buildSporNRDNote(
 
 
   return "";
+
+}
+
+
+/* =========================================================
+   COMPLETED RESULT?
+   ========================================================= */
+
+function isCompletedResult(
+  facts
+) {
+
+  return Boolean(
+
+    facts?.contentIntent ===
+    "result"
+
+    ||
+
+    facts?.eventStatus ===
+    "completed"
+
+  );
+
+}
+
+
+/* =========================================================
+   SONUÇ BAŞLIĞI TEMİZLE
+   ========================================================= */
+
+function cleanResultTitle(
+  value
+) {
+
+  let text =
+    cleanString(
+      value
+    );
+
+
+  if (
+    !text
+  ) {
+
+    return "";
+
+  }
+
+
+  /*
+    Son noktadaki gereksiz noktalama temizliği.
+  */
+
+  text =
+    text
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .replace(
+        /[.!…]+$/,
+        ""
+      )
+      .trim();
+
+
+  return text;
 
 }
 
@@ -2359,6 +2883,21 @@ function shortLocation(
   facts
 ) {
 
+  /*
+    Tamamlanmış sonuçlarda konum kullanma.
+  */
+
+  if (
+    isCompletedResult(
+      facts
+    )
+  ) {
+
+    return "";
+
+  }
+
+
   if (
     facts.district
   ) {
@@ -2389,6 +2928,17 @@ function shortLocation(
 function readableLocation(
   facts
 ) {
+
+  if (
+    isCompletedResult(
+      facts
+    )
+  ) {
+
+    return "";
+
+  }
+
 
   const parts =
     [
@@ -2421,9 +2971,9 @@ function getBaseTitle(
 
   return (
 
-    facts.currentHeadline ||
-
     facts.originalTitle ||
+
+    facts.currentHeadline ||
 
     facts.subCategory ||
 
@@ -2622,6 +3172,29 @@ function nullableNumber(
 
 
 /* =========================================================
+   SAFE NUMBER
+   ========================================================= */
+
+function safeNumber(
+  value
+) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
+
+}
+
+
+/* =========================================================
    ARRAY
    ========================================================= */
 
@@ -2797,4 +3370,4 @@ function shorten(
     "…"
   );
 
-  }
+}
