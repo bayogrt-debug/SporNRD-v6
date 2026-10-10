@@ -4,7 +4,7 @@
 
    Gerçek Kaynak → v6.1 Preview Pipeline
 
-   Sürüm: 6.1.1-preview
+   Sürüm: 6.1.2-preview
 
    Amaç:
    ---------------------------------------------------------
@@ -18,6 +18,8 @@
         ↓
    Discovery Engine
         ↓
+   Temporal Engine
+        ↓
    Lifecycle Engine
         ↓
    Persona Engine
@@ -26,10 +28,39 @@
 
    zincirinden geçirmek.
 
+   TEMPORAL ENGINE
+   ---------------------------------------------------------
+   İçeriğin gerçek tarihlerini bugünün tarihiyle
+   karşılaştırır.
+
+   past
+   present
+   future
+   unknown
+
+   kararını üretir.
+
+   ÖNEMLİ:
+   ---------------------------------------------------------
+   Yayın tarihi olay tarihi değildir.
+
+   Gerçek olay tarihi yoksa yayın tarihi yalnızca:
+   - güncellik
+   - yeni/eski içerik dili
+
+   için kullanılır.
+
    ÖNEMLİ:
    ---------------------------------------------------------
    Bu dosya mevcut /api/feed sistemini değiştirmez.
    Yalnızca /api/feed-preview için kullanılır.
+
+   NOT:
+   ---------------------------------------------------------
+   Ranking Engine henüz bağlanmamıştır.
+
+   Şimdilik mevcut comparePosts()
+   sıralaması korunmaktadır.
    ========================================================= */
 
 
@@ -60,6 +91,14 @@ import {
 
 import {
 
+  applyTemporal,
+  TEMPORAL_VERSION
+
+} from "../intelligence/temporalEngine.js";
+
+
+import {
+
   applyLifecycle,
   filterVisiblePosts,
   createLifecycleSummary
@@ -79,7 +118,7 @@ import {
    ========================================================= */
 
 export const FEED_PREVIEW_VERSION =
-  "1.1";
+  "1.2";
 
 
 const DEFAULT_LIMIT =
@@ -88,6 +127,30 @@ const DEFAULT_LIMIT =
 
 const MAX_LIMIT =
   30;
+
+
+/* =========================================================
+   PIPELINE TANIMI
+
+   Debug sırasında hangi motorların hangi sırayla
+   çalıştığını kolayca görmemizi sağlar.
+   ========================================================= */
+
+const PIPELINE_STAGES = [
+
+  "normalizer",
+
+  "content-intent",
+
+  "discovery",
+
+  "temporal",
+
+  "lifecycle",
+
+  "persona"
+
+];
 
 
 /* =========================================================
@@ -185,6 +248,14 @@ export async function buildFeedPreview({
       contentIntentVersion:
         CONTENT_INTENT_VERSION,
 
+      temporalVersion:
+        TEMPORAL_VERSION,
+
+      pipeline:
+        [
+          ...PIPELINE_STAGES
+        ],
+
       startedAt:
         startedAt,
 
@@ -225,6 +296,12 @@ export async function buildFeedPreview({
                 sourceId:
                   "",
 
+                source:
+                  "",
+
+                stage:
+                  "provider-filter",
+
                 error:
                   "İstenen aktif kaynak bulunamadı."
 
@@ -242,6 +319,11 @@ export async function buildFeedPreview({
 
         intent:
           createIntentSummary(
+            []
+          ),
+
+        temporal:
+          createTemporalSummary(
             []
           ),
 
@@ -415,7 +497,7 @@ export async function buildFeedPreview({
 
 
       /* -----------------------------------------------------
-         Normalizer uyarıları
+         NORMALIZER UYARILARI
          ----------------------------------------------------- */
 
       if (
@@ -474,7 +556,8 @@ export async function buildFeedPreview({
             Legacy postlarda createPost()
             firstSeenAt alanını "şimdi" yapabilir.
 
-            Eski haberleri yanlışlıkla yeni göstermemek için
+            Eski haberleri yanlışlıkla her preview
+            isteğinde yeniden "yeni" göstermemek için
             yayın tarihi biliniyorsa onu koruyoruz.
           */
 
@@ -485,9 +568,11 @@ export async function buildFeedPreview({
 
 
           /* =================================================
-             CONTENT INTENT
+             CONTENT INTENT ENGINE
 
              Önce içeriğin NE ANLATTIĞINI anlamaya çalışır.
+
+             Örnek intent:
 
              result
              registration
@@ -498,14 +583,14 @@ export async function buildFeedPreview({
              product
              news
 
-             Ayrıca:
+             Ayrıca başlangıç seviyesinde:
 
              upcoming
              ongoing
              completed
              unknown
 
-             durumunu üretir.
+             kararları üretilebilir.
              ================================================= */
 
           post =
@@ -515,15 +600,26 @@ export async function buildFeedPreview({
 
 
           /* =================================================
-             DISCOVERY
+             DISCOVERY ENGINE
 
-             Content Intent kararından SONRA:
+             Content Intent kararından sonra:
 
-             Branş
-             Ana kategori
-             Alt kategori
-             Provider
-             Eksik filtre alanları
+             - Branş
+             - Bölüm / provider ilişkisi
+             - Ana kategori
+             - Alt kategori
+             - Eksik filtre alanları
+
+             gibi keşif kararları uygulanır.
+
+             Ana kategori hedefimiz:
+
+             news
+             course
+             event
+             campaign
+             jobs
+             stores
              ================================================= */
 
           post =
@@ -533,7 +629,67 @@ export async function buildFeedPreview({
 
 
           /* =================================================
-             LIFECYCLE
+             TEMPORAL ENGINE
+
+             Gerçek tarihleri bugünün tarihiyle
+             karşılaştırır.
+
+             -------------------------------------------------
+             state:
+             past
+             present
+             future
+             unknown
+
+             -------------------------------------------------
+             eventStatus:
+             upcoming
+             ongoing
+             completed
+             unknown
+
+             -------------------------------------------------
+             EN ÖNEMLİ KURAL:
+
+             publishedAt olay tarihi değildir.
+
+             Gerçek olay tarihi bulunamazsa
+             publishedAt yalnızca freshness / güncellik
+             dilinde kullanılır.
+             ================================================= */
+
+          post =
+            applyTemporal(
+              post
+            );
+
+
+          /* =================================================
+             LIFECYCLE ENGINE
+
+             İçeriğin SporNRD yaşam döngüsünü yönetir.
+
+             Örnek:
+
+             new
+             active
+             closing_soon
+             updated
+             expired
+             removed
+
+             Temporal ile lifecycle aynı şey değildir.
+
+             Örnek:
+
+             lifecycle.status = "new"
+             temporal.state   = "past"
+
+             mümkündür.
+
+             Bu:
+             "Yeni yayımlanmış ama geçmişte gerçekleşmiş olay"
+             anlamına gelebilir.
              ================================================= */
 
           post =
@@ -543,13 +699,33 @@ export async function buildFeedPreview({
 
 
           /* =================================================
-             PERSONA
+             PERSONA ENGINE
 
-             Şimdilik mevcut persona motoru çalışıyor.
+             Persona artık:
 
-             Bir sonraki aşamada contentIntent/result bilgisini
-             kullanarak geçmiş sonuç haberlerinde
-             "gidilecek etkinlik" dili üretmesini engelleyeceğiz.
+             - contentIntent
+             - eventStatus
+             - temporal
+             - gerçek filtre verileri
+
+             üzerinden kullanıcıya uygun dil üretmek için
+             kullanılacaktır.
+
+             Örnek:
+
+             past:
+             "kazandı / tamamlandı / sona erdi"
+
+             present:
+             "devam ediyor / bugün"
+
+             future:
+             "başlayacak / yapılacak"
+
+             unknown + recent publish:
+             "yeni duyuru yayımlandı"
+
+             şeklinde davranabilecek altyapı hazırdır.
              ================================================= */
 
           post =
@@ -558,9 +734,21 @@ export async function buildFeedPreview({
             );
 
 
-          allPosts.push(
-            post
-          );
+          /* =================================================
+             POST HAVUZUNA EKLE
+             ================================================= */
+
+          if (
+            post &&
+            typeof post ===
+            "object"
+          ) {
+
+            allPosts.push(
+              post
+            );
+
+          }
 
         }
 
@@ -635,6 +823,14 @@ export async function buildFeedPreview({
 
   /* =======================================================
      SÜRESİ GEÇEN / KALDIRILAN POSTLARI AYIR
+
+     NOT:
+     Geçmiş bir HABER otomatik olarak expired değildir.
+
+     Örneğin tamamlanmış müsabaka sonucu haber olarak
+     görünmeye devam edebilir.
+
+     Burada lifecycle kararına göre filtre uygulanır.
      ========================================================= */
 
   const visiblePosts =
@@ -654,6 +850,11 @@ export async function buildFeedPreview({
 
   /* =======================================================
      SIRALA
+
+     Ranking Engine henüz bağlanmadı.
+
+     Şimdilik normalizer.js içindeki mevcut
+     comparePosts() korunuyor.
      ========================================================= */
 
   visiblePosts.sort(
@@ -689,6 +890,14 @@ export async function buildFeedPreview({
 
     contentIntentVersion:
       CONTENT_INTENT_VERSION,
+
+    temporalVersion:
+      TEMPORAL_VERSION,
+
+    pipeline:
+      [
+        ...PIPELINE_STAGES
+      ],
 
     startedAt:
       startedAt,
@@ -740,6 +949,11 @@ export async function buildFeedPreview({
           uniquePosts
         ),
 
+      temporal:
+        createTemporalSummary(
+          uniquePosts
+        ),
+
       lifecycle:
         createLifecycleSummary(
           uniquePosts
@@ -755,8 +969,8 @@ export async function buildFeedPreview({
 /* =========================================================
    INTENT SUMMARY
 
-   Preview ekranında motorun genel kararlarını
-   kolayca görmemizi sağlar.
+   Preview ekranında Content Intent motorunun
+   genel kararlarını görmemizi sağlar.
    ========================================================= */
 
 function createIntentSummary(
@@ -861,10 +1075,147 @@ function createIntentSummary(
 
 
 /* =========================================================
+   TEMPORAL SUMMARY
+
+   Geçmiş / Şimdi / Gelecek kararlarını
+   tek bakışta test etmeyi sağlar.
+   ========================================================= */
+
+function createTemporalSummary(
+  posts
+) {
+
+  const items =
+    Array.isArray(
+      posts
+    )
+      ? posts
+      : [];
+
+
+  const states =
+    {};
+
+
+  const eventStatuses =
+    {};
+
+
+  const freshness =
+    {};
+
+
+  const languageModes =
+    {};
+
+
+  const actionStates =
+    {};
+
+
+  const bases =
+    {};
+
+
+  for (
+    const post
+    of items
+  ) {
+
+    const temporal =
+      isPlainObject(
+        post?.temporal
+      )
+
+        ? post.temporal
+
+        : {};
+
+
+    incrementCounter(
+      states,
+      temporal.state ||
+      "unknown"
+    );
+
+
+    incrementCounter(
+      eventStatuses,
+      temporal.eventStatus ||
+      post?.eventStatus ||
+      "unknown"
+    );
+
+
+    incrementCounter(
+      freshness,
+      temporal.freshness ||
+      "unknown"
+    );
+
+
+    incrementCounter(
+      languageModes,
+      temporal.languageMode ||
+      "neutral"
+    );
+
+
+    incrementCounter(
+      actionStates,
+      temporal.actionState ||
+      "unknown"
+    );
+
+
+    incrementCounter(
+      bases,
+      temporal.basis ||
+      "none"
+    );
+
+  }
+
+
+  return {
+
+    count:
+      items.length,
+
+    states:
+      states,
+
+    eventStatuses:
+      eventStatuses,
+
+    freshness:
+      freshness,
+
+    languageModes:
+      languageModes,
+
+    actionStates:
+      actionStates,
+
+    bases:
+      bases
+
+  };
+
+}
+
+
+/* =========================================================
    LEGACY LIFECYCLE DÜZELTME
 
    Preview'da eski haberlerin her istekte
    yeniden "YENİ" sayılmasını önler.
+
+   Yayın tarihi biliniyorsa firstSeenAt için
+   geçici ve güvenli referans olarak kullanılır.
+
+   DİKKAT:
+   Bu işlem yayın tarihini olay tarihi yapmaz.
    ========================================================= */
 
 function stabilizeLegacyLifecycle(
@@ -1234,4 +1585,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-       }
+     }
