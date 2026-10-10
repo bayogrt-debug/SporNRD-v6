@@ -2677,26 +2677,30 @@ function buildLegacyDetails(
   */
 
   const startDate =
-    firstString(
+  firstString(
 
-      facts.startDate,
+    facts.startDateIso,
 
-      /*
-        Eski Fact Engine'lerde yalnız eventDate
-        olabilir.
+    facts.startDate,
 
-        Fakat dateRange varsa eventDate'in
-        tamamını startDate yapmak istemiyoruz.
-
-        Yeni Fact Engine startDate ürettiği için
-        öncelik ondadır.
-      */
-
+    (
+      !facts.endDateIso &&
       !facts.endDate
-        ? facts.eventDate
-        : ""
+    )
+      ? facts.eventDate
+      : ""
 
-    );
+  );
+
+
+const endDate =
+  firstString(
+
+    facts.endDateIso,
+
+    facts.endDate
+
+  );
 
 
   const endDate =
@@ -3994,4 +3998,4 @@ function clamp(
 
   );
 
-}
+       }
