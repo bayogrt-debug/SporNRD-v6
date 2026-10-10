@@ -4,8 +4,10 @@
 
    SporNRD ortak sınıflandırma sözlüğü
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.1
+
    Amaç:
+   ---------------------------------------------------------
    - Branş
    - Ana kategori
    - Alt kategori
@@ -14,6 +16,15 @@
    - Post durumu
    - Aksiyon türleri
    - Kategoriye özel veri / filtre alanları
+
+   YENİ 6.1.1:
+   ---------------------------------------------------------
+   Spor Haberleri ana kategorisi eklendi.
+
+   Alt kategoriler:
+   - Bireysel & Sporcu
+   - Eğitmen & Antrenör
+   - İşletme & Kurum
 
    Bu dosya SporNRD'nin ortak dilidir.
    ========================================================= */
@@ -122,6 +133,8 @@ export const SPORTS = {
    BRANŞ FİLTRELERİ
 
    Ana ekran üst yuvarlakları.
+
+   Burada kategori değil BRANŞ gösterilir.
    ========================================================= */
 
 export const SPORT_FILTERS = [
@@ -149,7 +162,11 @@ export const SPORT_FILTERS = [
 /* =========================================================
    ANA KATEGORİLER
 
-   Bunlar kullanıcının "Ne arıyorsun?" sorusunun cevabı.
+   Kullanıcının:
+
+   "Ne arıyorsun / ne görmek istiyorsun?"
+
+   sorusunun cevabıdır.
    ========================================================= */
 
 export const CATEGORIES = {
@@ -211,7 +228,7 @@ export const CATEGORIES = {
       "jobs",
 
     label:
-      "İş İlanları",
+      "İş Yeri & İş İlanları",
 
     shortLabel:
       "İş İlanları",
@@ -236,6 +253,41 @@ export const CATEGORIES = {
     enabled:
       true
 
+  },
+
+
+  /* -------------------------------------------------------
+     SPOR HABERLERİ
+
+     Fırsat / etkinlik / kurs değildir.
+
+     Spor dünyasında gerçekleşmiş veya güncel
+     gelişmeleri ayrı bir ana kategoride tutar.
+
+     Örnek:
+     - Maç sonucu
+     - Şampiyonluk
+     - Madalya
+     - Sporcu başarısı
+     - Antrenör gelişmesi
+     - Kulüp haberi
+     - Federasyon haberi
+     ------------------------------------------------------- */
+
+  sports_news: {
+
+    id:
+      "sports_news",
+
+    label:
+      "Spor Haberleri",
+
+    shortLabel:
+      "Haberler",
+
+    enabled:
+      true
+
   }
 
 };
@@ -244,11 +296,15 @@ export const CATEGORIES = {
 /* =========================================================
    ALT KATEGORİLER
 
-   Spor Kurslarında mevcut tasarım gereği branş
-   alt kategorisi de tutulabilir.
+   Postun ayrıca bağımsız "sport" alanı vardır.
 
-   Ayrıca postun bağımsız "sport" alanı bulunacaktır.
-   Böylece ileride yapı bozulmadan büyüyebilir.
+   Böylece:
+
+   sport = basketball
+   category = sports_news
+   subCategory = business_institution
+
+   gibi birleşimler kullanılabilir.
    ========================================================= */
 
 export const SUBCATEGORIES = {
@@ -270,6 +326,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     swimming: {
 
       id:
@@ -279,6 +336,7 @@ export const SUBCATEGORIES = {
         "Yüzme"
 
     },
+
 
     volleyball: {
 
@@ -290,6 +348,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     gymnastics: {
 
       id:
@@ -299,6 +358,7 @@ export const SUBCATEGORIES = {
         "Cimnastik"
 
     },
+
 
     other: {
 
@@ -329,6 +389,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     education: {
 
       id:
@@ -339,6 +400,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     festival: {
 
       id:
@@ -348,6 +410,7 @@ export const SUBCATEGORIES = {
         "Tanıtım & Spor Festivalleri"
 
     },
+
 
     camp: {
 
@@ -378,6 +441,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     membership_campaign: {
 
       id:
@@ -387,6 +451,7 @@ export const SUBCATEGORIES = {
         "Üyelik Kampanyaları"
 
     },
+
 
     store_campaign: {
 
@@ -402,7 +467,7 @@ export const SUBCATEGORIES = {
 
 
   /* -------------------------------------------------------
-     İŞ İLANLARI
+     İŞ YERİ & İŞ İLANLARI
      ------------------------------------------------------- */
 
   jobs: {
@@ -416,6 +481,7 @@ export const SUBCATEGORIES = {
         "İş Arayan İlanları"
 
     },
+
 
     employer: {
 
@@ -446,6 +512,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     nutrition: {
 
       id:
@@ -455,6 +522,7 @@ export const SUBCATEGORIES = {
         "Beslenme & Takviye"
 
     },
+
 
     clothing: {
 
@@ -466,6 +534,7 @@ export const SUBCATEGORIES = {
 
     },
 
+
     equipment: {
 
       id:
@@ -473,6 +542,71 @@ export const SUBCATEGORIES = {
 
       label:
         "Ekipman & Malzemeler"
+
+    }
+
+  },
+
+
+  /* =======================================================
+     SPOR HABERLERİ
+
+     Burada "ne oldu?" değil,
+     "haber KİM / HANGİ YAPI hakkında?"
+     sorusunu cevaplıyoruz.
+
+     Ne olduğu Content Intent tarafından anlaşılır.
+
+     Örnek:
+     -------------------------------------------------------
+     Sporcu rekor kırdı
+       category      = sports_news
+       subCategory   = individual_athlete
+       contentIntent = result / achievement
+
+     Antrenör göreve getirildi
+       category      = sports_news
+       subCategory   = trainer_coach
+       contentIntent = news / appointment
+
+     Fenerbahçe şampiyon oldu
+       category      = sports_news
+       subCategory   = business_institution
+       contentIntent = result
+       eventStatus   = completed
+     ======================================================= */
+
+  sports_news: {
+
+    individual_athlete: {
+
+      id:
+        "individual_athlete",
+
+      label:
+        "Bireysel & Sporcu"
+
+    },
+
+
+    trainer_coach: {
+
+      id:
+        "trainer_coach",
+
+      label:
+        "Eğitmen & Antrenör"
+
+    },
+
+
+    business_institution: {
+
+      id:
+        "business_institution",
+
+      label:
+        "İşletme & Kurum"
 
     }
 
@@ -487,6 +621,14 @@ export const SUBCATEGORIES = {
    Bunlar kategori DEĞİLDİR.
 
    İçeriği yayımlayan veya hizmeti sunan tarafı anlatır.
+
+   Örneğin:
+
+   category     = sports_news
+   subCategory  = business_institution
+   providerType = federation
+
+   mümkündür.
    ========================================================= */
 
 export const PROVIDER_TYPES = {
@@ -606,17 +748,19 @@ export const PROVIDER_TYPES = {
 /* =========================================================
    İÇERİK TÜRLERİ
 
-   Mevcut TYF / TBF sistemindeki:
-   coach
-   athlete
-   event
-   education
-   announcement
+   Bunlar ana kullanıcı kategorisi DEĞİLDİR.
 
-   bilgisini kaybetmiyoruz.
+   İçeriğin teknik / anlamsal türünü korur.
 
-   Ancak bunlar artık ana kullanıcı kategorisi değildir.
-   Arka plandaki içerik türüdür.
+   Content Intent motoru bunun üzerinde ayrıca:
+   result
+   opportunity
+   registration
+   campaign
+   job
+   product
+   news
+   vb. karar verebilir.
    ========================================================= */
 
 export const CONTENT_TYPES = {
@@ -725,7 +869,15 @@ export const CONTENT_TYPES = {
 /* =========================================================
    POST DURUMLARI
 
-   Yaşam döngüsü motoru daha sonra bu değerleri kullanacak.
+   DİKKAT:
+
+   lifecycle.status = "new"
+   içeriğin SporNRD açısından yeni olduğunu anlatabilir.
+
+   eventStatus = "completed"
+   ise içeriğin anlattığı spor olayının bittiğini anlatır.
+
+   Bunlar farklı kavramlardır.
    ========================================================= */
 
 export const POST_STATUSES = {
@@ -941,6 +1093,12 @@ export const MEDIA_TYPES = {
 
    Uygulama ileride filtre arayüzünü bu yapıdan
    otomatik üretebilir.
+
+   Spor Haberleri için fiyat / saat gibi
+   ticari alanlar zorunlu değildir.
+
+   Branş, haber alt kategorisi, kaynak ve intent
+   zaten postun ana alanlarından filtrelenebilir.
    ========================================================= */
 
 export const CATEGORY_FILTER_FIELDS = {
@@ -1068,7 +1226,7 @@ export const CATEGORY_FILTER_FIELDS = {
 
 
   /* -------------------------------------------------------
-     İŞ İLANLARI
+     İŞ YERİ & İŞ İLANLARI
      ------------------------------------------------------- */
 
   jobs: [
@@ -1130,7 +1288,28 @@ export const CATEGORY_FILTER_FIELDS = {
 
     "shipping"
 
-  ]
+  ],
+
+
+  /* -------------------------------------------------------
+     SPOR HABERLERİ
+
+     Haberlerde temel filtreler postun kendi alanlarından:
+
+     sport
+     category
+     subCategory
+     providerType
+     contentIntent
+     eventStatus
+     source
+
+     üzerinden yapılacaktır.
+
+     Bu nedenle details alanında zorunlu özel filtre yoktur.
+     ------------------------------------------------------- */
+
+  sports_news: []
 
 };
 
@@ -1432,7 +1611,7 @@ export function isValidProviderType(
    → "is_veren"
 
    Fakat uygulama içinde mümkün olduğunca
-   hazır sabit ID'leri kullanacağız.
+   sabit teknik ID kullanacağız.
    ========================================================= */
 
 export function normalizeTaxonomyId(
@@ -1490,4 +1669,4 @@ export function normalizeTaxonomyId(
       ""
     );
 
-    }
+   }
