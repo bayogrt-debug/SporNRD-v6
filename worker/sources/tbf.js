@@ -6,6 +6,7 @@
    Liste tabanlı güvenli kaynak okuyucu
 
    SporNRD v6.0.4
+   Safe Location Patch: 6.1
    ========================================================= */
 
 
@@ -225,10 +226,9 @@ export async function getTbfFeed({
 
   return {
 
-    source:
-      {
-        ...SOURCE
-      },
+    source: {
+      ...SOURCE
+    },
 
     items:
       uniqueItems.slice(
@@ -314,11 +314,8 @@ async function getHtml(
 /* =========================================================
    HABERLERİ LİSTE SAYFASINDAN ÇIKAR
 
-   ÖNEMLİ:
-   Komşu haberlerin metnini almıyoruz.
-
-   Sadece her /haber/... bağlantısının
-   kendi <a>...</a> kartını okuyoruz.
+   Komşu haberlerin metnini almaz.
+   Yalnızca ilgili /haber/... kartını okur.
    ========================================================= */
 
 function extractNews(
@@ -602,7 +599,8 @@ function isTbfUrl(
    Öncelik:
    1. h1-h6
    2. title class
-   3. card text
+   3. img alt
+   4. kart metni
    ========================================================= */
 
 function extractCardTitle(
@@ -692,7 +690,7 @@ function extractCardTitle(
 
 
   /* -------------------------------------------------------
-     IMG ALT fallback
+     IMG ALT FALLBACK
      ------------------------------------------------------- */
 
   const altMatch =
@@ -729,7 +727,7 @@ function extractCardTitle(
 
 
   /* -------------------------------------------------------
-     Kart metninden çıkar
+     KART METNİ
      ------------------------------------------------------- */
 
   let text =
@@ -763,11 +761,6 @@ function extractCardTitle(
       text
     );
 
-
-  /*
-    Başlık + özet tek satırdaysa başlığı
-    ilk anlamlı cümleden almaya çalış.
-  */
 
   const sentence =
     text.match(
@@ -915,15 +908,10 @@ function isValidTitle(
   const invalid = [
 
     "DEVAMINI GOR",
-
     "DETAYLAR",
-
     "HABERLER",
-
     "TUM HABERLER",
-
     "DAHA FAZLA",
-
     "INCELE"
 
   ];
@@ -1022,8 +1010,6 @@ function extractCardDate(
    1. description/summary class
    2. p elementleri
    3. kartın kalan temiz metni
-
-   Başka kartın verisi kullanılmaz.
    ========================================================= */
 
 function extractCardSummary(
@@ -1038,7 +1024,7 @@ function extractCardSummary(
 
 
   /* -------------------------------------------------------
-     summary / description class
+     SUMMARY / DESCRIPTION CLASS
      ------------------------------------------------------- */
 
   const summaryClassRegex =
@@ -1081,7 +1067,7 @@ function extractCardSummary(
 
 
   /* -------------------------------------------------------
-     P elementleri
+     P ELEMENTLERİ
      ------------------------------------------------------- */
 
   const paragraphRegex =
@@ -1124,7 +1110,7 @@ function extractCardSummary(
 
 
   /* -------------------------------------------------------
-     İlk kaliteli aday
+     İLK KALİTELİ ADAY
      ------------------------------------------------------- */
 
   const uniqueCandidates =
@@ -1146,7 +1132,7 @@ function extractCardSummary(
 
 
   /* -------------------------------------------------------
-     Kart metni fallback
+     KART METNİ FALLBACK
      ------------------------------------------------------- */
 
   const fallback =
@@ -1325,10 +1311,6 @@ function removeCtaText(
 
 /* =========================================================
    TEKRAR EDEN METNİ AZALT
-
-   Örnek:
-   Başlık Başlık
-   Başlık Başlık Açıklama
    ========================================================= */
 
 function collapseRepeatedText(
@@ -1361,11 +1343,6 @@ function collapseRepeatedText(
       " "
     );
 
-
-  /*
-    İlk yarı ikinci yarı ile aynıysa
-    tek yarısını tut.
-  */
 
   if (
     words.length >= 6 &&
@@ -1460,9 +1437,18 @@ function createArticle(
     `${raw.title} ${raw.summary || ""}`;
 
 
+  /*
+    Konum artık başlık + özet ayrı ayrı analiz edilir.
+
+    Böylece:
+    "Çimsa ÇBK Mersin"
+    gibi takım adlarından yanlış konum çıkarılmaz.
+  */
+
   const location =
     findLocation(
-      combined
+      raw.title,
+      raw.summary
     );
 
 
@@ -1547,7 +1533,7 @@ function createArticle(
   return {
 
     /* -----------------------------------------------------
-       Kimlik
+       KİMLİK
        ----------------------------------------------------- */
 
     id:
@@ -1558,7 +1544,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       SporNRD içeriği
+       SPORNRD İÇERİĞİ
        ----------------------------------------------------- */
 
     title:
@@ -1569,7 +1555,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       Orijinal kaynak
+       ORİJİNAL KAYNAK
        ----------------------------------------------------- */
 
     originalTitle:
@@ -1581,7 +1567,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       SporNRD Editör
+       SPORNRD EDİTÖR
        ----------------------------------------------------- */
 
     editorial:
@@ -1591,11 +1577,11 @@ function createArticle(
       "SporNRD Özeti",
 
     editorialVersion:
-      "6.0.4-TBF",
+      "6.0.4-TBF-safe-location",
 
 
     /* -----------------------------------------------------
-       Kaynak
+       KAYNAK
        ----------------------------------------------------- */
 
     sourceId:
@@ -1618,7 +1604,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       Analiz
+       ANALİZ
        ----------------------------------------------------- */
 
     category:
@@ -1643,7 +1629,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       Haber DNA
+       HABER DNA
        ----------------------------------------------------- */
 
     topic:
@@ -1674,7 +1660,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       Gerçekler
+       GERÇEKLER
        ----------------------------------------------------- */
 
     facts: {
@@ -1707,7 +1693,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       Tarih / konum
+       TARİH / KONUM
        ----------------------------------------------------- */
 
     date:
@@ -1717,12 +1703,17 @@ function createArticle(
     timestamp:
       timestamp,
 
+    /*
+      Bilinmiyorsa boş bırakılır.
+      "Türkiye" artık şehir gibi kullanılmaz.
+    */
+
     location:
       location,
 
 
     /* -----------------------------------------------------
-       Medya
+       MEDYA
        ----------------------------------------------------- */
 
     image:
@@ -1737,7 +1728,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       Görsel kategori
+       GÖRSEL KATEGORİ
        ----------------------------------------------------- */
 
     emoji:
@@ -1772,7 +1763,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Akış dışı
+     AKIŞ DIŞI
      ------------------------------------------------------- */
 
   if (
@@ -1781,19 +1772,12 @@ function classify(
       [
 
         "VEFAT",
-
         "BASSAGLIGI",
-
         "DISIPLIN KURULU",
-
         "ZIYARET",
-
         "BASKAN MESAJI",
-
         "GENEL KURUL",
-
         "IHALE",
-
         "SATIN ALMA"
 
       ]
@@ -1812,7 +1796,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Antrenör
+     ANTRENÖR
      ------------------------------------------------------- */
 
   if (
@@ -1821,9 +1805,7 @@ function classify(
       [
 
         "ANTRENOR",
-
         "ANTRENORLUK",
-
         "BASANTRENOR"
 
       ]
@@ -1856,7 +1838,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Sporcu / milli takım
+     SPORCU / MİLLİ TAKIM
      ------------------------------------------------------- */
 
   if (
@@ -1865,29 +1847,17 @@ function classify(
       [
 
         "MILLI TAKIM",
-
         "MILLI TAKIMIMIZ",
-
         "SPORCU",
-
         "OYUNCU",
-
         "ADAY KADRO",
-
         "KADROSU",
-
         "U14",
-
         "U15",
-
         "U16",
-
         "U17",
-
         "U18",
-
         "U19",
-
         "U20"
 
       ]
@@ -1906,7 +1876,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Eğitim
+     EĞİTİM
      ------------------------------------------------------- */
 
   if (
@@ -1915,13 +1885,9 @@ function classify(
       [
 
         "EGITIM",
-
         "SEMINER",
-
         "SERTIFIKA",
-
         "AKADEMI",
-
         "KURS"
 
       ]
@@ -1952,7 +1918,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Lig / kupa / maç
+     LİG / KUPA / MAÇ
      ------------------------------------------------------- */
 
   if (
@@ -1961,31 +1927,18 @@ function classify(
       [
 
         "LIG",
-
         "KUPA",
-
         "SAMPIYON",
-
         "SAMPIYONA",
-
         "FINAL",
-
         "FINAL FOUR",
-
         "MAC",
-
         "MUSABAKA",
-
         "FIBA",
-
         "EUROCUP",
-
         "EUROLEAGUE",
-
         "SEZON",
-
         "PLAY-OFF",
-
         "PLAYOFF"
 
       ]
@@ -2004,7 +1957,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Önemli duyuru
+     ÖNEMLİ DUYURU
      ------------------------------------------------------- */
 
   if (
@@ -2013,15 +1966,10 @@ function classify(
       [
 
         "BASVURU",
-
         "KAYIT",
-
         "DUYURU",
-
         "FAALIYET PROGRAMI",
-
         "PROGRAMI ACIKLANDI",
-
         "TAKVIM"
 
       ]
@@ -2040,7 +1988,7 @@ function classify(
 
 
   /* -------------------------------------------------------
-     Genel basketbol haberi
+     GENEL BASKETBOL HABERİ
      ------------------------------------------------------- */
 
   return classificationResult(
@@ -2166,6 +2114,7 @@ function createEditorial({
 
 
     if (
+      location &&
       location !==
       "Türkiye"
     ) {
@@ -2196,6 +2145,7 @@ function createEditorial({
 
     if (
       eventDate &&
+      location &&
       location !==
       "Türkiye"
     ) {
@@ -2217,6 +2167,7 @@ function createEditorial({
 
 
     else if (
+      location &&
       location !==
       "Türkiye"
     ) {
@@ -2314,7 +2265,7 @@ function createEditorial({
 
 
   /* =======================================================
-     ETKİNLİK
+     ETKİNLİK / HABER
      ======================================================= */
 
   else if (
@@ -2324,11 +2275,6 @@ function createEditorial({
 
     actionLabel =
       "Haberi İncele";
-
-
-    tags.push(
-      "Basketbol"
-    );
 
   }
 
@@ -2351,7 +2297,7 @@ function createEditorial({
 
 
   /* -------------------------------------------------------
-     Konum etiketi
+     KONUM ETİKETİ
      ------------------------------------------------------- */
 
   if (
@@ -2368,7 +2314,7 @@ function createEditorial({
 
 
   /* -------------------------------------------------------
-     Kademe
+     KADEME
      ------------------------------------------------------- */
 
   if (
@@ -2383,7 +2329,7 @@ function createEditorial({
 
 
   /* -------------------------------------------------------
-     Açıklama güvenliği
+     AÇIKLAMA GÜVENLİĞİ
      ------------------------------------------------------- */
 
   if (
@@ -2400,7 +2346,7 @@ function createEditorial({
 
 
   /* -------------------------------------------------------
-     Başlık güvenliği
+     BAŞLIK GÜVENLİĞİ
      ------------------------------------------------------- */
 
   if (
@@ -2605,17 +2551,11 @@ function isBadImage(
   const bad = [
 
     "logo",
-
     "favicon",
-
     "icon",
-
     "spinner",
-
     "loading",
-
     "placeholder",
-
     "avatar"
 
   ];
@@ -2632,17 +2572,73 @@ function isBadImage(
 
 
 /* =========================================================
-   KONUM
+   GÜVENLİ KONUM ÇIKARIMI
+
+   TEMEL KURAL
+   ---------------------------------------------------------
+   Bir şehir adı yalnızca metinde geçiyor diye
+   etkinlik konumu kabul edilmez.
+
+   Örnek:
+
+   "Çimsa ÇBK Mersin"
+   → takım adı
+   → Mersin konumu değildir.
+
+   "Mersin'de düzenlenecek"
+   → Mersin konumdur.
+
+   "Mersin Spor Salonu"
+   → güçlü konum kanıtıdır.
+
+   "Ankara 2. Kademe Antrenör Kursu"
+   → başlık bağlamında güçlü konum kanıtıdır.
+
+   Emin değilsek boş bırakılır.
    ========================================================= */
 
 function findLocation(
-  text
+  title,
+  summary
 ) {
 
-  const normalized =
-    normalize(
-      text
+  const cleanTitle =
+    cleanText(
+      title
     );
+
+
+  const cleanSummary =
+    cleanText(
+      summary
+    );
+
+
+  const normalizedTitle =
+    normalize(
+      cleanTitle
+    );
+
+
+  const normalizedSummary =
+    normalize(
+      cleanSummary
+    );
+
+
+  const normalizedAll =
+    normalize(
+      `${cleanTitle} ${cleanSummary}`
+    );
+
+
+  if (
+    !normalizedAll
+  ) {
+
+    return "";
+
+  }
 
 
   for (
@@ -2656,17 +2652,296 @@ function findLocation(
       );
 
 
-    const pattern =
+    const cityPattern =
+      escapeRegex(
+        cityNormalized
+      );
+
+
+    /* =====================================================
+       1. ŞEHİR + BULUNMA EKİ
+
+       Ankara'da
+       İzmir'de
+       Mersin’de
+       Antalya'daki
+       ===================================================== */
+
+    const locativePattern =
       new RegExp(
-        `(?:^|[^A-Z0-9])${escapeRegex(
-          cityNormalized
-        )}(?:[^A-Z0-9]|$)`
+
+        `(?:^|[^A-Z0-9])` +
+        `${cityPattern}` +
+        `(?:'|’)?` +
+        `(?:DA|DE|TA|TE)` +
+        `(?:KI)?` +
+        `(?:[^A-Z0-9]|$)`,
+
+        "i"
+
       );
 
 
     if (
-      pattern.test(
-        normalized
+      locativePattern.test(
+        normalizedAll
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       2. ŞEHİR İLİ / İLİNDE / İLİNDEKİ
+       ===================================================== */
+
+    const provincePattern =
+      new RegExp(
+
+        `(?:^|[^A-Z0-9])` +
+        `${cityPattern}` +
+        `\\s+` +
+        `IL(?:I|INDE|INDEKI)` +
+        `(?:[^A-Z0-9]|$)`,
+
+        "i"
+
+      );
+
+
+    if (
+      provincePattern.test(
+        normalizedAll
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       3. EV SAHİPLİĞİ
+       ===================================================== */
+
+    const hostPattern =
+      new RegExp(
+
+        `(?:^|[^A-Z0-9])` +
+        `${cityPattern}` +
+        `(?:[^.!?]{0,45})` +
+        `(?:` +
+          `EV SAHIPLIGINDE|` +
+          `EV SAHIPLIGI YAPACAK|` +
+          `EV SAHIPLIGI YAPTI` +
+        `)`,
+
+        "i"
+
+      );
+
+
+    if (
+      hostPattern.test(
+        normalizedAll
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       4. ŞEHİR + SALON / TESİS / ARENA
+       ===================================================== */
+
+    const cityVenuePattern =
+      new RegExp(
+
+        `(?:^|[^A-Z0-9])` +
+        `${cityPattern}` +
+        `(?:[^.!?]{0,55})` +
+        `(?:` +
+          `SPOR SALONU|` +
+          `SALONU|` +
+          `ARENA|` +
+          `STADYUM|` +
+          `STADI|` +
+          `SPOR TESISI|` +
+          `TESISLERI|` +
+          `TESISI|` +
+          `SPOR MERKEZI|` +
+          `KOMPLEKSI` +
+        `)`,
+
+        "i"
+
+      );
+
+
+    if (
+      cityVenuePattern.test(
+        normalizedAll
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       5. SALON / TESİS + ŞEHİR
+       ===================================================== */
+
+    const venueCityPattern =
+      new RegExp(
+
+        `(?:` +
+          `SPOR SALONU|` +
+          `SALONU|` +
+          `ARENA|` +
+          `STADYUM|` +
+          `STADI|` +
+          `SPOR TESISI|` +
+          `TESISLERI|` +
+          `TESISI|` +
+          `SPOR MERKEZI|` +
+          `KOMPLEKSI` +
+        `)` +
+        `(?:[^.!?]{0,55})` +
+        `${cityPattern}` +
+        `(?:[^A-Z0-9]|$)`,
+
+        "i"
+
+      );
+
+
+    if (
+      venueCityPattern.test(
+        normalizedAll
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       6. BAŞLIKTA ŞEHİR + EĞİTİM / KURS
+
+       Ankara 2. Kademe Antrenör Kursu
+       İzmir Basketbol Semineri
+       ===================================================== */
+
+    const titleEducationAfterCity =
+      new RegExp(
+
+        `(?:^|[^A-Z0-9])` +
+        `${cityPattern}` +
+        `(?:[^.!?]{0,65})` +
+        `(?:` +
+          `KURS|` +
+          `KURSU|` +
+          `SEMINER|` +
+          `SEMINERI|` +
+          `EGITIM|` +
+          `EGITIMI|` +
+          `KAMP|` +
+          `FESTIVAL` +
+        `)`,
+
+        "i"
+
+      );
+
+
+    if (
+      titleEducationAfterCity.test(
+        normalizedTitle
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       7. BAŞLIKTA EĞİTİM / KURS + ŞEHİR
+       ===================================================== */
+
+    const titleEducationBeforeCity =
+      new RegExp(
+
+        `(?:` +
+          `KURS|` +
+          `KURSU|` +
+          `SEMINER|` +
+          `SEMINERI|` +
+          `EGITIM|` +
+          `EGITIMI|` +
+          `KAMP|` +
+          `FESTIVAL` +
+        `)` +
+        `(?:[^.!?]{0,65})` +
+        `${cityPattern}` +
+        `(?:[^A-Z0-9]|$)`,
+
+        "i"
+
+      );
+
+
+    if (
+      titleEducationBeforeCity.test(
+        normalizedTitle
+      )
+    ) {
+
+      return city;
+
+    }
+
+
+    /* =====================================================
+       8. AÇIK KONUM / ADRES İFADESİ
+
+       adresi Ankara...
+       konumu Ankara...
+       oynanacağı yer Ankara...
+       düzenleneceği yer Ankara...
+       ===================================================== */
+
+    const explicitLocationPattern =
+      new RegExp(
+
+        `(?:` +
+          `ADRESI|` +
+          `ADRES|` +
+          `KONUMU|` +
+          `YERI|` +
+          `OYNANACAGI YER|` +
+          `DUZENLENECEGI YER|` +
+          `GERCEKLESECEGI YER` +
+        `)` +
+        `(?:[^.!?]{0,45})` +
+        `${cityPattern}` +
+        `(?:[^A-Z0-9]|$)`,
+
+        "i"
+
+      );
+
+
+    if (
+      explicitLocationPattern.test(
+        normalizedSummary
       )
     ) {
 
@@ -2677,7 +2952,20 @@ function findLocation(
   }
 
 
-  return "Türkiye";
+  /*
+    KRİTİK:
+
+    Konum bilinmiyorsa "Türkiye" döndürmüyoruz.
+
+    Yeni model:
+
+    country = "Türkiye"
+    city    = ""
+
+    şeklinde çalışmalıdır.
+  */
+
+  return "";
 
 }
 
@@ -2763,7 +3051,11 @@ function findEventDate(
 
 
   /* -------------------------------------------------------
-     Tek tarih
+     TEK TARİH
+
+     Not:
+     Content Intent / Lifecycle katmanı bunun gerçekten
+     etkinlik tarihi olup olmadığını ayrıca değerlendirecek.
      ------------------------------------------------------- */
 
   match =
@@ -3117,6 +3409,11 @@ function calculateQuality({
 
   }
 
+
+  /*
+    Yalnızca gerçekten doğrulanmış şehir varsa
+    konum kalite puanı verir.
+  */
 
   if (
     location &&
@@ -3560,15 +3857,10 @@ function isGenericImageAlt(
     [
 
       "TBF",
-
       "LOGO",
-
       "BASKETBOL",
-
       "TURKIYE BASKETBOL FEDERASYONU",
-
       "IMAGE",
-
       "GORSEL"
 
     ]
@@ -3791,4 +4083,4 @@ function safeNumber(
     ? number
     : 0;
 
-   }
+}
