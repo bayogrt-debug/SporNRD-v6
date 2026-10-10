@@ -2,8 +2,9 @@
    SporNRD
    worker/worker.js
 
-   Sürüm: 6.0.4
-   Mimari: Multi Source Modular
+   Üretim Sürümü: 6.0.4
+   Core Preview: 6.1.0
+   Mimari: Multi Source Modular + Core Preview
 
    AKTİF KAYNAKLAR
    ---------------------------------------------------------
@@ -14,12 +15,18 @@
    ---------------------------------------------------------
    /
    /api/health
+   /api/core-test
    /api/sources
    /api/feed
    /api/tyf
    /api/tbf
    /api/feedback
    /api/learning
+
+   NOT
+   ---------------------------------------------------------
+   /api/core-test yeni v6.1 çekirdeğini test eder.
+   Canlı TYF + TBF akışı hâlâ güvenli v6.0.4 yapısındadır.
    ========================================================= */
 
 
@@ -44,6 +51,11 @@ import {
 
 
 import {
+  runCoreTest
+} from "./core/coreTest.js";
+
+
+import {
   CORS,
   json
 } from "./utils/response.js";
@@ -55,6 +67,10 @@ import {
 
 const VERSION =
   "6.0.4";
+
+
+const CORE_PREVIEW_VERSION =
+  "6.1.0";
 
 
 const SERVICE_NAME =
@@ -71,6 +87,12 @@ const MAX_LIMIT =
 
 /* =========================================================
    KAYNAK KAYIT MERKEZİ
+
+   NOT:
+   v6.1 sourceRegistry.js hazırlandı.
+
+   Ancak çalışan üretim akışını bir anda değiştirmemek için
+   mevcut provider registry bu geçiş aşamasında korunuyor.
    ========================================================= */
 
 const SOURCE_PROVIDERS = {
@@ -224,6 +246,9 @@ export default {
         version:
           VERSION,
 
+        corePreview:
+          CORE_PREVIEW_VERSION,
+
         architecture:
           "multi-source-modular",
 
@@ -266,7 +291,10 @@ export default {
             "/api/learning",
 
           health:
-            "/api/health"
+            "/api/health",
+
+          coreTest:
+            "/api/core-test"
 
         }
 
@@ -298,6 +326,9 @@ export default {
         version:
           VERSION,
 
+        corePreview:
+          CORE_PREVIEW_VERSION,
+
         architecture:
           "multi-source-modular",
 
@@ -317,6 +348,96 @@ export default {
             : "local-fallback"
 
       });
+
+    }
+
+
+    /* =====================================================
+       v6.1 CORE TEST
+
+       Bu endpoint gerçek TYF/TBF akışını değiştirmez.
+
+       taxonomy
+       postSchema
+       sourceRegistry
+       normalizer
+       lifecycle
+       discoveryEngine
+       personaEngine
+
+       zincirini test eder.
+       ===================================================== */
+
+    if (
+      pathname === "/api/core-test" &&
+      request.method === "GET"
+    ) {
+
+      try {
+
+        const result =
+          runCoreTest();
+
+
+        return json(
+          {
+
+            ...result,
+
+            productionVersion:
+              VERSION,
+
+            targetVersion:
+              CORE_PREVIEW_VERSION
+
+          },
+
+          result?.ok === true
+            ? 200
+            : 500
+
+        );
+
+      }
+
+      catch (
+        error
+      ) {
+
+        return json(
+          {
+
+            ok:
+              false,
+
+            service:
+              "SporNRD Core Test",
+
+            productionVersion:
+              VERSION,
+
+            targetVersion:
+              CORE_PREVIEW_VERSION,
+
+            error:
+              "SporNRD v6.1 Core Test çalıştırılamadı.",
+
+            detail:
+              errorMessage(
+                error
+              ),
+
+            testedAt:
+              new Date()
+                .toISOString()
+
+          },
+
+          500
+
+        );
+
+      }
 
     }
 
@@ -751,6 +872,8 @@ export default {
           "/",
 
           "/api/health",
+
+          "/api/core-test",
 
           "/api/sources",
 
@@ -1410,7 +1533,8 @@ function compareFeedItems(
 
 
   if (
-    scoreA !== scoreB
+    scoreA !==
+    scoreB
   ) {
 
     return (
@@ -1694,13 +1818,9 @@ async function readJsonBody(
 
   try {
 
-    const parsed =
-      JSON.parse(
-        text
-      );
-
-
-    return parsed;
+    return JSON.parse(
+      text
+    );
 
   }
 
@@ -1717,6 +1837,16 @@ async function readJsonBody(
 
 /* =========================================================
    FEEDBACK KONTROLÜ
+
+   Not:
+   Eski anlık tepki isimlerini geçiş döneminde
+   uyumluluk için şimdilik koruyoruz.
+
+   Yeni v6.1 arayüzünde ana kullanıcı etkileşimleri:
+   Woow
+   Kaydet
+   Paylaş
+   Çöp
    ========================================================= */
 
 function validateFeedback(
@@ -1763,6 +1893,8 @@ function validateFeedback(
     "detail",
 
     "source",
+
+    /* Eski sürüm uyumluluğu */
 
     "fire",
 
@@ -1853,6 +1985,9 @@ function isKnownPath(
 
     pathname ===
     "/api/health" ||
+
+    pathname ===
+    "/api/core-test" ||
 
     pathname ===
     "/api/feedback" ||
@@ -2112,4 +2247,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-             }
+       }
