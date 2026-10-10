@@ -4,19 +4,51 @@
 
    Ortak SporNRD Post Veri Modeli
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.2
 
    Amaç:
+   ---------------------------------------------------------
    - Bütün kaynakları tek post modelinde birleştirmek
-   - Eksik alanları güvenli şekilde tamamlamak
+   - Legacy kaynakları yeni SporNRD modeline taşımak
+   - Section / kategori / alt kategori yapısını korumak
+   - Fact Engine gerçeklerini kaybetmeden aktarmak
+   - Etkinlik tarihi ile yayın tarihini ayırmak
+   - Temporal Engine için güvenilir structured data üretmek
    - Kategoriye göre details alanını standartlaştırmak
-   - Medya / aksiyon / kaynak / konum yapısını ortaklaştırmak
+
+   KRİTİK KURAL:
+   ---------------------------------------------------------
+   source.publishedAt
+   olay tarihi DEĞİLDİR.
+
+   Yayın tarihi hiçbir zaman otomatik olarak:
+   details.startDate
+
+   alanına yazılmaz.
+
+   Zincir:
+
+   Kaynak
+      ↓
+   Fact Engine
+      ↓
+   Post Schema
+      ↓
+   Content Intent
+      ↓
+   Discovery
+      ↓
+   Temporal
+      ↓
+   Persona
    ========================================================= */
 
 
 import {
 
   DEFAULT_CURRENCY,
+
+  getSection,
 
   getCategory,
 
@@ -36,11 +68,11 @@ import {
 
 
 /* =========================================================
-   POST SCHEMA VERSION
+   VERSION
    ========================================================= */
 
 export const POST_SCHEMA_VERSION =
-  "1.0";
+  "1.2";
 
 
 /* =========================================================
@@ -71,6 +103,9 @@ export function createEmptyPost() {
        ----------------------------------------------------- */
 
     sport:
+      "",
+
+    section:
       "",
 
     category:
@@ -150,6 +185,9 @@ export function createEmptyPost() {
         "",
 
       angle:
+        "",
+
+      note:
         ""
 
     },
@@ -197,7 +235,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       KATEGORİYE ÖZEL DETAYLAR
+       DETAYLAR
        ----------------------------------------------------- */
 
     details:
@@ -205,7 +243,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       İŞLEM BUTONLARI
+       AKSİYONLAR
        ----------------------------------------------------- */
 
     actions:
@@ -213,7 +251,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       SOSYAL ETKİLEŞİMLER
+       ETKİLEŞİM
        ----------------------------------------------------- */
 
     interactions: {
@@ -234,7 +272,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       GÜVEN / DOĞRULAMA
+       GÜVEN
        ----------------------------------------------------- */
 
     trust: {
@@ -291,7 +329,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       PUANLAR
+       PUAN
        ----------------------------------------------------- */
 
     scoring: {
@@ -315,7 +353,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       ARAMA / ETİKET
+       ETİKET
        ----------------------------------------------------- */
 
     tags:
@@ -323,7 +361,7 @@ export function createEmptyPost() {
 
 
     /* -----------------------------------------------------
-       FRONTEND KOLAYLIĞI
+       DISPLAY
        ----------------------------------------------------- */
 
     display: {
@@ -346,8 +384,6 @@ export function createEmptyPost() {
 
 /* =========================================================
    POST OLUŞTUR
-
-   Partial veri alır ve güvenli standart post döndürür.
    ========================================================= */
 
 export function createPost(
@@ -360,7 +396,7 @@ export function createPost(
 
   /* =======================================================
      KİMLİK
-     ======================================================= */
+     ========================================================= */
 
   post.id =
     cleanString(
@@ -377,11 +413,17 @@ export function createPost(
 
   /* =======================================================
      SINIFLANDIRMA
-     ======================================================= */
+     ========================================================= */
 
   post.sport =
     normalizeSport(
       input.sport
+    );
+
+
+  post.section =
+    normalizeSection(
+      input.section
     );
 
 
@@ -412,7 +454,7 @@ export function createPost(
 
   /* =======================================================
      KAYNAK
-     ======================================================= */
+     ========================================================= */
 
   post.source =
     normalizeSource(
@@ -422,7 +464,7 @@ export function createPost(
 
   /* =======================================================
      EDİTÖR
-     ======================================================= */
+     ========================================================= */
 
   post.editorial =
     normalizeEditorial(
@@ -432,7 +474,7 @@ export function createPost(
 
   /* =======================================================
      MEDYA
-     ======================================================= */
+     ========================================================= */
 
   post.media =
     normalizeMedia(
@@ -442,7 +484,7 @@ export function createPost(
 
   /* =======================================================
      KONUM
-     ======================================================= */
+     ========================================================= */
 
   post.location =
     normalizeLocation(
@@ -452,7 +494,7 @@ export function createPost(
 
   /* =======================================================
      DETAYLAR
-     ======================================================= */
+     ========================================================= */
 
   post.details =
     normalizeDetails(
@@ -463,7 +505,7 @@ export function createPost(
 
   /* =======================================================
      ACTIONS
-     ======================================================= */
+     ========================================================= */
 
   post.actions =
     normalizeActions(
@@ -473,7 +515,7 @@ export function createPost(
 
   /* =======================================================
      INTERACTIONS
-     ======================================================= */
+     ========================================================= */
 
   post.interactions =
     normalizeInteractions(
@@ -483,7 +525,7 @@ export function createPost(
 
   /* =======================================================
      TRUST
-     ======================================================= */
+     ========================================================= */
 
   post.trust =
     normalizeTrust(
@@ -493,7 +535,7 @@ export function createPost(
 
   /* =======================================================
      LIFECYCLE
-     ======================================================= */
+     ========================================================= */
 
   post.lifecycle =
     normalizeLifecycle(
@@ -503,7 +545,7 @@ export function createPost(
 
   /* =======================================================
      SCORING
-     ======================================================= */
+     ========================================================= */
 
   post.scoring =
     normalizeScoring(
@@ -513,7 +555,7 @@ export function createPost(
 
   /* =======================================================
      TAGS
-     ======================================================= */
+     ========================================================= */
 
   post.tags =
     normalizeTags(
@@ -523,7 +565,7 @@ export function createPost(
 
   /* =======================================================
      DISPLAY
-     ======================================================= */
+     ========================================================= */
 
   post.display =
     normalizeDisplay(
@@ -533,8 +575,8 @@ export function createPost(
 
 
   /* =======================================================
-     OTOMATİK TAMAMLAMA
-     ======================================================= */
+     OTOMATİK DEFAULTLAR
+     ========================================================= */
 
   applyAutomaticDefaults(
     post
@@ -569,10 +611,9 @@ export function validatePost(
       valid:
         false,
 
-      errors:
-        [
-          "Post nesnesi geçersiz."
-        ]
+      errors: [
+        "Post nesnesi geçersiz."
+      ]
 
     };
 
@@ -619,7 +660,9 @@ export function validatePost(
 
 
   if (
-    !post.sport
+    !cleanString(
+      post.sport
+    )
   ) {
 
     errors.push(
@@ -647,12 +690,20 @@ export function validatePost(
    LEGACY POST → YENİ POST
 
    TYF / TBF mevcut veri modelini
-   yeni ortak modele taşımak için kullanılacak.
+   yeni ortak modele taşır.
    ========================================================= */
 
 export function fromLegacyPost(
   item = {}
 ) {
+
+  const facts =
+    plainObject(
+      item.facts
+    )
+      ? item.facts
+      : {};
+
 
   const sourceId =
     cleanString(
@@ -665,6 +716,26 @@ export function fromLegacyPost(
       item.sourceShortName
     );
 
+
+  /* =======================================================
+     FACT ENGINE GERÇEKLERİNİ AKTAR
+     ========================================================= */
+
+  const legacyDetails =
+    buildLegacyDetails(
+      item
+    );
+
+
+  const legacyLocation =
+    buildLegacyLocation(
+      item
+    );
+
+
+  /* =======================================================
+     MEDYA
+     ========================================================= */
 
   const media =
     [];
@@ -687,21 +758,24 @@ export function fromLegacyPost(
   }
 
 
-  const actions =
-    [
+  /* =======================================================
+     ACTIONS
+     ========================================================= */
 
-      {
+  const actions = [
 
-        type:
-          "detail",
+    {
 
-        label:
-          item.actionLabel ||
-          "Detay"
+      type:
+        "detail",
 
-      }
+      label:
+        item.actionLabel ||
+        "Detay"
 
-    ];
+    }
+
+  ];
 
 
   if (
@@ -724,6 +798,10 @@ export function fromLegacyPost(
   }
 
 
+  /* =======================================================
+     POST
+     ========================================================= */
+
   return createPost({
 
     id:
@@ -733,9 +811,22 @@ export function fromLegacyPost(
       item.externalId,
 
 
+    /* -----------------------------------------------------
+       SINIFLANDIRMA
+
+       Discovery Engine daha sonra bu değerleri
+       yeniden değerlendirebilir.
+       ----------------------------------------------------- */
+
     sport:
       mapLegacySport(
         item.sport
+      ),
+
+
+    section:
+      mapLegacySection(
+        item
       ),
 
 
@@ -763,6 +854,10 @@ export function fromLegacyPost(
       ),
 
 
+    /* -----------------------------------------------------
+       KAYNAK
+       ----------------------------------------------------- */
+
     source: {
 
       id:
@@ -783,6 +878,13 @@ export function fromLegacyPost(
       url:
         item.url,
 
+      /*
+        KRİTİK:
+
+        item.date yayın tarihidir.
+        Burada doğru yerde tutulur.
+      */
+
       publishedAt:
         item.date,
 
@@ -792,6 +894,10 @@ export function fromLegacyPost(
 
     },
 
+
+    /* -----------------------------------------------------
+       EDİTÖR
+       ----------------------------------------------------- */
 
     editorial: {
 
@@ -829,53 +935,49 @@ export function fromLegacyPost(
         "",
 
       angle:
+        "",
+
+      note:
         ""
 
     },
 
+
+    /* -----------------------------------------------------
+       MEDYA
+       ----------------------------------------------------- */
 
     media:
       media,
 
 
-    location: {
+    /* -----------------------------------------------------
+       KONUM
+       ----------------------------------------------------- */
 
-      country:
-        "Türkiye",
+    location:
+      legacyLocation,
 
-      city:
-        item.location &&
-        item.location !==
-        "Türkiye"
 
-          ? item.location
-
-          : "",
-
-      district:
-        "",
-
-      neighborhood:
-        "",
-
-      venue:
-        "",
-
-      address:
-        ""
-
-    },
-
+    /* -----------------------------------------------------
+       FACT ENGINE → DETAILS
+       ----------------------------------------------------- */
 
     details:
-      buildLegacyDetails(
-        item
-      ),
+      legacyDetails,
 
+
+    /* -----------------------------------------------------
+       ACTIONS
+       ----------------------------------------------------- */
 
     actions:
       actions,
 
+
+    /* -----------------------------------------------------
+       TRUST
+       ----------------------------------------------------- */
 
     trust: {
 
@@ -890,9 +992,9 @@ export function fromLegacyPost(
           : 60,
 
       evidenceCount:
-        item.url
-          ? 1
-          : 0,
+        calculateLegacyEvidenceCount(
+          item
+        ),
 
       lastCheckedAt:
         new Date()
@@ -900,6 +1002,19 @@ export function fromLegacyPost(
 
     },
 
+
+    /* -----------------------------------------------------
+       LIFECYCLE
+
+       KRİTİK:
+
+       publishedAt = yayın tarihi
+       startsAt    = gerçek başlangıç tarihi
+       endsAt      = gerçek bitiş tarihi
+       expiresAt   = deadline
+
+       Birbirine karıştırılmaz.
+       ----------------------------------------------------- */
 
     lifecycle: {
 
@@ -910,12 +1025,36 @@ export function fromLegacyPost(
         item.date ||
         "",
 
+      startsAt:
+        legacyDetails.startDate ||
+        "",
+
+      endsAt:
+        legacyDetails.endDate ||
+        "",
+
+      expiresAt:
+
+        legacyDetails.registrationDeadline
+
+        ||
+
+        legacyDetails.applicationDeadline
+
+        ||
+
+        "",
+
       lastSeenAt:
         new Date()
           .toISOString()
 
     },
 
+
+    /* -----------------------------------------------------
+       SCORING
+       ----------------------------------------------------- */
 
     scoring: {
 
@@ -937,9 +1076,18 @@ export function fromLegacyPost(
     },
 
 
-    tags:
-      item.tags || [],
+    /* -----------------------------------------------------
+       TAGS
+       ----------------------------------------------------- */
 
+    tags:
+      item.tags ||
+      [],
+
+
+    /* -----------------------------------------------------
+       DISPLAY
+       ----------------------------------------------------- */
 
     display: {
 
@@ -947,7 +1095,23 @@ export function fromLegacyPost(
         item.emoji ||
         ""
 
-    }
+    },
+
+
+    /*
+      facts burada doğrudan createPost modeline
+      eklenmiyor.
+
+      Fact Engine gerçekleri yukarıda:
+      location
+      details
+      lifecycle
+
+      yapılarına ayrılmıştır.
+    */
+
+    _legacyFacts:
+      facts
 
   });
 
@@ -1078,6 +1242,11 @@ function normalizeEditorial(
     angle:
       cleanString(
         input.angle
+      ),
+
+    note:
+      cleanString(
+        input.note
       )
 
   };
@@ -1107,6 +1276,7 @@ function normalizeMedia(
   return value
 
     .map(
+
       function (
         media,
         index
@@ -1203,6 +1373,7 @@ function normalizeMedia(
         };
 
       }
+
     )
 
     .filter(
@@ -1210,6 +1381,7 @@ function normalizeMedia(
     )
 
     .sort(
+
       function (
         a,
         b
@@ -1221,6 +1393,7 @@ function normalizeMedia(
         );
 
       }
+
     );
 
 }
@@ -1292,6 +1465,17 @@ function normalizeLocation(
 
 /* =========================================================
    DETAILS NORMALİZE
+
+   Yeni ana kategoriler:
+
+   news
+   course
+   event
+   campaign
+   jobs
+   stores
+
+   Eski çoğul ID'lere de geçiş desteği vardır.
    ========================================================= */
 
 function normalizeDetails(
@@ -1311,6 +1495,7 @@ function normalizeDetails(
     category
   ) {
 
+    case "course":
     case "courses":
 
       return normalizeCourseDetails(
@@ -1318,6 +1503,7 @@ function normalizeDetails(
       );
 
 
+    case "event":
     case "events":
 
       return normalizeEventDetails(
@@ -1325,6 +1511,7 @@ function normalizeDetails(
       );
 
 
+    case "campaign":
     case "campaigns":
 
       return normalizeCampaignDetails(
@@ -1346,11 +1533,18 @@ function normalizeDetails(
       );
 
 
+    case "news":
+
+      return normalizeNewsDetails(
+        input
+      );
+
+
     default:
 
-      return {
-        ...input
-      };
+      return normalizeGenericDetails(
+        input
+      );
 
   }
 
@@ -1428,14 +1622,49 @@ function normalizeCourseDetails(
         input.capacity
       ),
 
+    /*
+      Fact Engine tarafından çıkarılan
+      gerçek etkinlik tarihleri.
+    */
+
     startDate:
       cleanString(
         input.startDate
       ),
 
+    endDate:
+      cleanString(
+        input.endDate
+      ),
+
+    startDateIso:
+      cleanString(
+        input.startDateIso
+      ),
+
+    endDateIso:
+      cleanString(
+        input.endDateIso
+      ),
+
+    eventDate:
+      cleanString(
+        input.eventDate
+      ),
+
     registrationDeadline:
       cleanString(
         input.registrationDeadline
+      ),
+
+    deadlineIso:
+      cleanString(
+        input.deadlineIso
+      ),
+
+    deadlineTime:
+      cleanString(
+        input.deadlineTime
       ),
 
     trialLesson:
@@ -1466,6 +1695,21 @@ function normalizeEventDetails(
     endDate:
       cleanString(
         input.endDate
+      ),
+
+    startDateIso:
+      cleanString(
+        input.startDateIso
+      ),
+
+    endDateIso:
+      cleanString(
+        input.endDateIso
+      ),
+
+    eventDate:
+      cleanString(
+        input.eventDate
       ),
 
     startTime:
@@ -1502,6 +1746,16 @@ function normalizeEventDetails(
     registrationDeadline:
       cleanString(
         input.registrationDeadline
+      ),
+
+    deadlineIso:
+      cleanString(
+        input.deadlineIso
+      ),
+
+    deadlineTime:
+      cleanString(
+        input.deadlineTime
       ),
 
     capacity:
@@ -1554,6 +1808,11 @@ function normalizeCampaignDetails(
         input.newPrice
       ),
 
+    price:
+      nullableNumber(
+        input.price
+      ),
+
     currency:
       cleanString(
         input.currency ||
@@ -1573,6 +1832,16 @@ function normalizeCampaignDetails(
     endDate:
       cleanString(
         input.endDate
+      ),
+
+    startDateIso:
+      cleanString(
+        input.startDateIso
+      ),
+
+    endDateIso:
+      cleanString(
+        input.endDateIso
       ),
 
     eligibility:
@@ -1669,6 +1938,16 @@ function normalizeJobDetails(
     applicationDeadline:
       cleanString(
         input.applicationDeadline
+      ),
+
+    deadlineIso:
+      cleanString(
+        input.deadlineIso
+      ),
+
+    deadlineTime:
+      cleanString(
+        input.deadlineTime
       )
 
   };
@@ -1735,6 +2014,122 @@ function normalizeStoreDetails(
     shipping:
       cleanString(
         input.shipping
+      )
+
+  };
+
+}
+
+
+/* =========================================================
+   NEWS DETAILS
+
+   Haberlerde ticari alan zorunlu değildir.
+
+   Fakat olay tarihi gerçekten varsa kaybedilmez.
+   ========================================================= */
+
+function normalizeNewsDetails(
+  input
+) {
+
+  return {
+
+    startDate:
+      cleanString(
+        input.startDate
+      ),
+
+    endDate:
+      cleanString(
+        input.endDate
+      ),
+
+    startDateIso:
+      cleanString(
+        input.startDateIso
+      ),
+
+    endDateIso:
+      cleanString(
+        input.endDateIso
+      ),
+
+    eventDate:
+      cleanString(
+        input.eventDate
+      ),
+
+    result:
+      cleanString(
+        input.result
+      ),
+
+    achievement:
+      cleanString(
+        input.achievement
+      )
+
+  };
+
+}
+
+
+/* =========================================================
+   GENERIC DETAILS
+   ========================================================= */
+
+function normalizeGenericDetails(
+  input
+) {
+
+  return {
+
+    ...input,
+
+    startDate:
+      cleanString(
+        input.startDate
+      ),
+
+    endDate:
+      cleanString(
+        input.endDate
+      ),
+
+    startDateIso:
+      cleanString(
+        input.startDateIso
+      ),
+
+    endDateIso:
+      cleanString(
+        input.endDateIso
+      ),
+
+    eventDate:
+      cleanString(
+        input.eventDate
+      ),
+
+    registrationDeadline:
+      cleanString(
+        input.registrationDeadline
+      ),
+
+    applicationDeadline:
+      cleanString(
+        input.applicationDeadline
+      ),
+
+    deadlineIso:
+      cleanString(
+        input.deadlineIso
+      ),
+
+    deadlineTime:
+      cleanString(
+        input.deadlineTime
       )
 
   };
@@ -2172,6 +2567,57 @@ function applyAutomaticDefaults(
   }
 
 
+  /* -------------------------------------------------------
+     Structured tarih → lifecycle
+
+     Yalnızca GERÇEK details alanlarından yapılır.
+     source.publishedAt burada kullanılmaz.
+     ------------------------------------------------------- */
+
+  if (
+    !post.lifecycle.startsAt &&
+    post.details?.startDate
+  ) {
+
+    post.lifecycle.startsAt =
+      cleanString(
+        post.details.startDate
+      );
+
+  }
+
+
+  if (
+    !post.lifecycle.endsAt &&
+    post.details?.endDate
+  ) {
+
+    post.lifecycle.endsAt =
+      cleanString(
+        post.details.endDate
+      );
+
+  }
+
+
+  if (
+    !post.lifecycle.expiresAt
+  ) {
+
+    post.lifecycle.expiresAt =
+      cleanString(
+
+        post.details?.registrationDeadline
+
+        ||
+
+        post.details?.applicationDeadline
+
+      );
+
+  }
+
+
   if (
     !post.actions.some(
       action =>
@@ -2202,7 +2648,9 @@ function applyAutomaticDefaults(
 
 
 /* =========================================================
-   LEGACY DETAILS
+   LEGACY FACTS → DETAILS
+
+   EN KRİTİK GEÇİŞ NOKTASI
    ========================================================= */
 
 function buildLegacyDetails(
@@ -2217,18 +2665,134 @@ function buildLegacyDetails(
       : {};
 
 
+  /*
+    ÖNEMLİ:
+
+    item.date burada YOK.
+
+    Çünkü item.date:
+    → haberin yayın tarihi.
+
+    Etkinlik başlangıcı değildir.
+  */
+
+  const startDate =
+    firstString(
+
+      facts.startDate,
+
+      /*
+        Eski Fact Engine'lerde yalnız eventDate
+        olabilir.
+
+        Fakat dateRange varsa eventDate'in
+        tamamını startDate yapmak istemiyoruz.
+
+        Yeni Fact Engine startDate ürettiği için
+        öncelik ondadır.
+      */
+
+      !facts.endDate
+        ? facts.eventDate
+        : ""
+
+    );
+
+
+  const endDate =
+    firstString(
+      facts.endDate
+    );
+
+
+  const registrationDeadline =
+    firstString(
+
+      facts.registrationDeadline,
+
+      facts.deadline,
+
+      facts.deadlineText
+
+    );
+
+
+  const applicationDeadline =
+    firstString(
+
+      facts.applicationDeadline,
+
+      facts.registrationDeadline,
+
+      facts.deadline,
+
+      facts.deadlineText
+
+    );
+
+
   return {
 
+    /* -----------------------------------------------------
+       TARİH
+       ----------------------------------------------------- */
+
     startDate:
+      startDate,
+
+    endDate:
+      endDate,
+
+    startDateIso:
       cleanString(
-        facts.eventDate ||
-        item.date
+        facts.startDateIso
       ),
 
-    registrationDeadline:
+    endDateIso:
       cleanString(
-        facts.deadline ||
-        facts.deadlineText
+        facts.endDateIso
+      ),
+
+    eventDate:
+      cleanString(
+        facts.eventDate ||
+        facts.dateRange
+      ),
+
+
+    /* -----------------------------------------------------
+       DEADLINE
+       ----------------------------------------------------- */
+
+    registrationDeadline:
+      registrationDeadline,
+
+    applicationDeadline:
+      applicationDeadline,
+
+    deadlineIso:
+      cleanString(
+        facts.deadlineIso
+      ),
+
+    deadlineTime:
+      cleanString(
+        facts.deadlineTime
+      ),
+
+
+    /* -----------------------------------------------------
+       KURS
+       ----------------------------------------------------- */
+
+    ageMin:
+      nullableNumber(
+        facts.ageMin
+      ),
+
+    ageMax:
+      nullableNumber(
+        facts.ageMax
       ),
 
     ageGroup:
@@ -2238,10 +2802,290 @@ function buildLegacyDetails(
 
     level:
       cleanString(
-        facts.grade
+        facts.grade ||
+        facts.level
+      ),
+
+    lessonType:
+      cleanString(
+        facts.lessonType
+      ),
+
+    capacity:
+      nullableNumber(
+        facts.capacity
+      ),
+
+
+    /* -----------------------------------------------------
+       PROGRAM
+       ----------------------------------------------------- */
+
+    days:
+      stringArray(
+        facts.days
+      ),
+
+    startTime:
+      cleanString(
+        facts.startTime
+      ),
+
+    endTime:
+      cleanString(
+        facts.endTime
+      ),
+
+
+    /* -----------------------------------------------------
+       FİYAT
+       ----------------------------------------------------- */
+
+    price:
+      nullableNumber(
+        facts.price
+      ),
+
+    oldPrice:
+      nullableNumber(
+        facts.oldPrice
+      ),
+
+    newPrice:
+      nullableNumber(
+        facts.newPrice
+      ),
+
+    salePrice:
+      nullableNumber(
+        facts.salePrice
+      ),
+
+    currency:
+      cleanString(
+        facts.currency ||
+        DEFAULT_CURRENCY
+      ),
+
+    priceUnit:
+      cleanString(
+        facts.priceUnit
+      ),
+
+    discountRate:
+      nullableNumber(
+        facts.discountRate
+      ),
+
+
+    /* -----------------------------------------------------
+       İŞ
+       ----------------------------------------------------- */
+
+    position:
+      cleanString(
+        facts.position
+      ),
+
+    employmentType:
+      cleanString(
+        facts.employmentType
+      ),
+
+    workMode:
+      cleanString(
+        facts.workMode
+      ),
+
+    experience:
+      cleanString(
+        facts.experience
+      ),
+
+    certificateLevel:
+      cleanString(
+        facts.certificateLevel
+      ),
+
+    salaryMin:
+      nullableNumber(
+        facts.salaryMin
+      ),
+
+    salaryMax:
+      nullableNumber(
+        facts.salaryMax
+      ),
+
+
+    /* -----------------------------------------------------
+       ÜRÜN
+       ----------------------------------------------------- */
+
+    brand:
+      cleanString(
+        facts.brand
+      ),
+
+    productName:
+      cleanString(
+        facts.productName
+      ),
+
+    stockStatus:
+      cleanString(
+        facts.stockStatus
       )
 
   };
+
+}
+
+
+/* =========================================================
+   LEGACY LOCATION
+   ========================================================= */
+
+function buildLegacyLocation(
+  item
+) {
+
+  const facts =
+    plainObject(
+      item.facts
+    )
+      ? item.facts
+      : {};
+
+
+  const rawLocation =
+    firstString(
+
+      facts.city,
+
+      facts.location,
+
+      item.location
+
+    );
+
+
+  const city =
+    rawLocation &&
+    normalizeSimpleText(
+      rawLocation
+    ) !==
+    "turkiye"
+
+      ? rawLocation
+
+      : "";
+
+
+  return {
+
+    country:
+      cleanString(
+        facts.country ||
+        "Türkiye"
+      ),
+
+    city:
+      city,
+
+    district:
+      cleanString(
+        facts.district
+      ),
+
+    neighborhood:
+      cleanString(
+        facts.neighborhood
+      ),
+
+    venue:
+      cleanString(
+        facts.venue
+      ),
+
+    address:
+      cleanString(
+        facts.address
+      ),
+
+    latitude:
+      nullableNumber(
+        facts.latitude
+      ),
+
+    longitude:
+      nullableNumber(
+        facts.longitude
+      )
+
+  };
+
+}
+
+
+/* =========================================================
+   LEGACY EVIDENCE
+   ========================================================= */
+
+function calculateLegacyEvidenceCount(
+  item
+) {
+
+  let count =
+    0;
+
+
+  if (
+    item.url
+  ) {
+
+    count++;
+
+  }
+
+
+  if (
+    item.originalTitle
+  ) {
+
+    count++;
+
+  }
+
+
+  if (
+    item.originalText
+  ) {
+
+    count++;
+
+  }
+
+
+  if (
+    item.image
+  ) {
+
+    count++;
+
+  }
+
+
+  if (
+    item.pdfUrl
+  ) {
+
+    count++;
+
+  }
+
+
+  return count;
 
 }
 
@@ -2255,12 +3099,9 @@ function mapLegacySport(
 ) {
 
   const text =
-    cleanString(
+    normalizeSimpleText(
       value
-    )
-      .toLocaleLowerCase(
-        "tr-TR"
-      );
+    );
 
 
   if (
@@ -2275,9 +3116,6 @@ function mapLegacySport(
 
 
   if (
-    text.includes(
-      "yüz"
-    ) ||
     text.includes(
       "yuz"
     )
@@ -2319,71 +3157,159 @@ function mapLegacySport(
 
 
 /* =========================================================
+   LEGACY SECTION
+
+   Kaynağa / eski kategoriye göre başlangıç section.
+
+   Discovery daha sonra daha güçlü karar verebilir.
+   ========================================================= */
+
+function mapLegacySection(
+  item
+) {
+
+  const providerType =
+    mapLegacyProviderType(
+      item
+    );
+
+
+  const category =
+    normalizeSimpleText(
+      item.category
+    );
+
+
+  if (
+    providerType ===
+    "federation" ||
+    providerType ===
+    "club" ||
+    providerType ===
+    "academy" ||
+    providerType ===
+    "gym" ||
+    providerType ===
+    "facility" ||
+    providerType ===
+    "store" ||
+    providerType ===
+    "organizer"
+  ) {
+
+    return "business_institution";
+
+  }
+
+
+  if (
+    category ===
+    "coach"
+  ) {
+
+    return "trainer_coach";
+
+  }
+
+
+  if (
+    category ===
+    "athlete"
+  ) {
+
+    return "individual_athlete";
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
    LEGACY CATEGORY
+
+   Bu yalnız başlangıç değeridir.
+
+   Discovery Engine gerçek içeriği okuyarak
+   nihai kategoriyi belirler.
    ========================================================= */
 
 function mapLegacyCategory(
   item
 ) {
 
-  const legacy =
-    cleanString(
-      item.category
+  const facts =
+    plainObject(
+      item.facts
     )
-      .toLowerCase();
+      ? item.facts
+      : {};
 
+
+  /* -------------------------------------------------------
+     Açık kurs sinyali
+     ------------------------------------------------------- */
 
   if (
-    legacy ===
-    "education"
+    facts.isCoachCourse ===
+    true
   ) {
 
-    return "events";
+    return "course";
+
+  }
+
+
+  const legacy =
+    normalizeSimpleText(
+      item.category
+    );
+
+
+  /*
+    Legacy sistemdeki event/education vb.
+    doğrudan yeni kategoriyle aynı anlamda değildir.
+
+    Ancak createPost geçerli kategori isterse
+    güvenli başlangıç "event" olur.
+
+    Discovery daha sonra:
+    news / course / event / ...
+    kararını verecektir.
+  */
+
+  if (
+    [
+      "event",
+      "education",
+      "coach"
+    ].includes(
+      legacy
+    )
+  ) {
+
+    return "event";
 
   }
 
 
   if (
-    legacy ===
-    "event"
+    [
+      "athlete",
+      "announcement"
+    ].includes(
+      legacy
+    )
   ) {
 
-    return "events";
+    return "news";
 
   }
 
 
-  if (
-    legacy ===
-    "coach"
-  ) {
-
-    return "events";
-
-  }
-
-
-  if (
-    legacy ===
-    "athlete"
-  ) {
-
-    return "events";
-
-  }
-
-
-  if (
-    legacy ===
-    "announcement"
-  ) {
-
-    return "events";
-
-  }
-
-
-  return "events";
+  return "event";
 
 }
 
@@ -2396,11 +3322,30 @@ function mapLegacySubCategory(
   item
 ) {
 
-  const category =
-    cleanString(
-      item.category
+  const facts =
+    plainObject(
+      item.facts
     )
-      .toLowerCase();
+      ? item.facts
+      : {};
+
+
+  if (
+    facts.isCoachCourse ===
+    true
+  ) {
+
+    return mapLegacySport(
+      item.sport
+    );
+
+  }
+
+
+  const category =
+    normalizeSimpleText(
+      item.category
+    );
 
 
   if (
@@ -2423,7 +3368,7 @@ function mapLegacySubCategory(
   }
 
 
-  return "education";
+  return "";
 
 }
 
@@ -2437,10 +3382,9 @@ function mapLegacyContentType(
 ) {
 
   const value =
-    cleanString(
+    normalizeSimpleText(
       category
-    )
-      .toLowerCase();
+    );
 
 
   if (
@@ -2502,6 +3446,45 @@ function mapLegacyProviderType(
   }
 
 
+  if (
+    sourceType.includes(
+      "KULÜP"
+    ) ||
+    sourceType.includes(
+      "KULUP"
+    )
+  ) {
+
+    return "club";
+
+  }
+
+
+  if (
+    sourceType.includes(
+      "AKADEM"
+    )
+  ) {
+
+    return "academy";
+
+  }
+
+
+  if (
+    sourceType.includes(
+      "MAĞAZA"
+    ) ||
+    sourceType.includes(
+      "MAGAZA"
+    )
+  ) {
+
+    return "store";
+
+  }
+
+
   return "other";
 
 }
@@ -2516,10 +3499,9 @@ function normalizeSport(
 ) {
 
   const id =
-    cleanString(
+    normalizeTaxonomyValue(
       value
-    )
-      .toLowerCase();
+    );
 
 
   return getSport(
@@ -2527,18 +3509,76 @@ function normalizeSport(
   )
     ? id
     : "";
+
 }
 
+
+/* =========================================================
+   SECTION
+   ========================================================= */
+
+function normalizeSection(
+  value
+) {
+
+  const id =
+    normalizeTaxonomyValue(
+      value
+    );
+
+
+  return getSection(
+    id
+  )
+    ? id
+    : "";
+
+}
+
+
+/* =========================================================
+   CATEGORY
+
+   Eski isimlere geçiş desteği:
+   courses   → course
+   events    → event
+   campaigns → campaign
+   sports_news → news
+   ========================================================= */
 
 function normalizeCategory(
   value
 ) {
 
-  const id =
-    cleanString(
+  let id =
+    normalizeTaxonomyValue(
       value
-    )
-      .toLowerCase();
+    );
+
+
+  const aliases = {
+
+    courses:
+      "course",
+
+    events:
+      "event",
+
+    campaigns:
+      "campaign",
+
+    sports_news:
+      "news"
+
+  };
+
+
+  id =
+    aliases[
+      id
+    ]
+    ||
+    id;
 
 
   return getCategory(
@@ -2546,8 +3586,13 @@ function normalizeCategory(
   )
     ? id
     : "";
+
 }
 
+
+/* =========================================================
+   SUBCATEGORY
+   ========================================================= */
 
 function normalizeSubCategory(
   category,
@@ -2555,10 +3600,19 @@ function normalizeSubCategory(
 ) {
 
   const id =
-    cleanString(
+    normalizeTaxonomyValue(
       value
-    )
-      .toLowerCase();
+    );
+
+
+  if (
+    !category ||
+    !id
+  ) {
+
+    return "";
+
+  }
 
 
   return getSubCategory(
@@ -2567,19 +3621,23 @@ function normalizeSubCategory(
   )
     ? id
     : "";
+
 }
 
+
+/* =========================================================
+   PROVIDER TYPE
+   ========================================================= */
 
 function normalizeProviderType(
   value
 ) {
 
   const id =
-    cleanString(
+    normalizeTaxonomyValue(
       value ||
       "other"
-    )
-      .toLowerCase();
+    );
 
 
   return getProviderType(
@@ -2587,19 +3645,23 @@ function normalizeProviderType(
   )
     ? id
     : "other";
+
 }
 
+
+/* =========================================================
+   CONTENT TYPE
+   ========================================================= */
 
 function normalizeContentType(
   value
 ) {
 
   const id =
-    cleanString(
+    normalizeTaxonomyValue(
       value ||
       "general"
-    )
-      .toLowerCase();
+    );
 
 
   return getContentType(
@@ -2607,6 +3669,7 @@ function normalizeContentType(
   )
     ? id
     : "general";
+
 }
 
 
@@ -2619,11 +3682,13 @@ function normalizeTags(
 ) {
 
   return [
+
     ...new Set(
       stringArray(
         value
       )
     )
+
   ];
 
 }
@@ -2637,10 +3702,120 @@ function sportEmoji(
   sport
 ) {
 
-  return getSport(
-    sport
-  )?.emoji ||
-  "🏆";
+  return (
+    getSport(
+      sport
+    )?.emoji
+    ||
+    "🏆"
+  );
+
+}
+
+
+/* =========================================================
+   FIRST STRING
+   ========================================================= */
+
+function firstString(
+  ...values
+) {
+
+  for (
+    const value
+    of values
+  ) {
+
+    const text =
+      cleanString(
+        value
+      );
+
+
+    if (
+      text
+    ) {
+
+      return text;
+
+    }
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
+   TAXONOMY VALUE
+   ========================================================= */
+
+function normalizeTaxonomyValue(
+  value
+) {
+
+  return normalizeSimpleText(
+    value
+  )
+    .replace(
+      /[^a-z0-9]+/g,
+      "_"
+    )
+    .replace(
+      /^_+|_+$/g,
+      ""
+    );
+
+}
+
+
+/* =========================================================
+   SIMPLE TEXT
+   ========================================================= */
+
+function normalizeSimpleText(
+  value
+) {
+
+  return cleanString(
+    value
+  )
+
+    .toLocaleLowerCase(
+      "tr-TR"
+    )
+
+    .replaceAll(
+      "ç",
+      "c"
+    )
+
+    .replaceAll(
+      "ğ",
+      "g"
+    )
+
+    .replaceAll(
+      "ı",
+      "i"
+    )
+
+    .replaceAll(
+      "ö",
+      "o"
+    )
+
+    .replaceAll(
+      "ş",
+      "s"
+    )
+
+    .replaceAll(
+      "ü",
+      "u"
+    );
 
 }
 
@@ -2654,7 +3829,7 @@ function cleanString(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
     .replace(
@@ -2753,9 +3928,12 @@ function nullableNumber(
 ) {
 
   if (
-    value === null ||
-    value === undefined ||
-    value === ""
+    value ===
+    null ||
+    value ===
+    undefined ||
+    value ===
+    ""
   ) {
 
     return null;
@@ -2783,8 +3961,10 @@ function nullableBoolean(
 ) {
 
   if (
-    value === true ||
-    value === false
+    value ===
+    true ||
+    value ===
+    false
   ) {
 
     return value;
@@ -2804,11 +3984,14 @@ function clamp(
 ) {
 
   return Math.max(
+
     min,
+
     Math.min(
       max,
       value
     )
+
   );
 
-        }
+}
