@@ -2,42 +2,87 @@
    SporNRD
    worker/core/taxonomy.js
 
-   SporNRD ortak sınıflandırma sözlüğü
+   SporNRD Ortak Sınıflandırma Sözlüğü
 
-   Sürüm: 6.1.1
+   Sürüm: 6.1.2
 
-   Amaç:
+   TEMEL MİMARİ
    ---------------------------------------------------------
-   - Branş
-   - Ana kategori
-   - Alt kategori
-   - Kaynak / sağlayıcı türü
-   - İçerik türü
-   - Post durumu
-   - Aksiyon türleri
-   - Kategoriye özel veri / filtre alanları
+   1. BRANŞ
+      basketball
+      swimming
+      volleyball
+      gymnastics
+      other
 
-   YENİ 6.1.1:
+   2. BÖLÜM
+      individual_athlete
+      trainer_coach
+      business_institution
+
+   3. ANA KATEGORİ
+      news
+      course
+      event
+      campaign
+      jobs
+      stores
+
+   4. ALT KATEGORİ
+      Ana kategoriye göre değişir.
+
+   5. PROVIDER TYPE
+      İçeriği yayımlayan / sunan taraf.
+
+   =========================================================
+   KULLANICI EKRANI
    ---------------------------------------------------------
-   Spor Haberleri ana kategorisi eklendi.
 
-   Alt kategoriler:
-   - Bireysel & Sporcu
-   - Eğitmen & Antrenör
-   - İşletme & Kurum
+   Yüzme Haber
+   Yüzme Kurs
+   Yüzme Etkinlik
+   Yüzme Kampanya
+   Yüzme İş İlanı
+   Yüzme Mağaza
 
-   Bu dosya SporNRD'nin ortak dilidir.
+   Basketbol Haber
+   Basketbol Kurs
+   Basketbol Etkinlik
+   ...
+
+   =========================================================
+   BÖLÜM KURALI
+   ---------------------------------------------------------
+
+   Bölüm kullanıcı kartında gösterilmek zorunda değildir.
+
+   Örnek:
+
+   Türkiye Yüzme Federasyonu
+   → business_institution
+
+   Fenerbahçe Spor Kulübü
+   → business_institution
+
+   Bir antrenörün kendi hesabı
+   → trainer_coach
+
+   Bir sporcunun kendi hesabı
+   → individual_athlete
+
    ========================================================= */
 
 
 /* =========================================================
+   VERSION
+   ========================================================= */
+
+export const TAXONOMY_VERSION =
+  "6.1.2";
+
+
+/* =========================================================
    BRANŞLAR
-
-   Kullanıcının ana akışın üst kısmında gördüğü
-   yatay branş filtresi.
-
-   "all" yalnızca UI filtresidir.
-   Gerçek postlarda sport = "all" kullanılmaz.
    ========================================================= */
 
 export const SPORTS = {
@@ -132,9 +177,7 @@ export const SPORTS = {
 /* =========================================================
    BRANŞ FİLTRELERİ
 
-   Ana ekran üst yuvarlakları.
-
-   Burada kategori değil BRANŞ gösterilir.
+   Mobil uygulamanın üst yuvarlakları.
    ========================================================= */
 
 export const SPORT_FILTERS = [
@@ -160,27 +203,94 @@ export const SPORT_FILTERS = [
 
 
 /* =========================================================
+   BÖLÜMLER
+
+   Şimdilik arka planda kullanılır.
+
+   İleride profil / kayıt sistemi için de
+   temel hesap bölümleri olacaktır.
+   ========================================================= */
+
+export const SECTIONS = {
+
+  individual_athlete: {
+
+    id:
+      "individual_athlete",
+
+    label:
+      "Bireysel & Sporcu",
+
+    shortLabel:
+      "Bireysel & Sporcu",
+
+    enabled:
+      true
+
+  },
+
+
+  trainer_coach: {
+
+    id:
+      "trainer_coach",
+
+    label:
+      "Eğitmen & Antrenör",
+
+    shortLabel:
+      "Eğitmen & Antrenör",
+
+    enabled:
+      true
+
+  },
+
+
+  business_institution: {
+
+    id:
+      "business_institution",
+
+    label:
+      "İşletme & Kurum",
+
+    shortLabel:
+      "İşletme & Kurum",
+
+    enabled:
+      true
+
+  }
+
+};
+
+
+/* =========================================================
    ANA KATEGORİLER
 
-   Kullanıcının:
+   KESİN SPORNRD KATEGORİLERİ
 
-   "Ne arıyorsun / ne görmek istiyorsun?"
-
-   sorusunun cevabıdır.
+   Bunların dışına yeni ana kategori oluşturulmaz.
    ========================================================= */
 
 export const CATEGORIES = {
 
-  courses: {
+
+  /* -------------------------------------------------------
+     HABER
+     ------------------------------------------------------- */
+
+  news: {
 
     id:
-      "courses",
+      "news",
 
     label:
-      "Spor Kursları",
+      "Haber",
 
     shortLabel:
-      "Kurslar",
+      "Haber",
 
     enabled:
       true
@@ -188,16 +298,20 @@ export const CATEGORIES = {
   },
 
 
-  events: {
+  /* -------------------------------------------------------
+     KURS
+     ------------------------------------------------------- */
+
+  course: {
 
     id:
-      "events",
+      "course",
 
     label:
-      "Spor Etkinlikleri",
+      "Kurs",
 
     shortLabel:
-      "Etkinlikler",
+      "Kurs",
 
     enabled:
       true
@@ -205,22 +319,51 @@ export const CATEGORIES = {
   },
 
 
-  campaigns: {
+  /* -------------------------------------------------------
+     ETKİNLİK
+     ------------------------------------------------------- */
+
+  event: {
 
     id:
-      "campaigns",
+      "event",
 
     label:
-      "Kampanyalar",
+      "Etkinlik",
 
     shortLabel:
-      "Kampanyalar",
+      "Etkinlik",
 
     enabled:
       true
 
   },
 
+
+  /* -------------------------------------------------------
+     KAMPANYA
+     ------------------------------------------------------- */
+
+  campaign: {
+
+    id:
+      "campaign",
+
+    label:
+      "Kampanya",
+
+    shortLabel:
+      "Kampanya",
+
+    enabled:
+      true
+
+  },
+
+
+  /* -------------------------------------------------------
+     İŞ İLANLARI
+     ------------------------------------------------------- */
 
   jobs: {
 
@@ -228,16 +371,20 @@ export const CATEGORIES = {
       "jobs",
 
     label:
-      "İş Yeri & İş İlanları",
+      "İş İlanları",
 
     shortLabel:
-      "İş İlanları",
+      "İş İlanı",
 
     enabled:
       true
 
   },
 
+
+  /* -------------------------------------------------------
+     MAĞAZALAR
+     ------------------------------------------------------- */
 
   stores: {
 
@@ -248,42 +395,7 @@ export const CATEGORIES = {
       "Mağazalar",
 
     shortLabel:
-      "Mağazalar",
-
-    enabled:
-      true
-
-  },
-
-
-  /* -------------------------------------------------------
-     SPOR HABERLERİ
-
-     Fırsat / etkinlik / kurs değildir.
-
-     Spor dünyasında gerçekleşmiş veya güncel
-     gelişmeleri ayrı bir ana kategoride tutar.
-
-     Örnek:
-     - Maç sonucu
-     - Şampiyonluk
-     - Madalya
-     - Sporcu başarısı
-     - Antrenör gelişmesi
-     - Kulüp haberi
-     - Federasyon haberi
-     ------------------------------------------------------- */
-
-  sports_news: {
-
-    id:
-      "sports_news",
-
-    label:
-      "Spor Haberleri",
-
-    shortLabel:
-      "Haberler",
+      "Mağaza",
 
     enabled:
       true
@@ -296,25 +408,142 @@ export const CATEGORIES = {
 /* =========================================================
    ALT KATEGORİLER
 
-   Postun ayrıca bağımsız "sport" alanı vardır.
+   Kullanıcıya tamamının gösterilmesi zorunlu değildir.
 
-   Böylece:
-
-   sport = basketball
-   category = sports_news
-   subCategory = business_institution
-
-   gibi birleşimler kullanılabilir.
+   Özellikle HABER alt kategorileri sistemin
+   içeriği anlamasına yardımcı olan arka plan bilgisidir.
    ========================================================= */
 
 export const SUBCATEGORIES = {
 
 
-  /* -------------------------------------------------------
-     SPOR KURSLARI
-     ------------------------------------------------------- */
+  /* =======================================================
+     HABER
 
-  courses: {
+     Kullanıcı kartında:
+
+     Basketbol Haber
+     Yüzme Haber
+
+     görür.
+
+     Aşağıdaki alanlar ise sistemin
+     "ne oldu?" sorusunun cevabıdır.
+     ========================================================= */
+
+  news: {
+
+
+    /* -----------------------------------------------------
+       Sonuç
+       ----------------------------------------------------- */
+
+    result: {
+
+      id:
+        "result",
+
+      label:
+        "Müsabaka & Sonuç"
+
+    },
+
+
+    /* -----------------------------------------------------
+       Başarı
+       ----------------------------------------------------- */
+
+    achievement: {
+
+      id:
+        "achievement",
+
+      label:
+        "Başarı & Derece"
+
+    },
+
+
+    /* -----------------------------------------------------
+       Görevlendirme
+       ----------------------------------------------------- */
+
+    assignment: {
+
+      id:
+        "assignment",
+
+      label:
+        "Görevlendirme & Atama"
+
+    },
+
+
+    /* -----------------------------------------------------
+       Transfer
+       ----------------------------------------------------- */
+
+    transfer: {
+
+      id:
+        "transfer",
+
+      label:
+        "Transfer & Kariyer"
+
+    },
+
+
+    /* -----------------------------------------------------
+       Duyuru / Açıklama
+       ----------------------------------------------------- */
+
+    announcement: {
+
+      id:
+        "announcement",
+
+      label:
+        "Duyuru & Açıklama"
+
+    },
+
+
+    /* -----------------------------------------------------
+       Genel gelişme
+       ----------------------------------------------------- */
+
+    development: {
+
+      id:
+        "development",
+
+      label:
+        "Gündem & Gelişme"
+
+    }
+
+  },
+
+
+  /* =======================================================
+     KURS
+
+     Kursun alt kategorisi branştır.
+
+     Örnek:
+
+     sport       = swimming
+     category    = course
+     subCategory = swimming
+
+     Kullanıcı:
+     Yüzme Kurs
+
+     görür.
+     ========================================================= */
+
+  course: {
 
     basketball: {
 
@@ -373,11 +602,16 @@ export const SUBCATEGORIES = {
   },
 
 
-  /* -------------------------------------------------------
-     SPOR ETKİNLİKLERİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     ETKİNLİK
+     ========================================================= */
 
-  events: {
+  event: {
+
+
+    /* -----------------------------------------------------
+       TURNUVA & SPOR YARIŞMALARI
+       ----------------------------------------------------- */
 
     competition: {
 
@@ -390,16 +624,29 @@ export const SUBCATEGORIES = {
     },
 
 
+    /* -----------------------------------------------------
+       EĞİTİM / SEMİNER
+
+       DİKKAT:
+       Kurs artık buraya girmez.
+
+       Kurs kendi ana kategorisidir.
+       ----------------------------------------------------- */
+
     education: {
 
       id:
         "education",
 
       label:
-        "Eğitim & Seminerler"
+        "Eğitim & Seminer"
 
     },
 
+
+    /* -----------------------------------------------------
+       TANITIM & FESTİVAL
+       ----------------------------------------------------- */
 
     festival: {
 
@@ -407,10 +654,14 @@ export const SUBCATEGORIES = {
         "festival",
 
       label:
-        "Tanıtım & Spor Festivalleri"
+        "Tanıtım & Spor Festivali"
 
     },
 
+
+    /* -----------------------------------------------------
+       KAMP / SAĞLIKLI YAŞAM
+       ----------------------------------------------------- */
 
     camp: {
 
@@ -425,11 +676,11 @@ export const SUBCATEGORIES = {
   },
 
 
-  /* -------------------------------------------------------
-     KAMPANYALAR
-     ------------------------------------------------------- */
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
 
-  campaigns: {
+  campaign: {
 
     course_campaign: {
 
@@ -437,7 +688,7 @@ export const SUBCATEGORIES = {
         "course_campaign",
 
       label:
-        "Kurs Kampanyaları"
+        "Kurs Kampanyası"
 
     },
 
@@ -448,7 +699,7 @@ export const SUBCATEGORIES = {
         "membership_campaign",
 
       label:
-        "Üyelik Kampanyaları"
+        "Üyelik Kampanyası"
 
     },
 
@@ -459,16 +710,16 @@ export const SUBCATEGORIES = {
         "store_campaign",
 
       label:
-        "Mağaza Kampanyaları"
+        "Mağaza Kampanyası"
 
     }
 
   },
 
 
-  /* -------------------------------------------------------
-     İŞ YERİ & İŞ İLANLARI
-     ------------------------------------------------------- */
+  /* =======================================================
+     İŞ İLANLARI
+     ========================================================= */
 
   jobs: {
 
@@ -478,7 +729,7 @@ export const SUBCATEGORIES = {
         "job_seeker",
 
       label:
-        "İş Arayan İlanları"
+        "İş Arayan İlanı"
 
     },
 
@@ -489,16 +740,16 @@ export const SUBCATEGORIES = {
         "employer",
 
       label:
-        "İş Veren İlanları"
+        "İş Veren İlanı"
 
     }
 
   },
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      MAĞAZALAR
-     ------------------------------------------------------- */
+     ========================================================= */
 
   stores: {
 
@@ -545,93 +796,58 @@ export const SUBCATEGORIES = {
 
     }
 
-  },
-
-
-  /* =======================================================
-     SPOR HABERLERİ
-
-     Burada "ne oldu?" değil,
-     "haber KİM / HANGİ YAPI hakkında?"
-     sorusunu cevaplıyoruz.
-
-     Ne olduğu Content Intent tarafından anlaşılır.
-
-     Örnek:
-     -------------------------------------------------------
-     Sporcu rekor kırdı
-       category      = sports_news
-       subCategory   = individual_athlete
-       contentIntent = result / achievement
-
-     Antrenör göreve getirildi
-       category      = sports_news
-       subCategory   = trainer_coach
-       contentIntent = news / appointment
-
-     Fenerbahçe şampiyon oldu
-       category      = sports_news
-       subCategory   = business_institution
-       contentIntent = result
-       eventStatus   = completed
-     ======================================================= */
-
-  sports_news: {
-
-    individual_athlete: {
-
-      id:
-        "individual_athlete",
-
-      label:
-        "Bireysel & Sporcu"
-
-    },
-
-
-    trainer_coach: {
-
-      id:
-        "trainer_coach",
-
-      label:
-        "Eğitmen & Antrenör"
-
-    },
-
-
-    business_institution: {
-
-      id:
-        "business_institution",
-
-      label:
-        "İşletme & Kurum"
-
-    }
-
   }
 
 };
 
 
 /* =========================================================
-   SAĞLAYICI / KAYNAK TÜRLERİ
+   PROVIDER / KAYNAK TÜRLERİ
 
-   Bunlar kategori DEĞİLDİR.
+   Provider ana kategori değildir.
 
-   İçeriği yayımlayan veya hizmeti sunan tarafı anlatır.
-
-   Örneğin:
-
-   category     = sports_news
-   subCategory  = business_institution
-   providerType = federation
-
-   mümkündür.
+   "İçeriği kim yayımlıyor / sunuyor?"
+   sorusunun cevabıdır.
    ========================================================= */
 
 export const PROVIDER_TYPES = {
+
+
+  /* -------------------------------------------------------
+     BİREYSEL / SPORCU
+     ------------------------------------------------------- */
+
+  athlete: {
+
+    id:
+      "athlete",
+
+    label:
+      "Sporcu",
+
+    section:
+      "individual_athlete"
+
+  },
+
+
+  individual: {
+
+    id:
+      "individual",
+
+    label:
+      "Bireysel",
+
+    section:
+      "individual_athlete"
+
+  },
+
+
+  /* -------------------------------------------------------
+     EĞİTMEN / ANTRENÖR
+     ------------------------------------------------------- */
 
   coach: {
 
@@ -639,10 +855,31 @@ export const PROVIDER_TYPES = {
       "coach",
 
     label:
-      "Antrenör"
+      "Antrenör",
+
+    section:
+      "trainer_coach"
 
   },
 
+
+  trainer: {
+
+    id:
+      "trainer",
+
+    label:
+      "Eğitmen",
+
+    section:
+      "trainer_coach"
+
+  },
+
+
+  /* -------------------------------------------------------
+     KULÜP
+     ------------------------------------------------------- */
 
   club: {
 
@@ -650,10 +887,17 @@ export const PROVIDER_TYPES = {
       "club",
 
     label:
-      "Spor Kulübü"
+      "Spor Kulübü",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     AKADEMİ
+     ------------------------------------------------------- */
 
   academy: {
 
@@ -661,10 +905,17 @@ export const PROVIDER_TYPES = {
       "academy",
 
     label:
-      "Spor Akademisi"
+      "Spor Akademisi",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     SPOR SALONU
+     ------------------------------------------------------- */
 
   gym: {
 
@@ -672,10 +923,17 @@ export const PROVIDER_TYPES = {
       "gym",
 
     label:
-      "Spor Salonu"
+      "Spor Salonu",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     TESİS
+     ------------------------------------------------------- */
 
   facility: {
 
@@ -683,10 +941,17 @@ export const PROVIDER_TYPES = {
       "facility",
 
     label:
-      "Spor Tesisi"
+      "Spor Tesisi",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     FEDERASYON / KAMU
+     ------------------------------------------------------- */
 
   federation: {
 
@@ -694,10 +959,17 @@ export const PROVIDER_TYPES = {
       "federation",
 
     label:
-      "Federasyon / Kamu"
+      "Federasyon / Kamu",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     MAĞAZA
+     ------------------------------------------------------- */
 
   store: {
 
@@ -705,10 +977,17 @@ export const PROVIDER_TYPES = {
       "store",
 
     label:
-      "Spor Mağazası"
+      "Spor Mağazası",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     ORGANİZATÖR
+     ------------------------------------------------------- */
 
   organizer: {
 
@@ -716,10 +995,17 @@ export const PROVIDER_TYPES = {
       "organizer",
 
     label:
-      "Organizatör"
+      "Organizatör",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     MEDYA
+     ------------------------------------------------------- */
 
   media: {
 
@@ -727,10 +1013,17 @@ export const PROVIDER_TYPES = {
       "media",
 
     label:
-      "Medya"
+      "Medya",
+
+    section:
+      "business_institution"
 
   },
 
+
+  /* -------------------------------------------------------
+     DİĞER
+     ------------------------------------------------------- */
 
   other: {
 
@@ -738,7 +1031,10 @@ export const PROVIDER_TYPES = {
       "other",
 
     label:
-      "Diğer"
+      "Diğer",
+
+    section:
+      "business_institution"
 
   }
 
@@ -748,19 +1044,10 @@ export const PROVIDER_TYPES = {
 /* =========================================================
    İÇERİK TÜRLERİ
 
-   Bunlar ana kullanıcı kategorisi DEĞİLDİR.
+   Bunlar kullanıcı ana kategorisi değildir.
 
-   İçeriğin teknik / anlamsal türünü korur.
-
-   Content Intent motoru bunun üzerinde ayrıca:
-   result
-   opportunity
-   registration
-   campaign
-   job
-   product
-   news
-   vb. karar verebilir.
+   Kaynağın içeriğinin teknik / semantik türünü
+   anlamak için kullanılır.
    ========================================================= */
 
 export const CONTENT_TYPES = {
@@ -771,7 +1058,7 @@ export const CONTENT_TYPES = {
       "coach",
 
     label:
-      "Antrenör"
+      "Antrenör İçeriği"
 
   },
 
@@ -782,7 +1069,7 @@ export const CONTENT_TYPES = {
       "athlete",
 
     label:
-      "Sporcu"
+      "Sporcu İçeriği"
 
   },
 
@@ -869,15 +1156,20 @@ export const CONTENT_TYPES = {
 /* =========================================================
    POST DURUMLARI
 
-   DİKKAT:
+   lifecycle.status ile temporal.eventStatus
+   birbirinden farklı kavramlardır.
 
-   lifecycle.status = "new"
-   içeriğin SporNRD açısından yeni olduğunu anlatabilir.
+   Örnek:
 
-   eventStatus = "completed"
-   ise içeriğin anlattığı spor olayının bittiğini anlatır.
+   lifecycle.status = new
+   temporal.state   = past
+   eventStatus      = completed
 
-   Bunlar farklı kavramlardır.
+   mümkündür.
+
+   Bu:
+   "Yeni yayımlanmış geçmiş olay haberi"
+   anlamına gelebilir.
    ========================================================= */
 
 export const POST_STATUSES = {
@@ -952,8 +1244,6 @@ export const POST_STATUSES = {
 
 /* =========================================================
    POST AKSİYONLARI
-
-   Kullanıcıya gösterilecek gerçek işlem butonları.
    ========================================================= */
 
 export const ACTION_TYPES = {
@@ -1091,24 +1381,47 @@ export const MEDIA_TYPES = {
 /* =========================================================
    KATEGORİYE ÖZEL FİLTRE / VERİ ALANLARI
 
-   Uygulama ileride filtre arayüzünü bu yapıdan
-   otomatik üretebilir.
+   Bunlar ileride:
 
-   Spor Haberleri için fiyat / saat gibi
-   ticari alanlar zorunlu değildir.
+   - crawler
+   - extraction engine
+   - filtre ekranı
+   - arama sistemi
+   - ranking
 
-   Branş, haber alt kategorisi, kaynak ve intent
-   zaten postun ana alanlarından filtrelenebilir.
+   tarafından ortak kullanılabilir.
    ========================================================= */
 
 export const CATEGORY_FILTER_FIELDS = {
 
 
-  /* -------------------------------------------------------
-     SPOR KURSLARI
-     ------------------------------------------------------- */
+  /* =======================================================
+     HABER
 
-  courses: [
+     Haberlerde:
+
+     sport
+     section
+     source
+     providerType
+     subCategory
+     contentIntent
+     temporal
+     eventStatus
+
+     zaten post seviyesinde tutulur.
+
+     Bu nedenle details altında zorunlu ticari alan yoktur.
+     ========================================================= */
+
+  news: [],
+
+
+  /* =======================================================
+     KURS
+     ========================================================= */
+
+  course: [
 
     "city",
 
@@ -1142,6 +1455,8 @@ export const CATEGORY_FILTER_FIELDS = {
 
     "startDate",
 
+    "endDate",
+
     "registrationDeadline",
 
     "trialLesson"
@@ -1149,11 +1464,11 @@ export const CATEGORY_FILTER_FIELDS = {
   ],
 
 
-  /* -------------------------------------------------------
-     SPOR ETKİNLİKLERİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     ETKİNLİK
+     ========================================================= */
 
-  events: [
+  event: [
 
     "city",
 
@@ -1192,11 +1507,11 @@ export const CATEGORY_FILTER_FIELDS = {
   ],
 
 
-  /* -------------------------------------------------------
-     KAMPANYALAR
-     ------------------------------------------------------- */
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
 
-  campaigns: [
+  campaign: [
 
     "city",
 
@@ -1205,6 +1520,8 @@ export const CATEGORY_FILTER_FIELDS = {
     "oldPrice",
 
     "newPrice",
+
+    "price",
 
     "currency",
 
@@ -1225,9 +1542,9 @@ export const CATEGORY_FILTER_FIELDS = {
   ],
 
 
-  /* -------------------------------------------------------
-     İŞ YERİ & İŞ İLANLARI
-     ------------------------------------------------------- */
+  /* =======================================================
+     İŞ İLANLARI
+     ========================================================= */
 
   jobs: [
 
@@ -1262,9 +1579,9 @@ export const CATEGORY_FILTER_FIELDS = {
   ],
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      MAĞAZALAR
-     ------------------------------------------------------- */
+     ========================================================= */
 
   stores: [
 
@@ -1288,28 +1605,7 @@ export const CATEGORY_FILTER_FIELDS = {
 
     "shipping"
 
-  ],
-
-
-  /* -------------------------------------------------------
-     SPOR HABERLERİ
-
-     Haberlerde temel filtreler postun kendi alanlarından:
-
-     sport
-     category
-     subCategory
-     providerType
-     contentIntent
-     eventStatus
-     source
-
-     üzerinden yapılacaktır.
-
-     Bu nedenle details alanında zorunlu özel filtre yoktur.
-     ------------------------------------------------------- */
-
-  sports_news: []
+  ]
 
 };
 
@@ -1320,6 +1616,106 @@ export const CATEGORY_FILTER_FIELDS = {
 
 export const DEFAULT_CURRENCY =
   "TRY";
+
+
+/* =========================================================
+   LEGACY CATEGORY ALIASES
+
+   Geçiş döneminde eski dosyalardan:
+
+   courses
+   events
+   campaigns
+   sports_news
+
+   gelebilir.
+
+   Bunları yeni sisteme güvenli biçimde çeviririz.
+
+   Böylece tek seferde bütün eski dosyaların
+   çökmesini önleriz.
+   ========================================================= */
+
+const CATEGORY_ALIASES = {
+
+  news:
+    "news",
+
+  haber:
+    "news",
+
+  sports_news:
+    "news",
+
+  sports_news_category:
+    "news",
+
+
+  course:
+    "course",
+
+  courses:
+    "course",
+
+  kurs:
+    "course",
+
+  kurslar:
+    "course",
+
+
+  event:
+    "event",
+
+  events:
+    "event",
+
+  etkinlik:
+    "event",
+
+  etkinlikler:
+    "event",
+
+
+  campaign:
+    "campaign",
+
+  campaigns:
+    "campaign",
+
+  kampanya:
+    "campaign",
+
+  kampanyalar:
+    "campaign",
+
+
+  job:
+    "jobs",
+
+  jobs:
+    "jobs",
+
+  is_ilani:
+    "jobs",
+
+  is_ilanlari:
+    "jobs",
+
+
+  store:
+    "stores",
+
+  stores:
+    "stores",
+
+  magaza:
+    "stores",
+
+  magazalar:
+    "stores"
+
+};
 
 
 /* =========================================================
@@ -1339,8 +1735,61 @@ export function getSport(
   return (
     SPORTS[
       key
-    ] ||
+    ]
+    ||
     null
+  );
+
+}
+
+
+/* =========================================================
+   SECTION BUL
+   ========================================================= */
+
+export function getSection(
+  id
+) {
+
+  const key =
+    normalizeTaxonomyId(
+      id
+    );
+
+
+  return (
+    SECTIONS[
+      key
+    ]
+    ||
+    null
+  );
+
+}
+
+
+/* =========================================================
+   CATEGORY ID NORMALİZE
+
+   Legacy plural ID'leri yeni canonical ID'ye çevirir.
+   ========================================================= */
+
+export function normalizeCategoryId(
+  value
+) {
+
+  const key =
+    normalizeTaxonomyId(
+      value
+    );
+
+
+  return (
+    CATEGORY_ALIASES[
+      key
+    ]
+    ||
+    key
   );
 
 }
@@ -1355,7 +1804,7 @@ export function getCategory(
 ) {
 
   const key =
-    normalizeTaxonomyId(
+    normalizeCategoryId(
       id
     );
 
@@ -1363,7 +1812,8 @@ export function getCategory(
   return (
     CATEGORIES[
       key
-    ] ||
+    ]
+    ||
     null
   );
 
@@ -1380,7 +1830,7 @@ export function getSubCategory(
 ) {
 
   const category =
-    normalizeTaxonomyId(
+    normalizeCategoryId(
       categoryId
     );
 
@@ -1421,8 +1871,53 @@ export function getProviderType(
   return (
     PROVIDER_TYPES[
       key
-    ] ||
+    ]
+    ||
     null
+  );
+
+}
+
+
+/* =========================================================
+   PROVIDER → SECTION
+
+   Provider türünden bölüm bulmak için ortak yardımcı.
+
+   Örnek:
+
+   federation
+   → business_institution
+
+   coach
+   → trainer_coach
+
+   athlete
+   → individual_athlete
+   ========================================================= */
+
+export function getSectionByProviderType(
+  providerType
+) {
+
+  const provider =
+    getProviderType(
+      providerType
+    );
+
+
+  if (
+    !provider ||
+    !provider.section
+  ) {
+
+    return null;
+
+  }
+
+
+  return getSection(
+    provider.section
   );
 
 }
@@ -1445,7 +1940,8 @@ export function getContentType(
   return (
     CONTENT_TYPES[
       key
-    ] ||
+    ]
+    ||
     null
   );
 
@@ -1469,7 +1965,8 @@ export function getPostStatus(
   return (
     POST_STATUSES[
       key
-    ] ||
+    ]
+    ||
     null
   );
 
@@ -1493,7 +1990,8 @@ export function getActionType(
   return (
     ACTION_TYPES[
       key
-    ] ||
+    ]
+    ||
     null
   );
 
@@ -1509,7 +2007,7 @@ export function getCategoryFilterFields(
 ) {
 
   const category =
-    normalizeTaxonomyId(
+    normalizeCategoryId(
       categoryId
     );
 
@@ -1523,10 +2021,72 @@ export function getCategoryFilterFields(
   return Array.isArray(
     fields
   )
+
     ? [
         ...fields
       ]
+
     : [];
+
+}
+
+
+/* =========================================================
+   KULLANICI ETİKETİ OLUŞTUR
+
+   Örnek:
+
+   swimming + news
+   → "Yüzme Haber"
+
+   swimming + course
+   → "Yüzme Kurs"
+
+   basketball + event
+   → "Basketbol Etkinlik"
+   ========================================================= */
+
+export function buildSportCategoryLabel(
+  sportId,
+  categoryId
+) {
+
+  const sport =
+    getSport(
+      sportId
+    );
+
+
+  const category =
+    getCategory(
+      categoryId
+    );
+
+
+  const sportLabel =
+    sport?.label ||
+    "Spor";
+
+
+  const categoryLabel =
+    category?.shortLabel ||
+    category?.label ||
+    "";
+
+
+  return [
+
+    sportLabel,
+
+    categoryLabel
+
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " "
+    );
 
 }
 
@@ -1541,6 +2101,23 @@ export function isValidSport(
 
   return Boolean(
     getSport(
+      id
+    )
+  );
+
+}
+
+
+/* =========================================================
+   GEÇERLİ BÖLÜM MÜ?
+   ========================================================= */
+
+export function isValidSection(
+  id
+) {
+
+  return Boolean(
+    getSection(
       id
     )
   );
@@ -1602,15 +2179,74 @@ export function isValidProviderType(
 
 
 /* =========================================================
+   TÜM AKTİF BRANŞLAR
+   ========================================================= */
+
+export function getEnabledSports() {
+
+  return Object
+    .values(
+      SPORTS
+    )
+    .filter(
+      item =>
+        item?.enabled ===
+        true
+    );
+
+}
+
+
+/* =========================================================
+   TÜM AKTİF BÖLÜMLER
+   ========================================================= */
+
+export function getEnabledSections() {
+
+  return Object
+    .values(
+      SECTIONS
+    )
+    .filter(
+      item =>
+        item?.enabled ===
+        true
+    );
+
+}
+
+
+/* =========================================================
+   TÜM AKTİF KATEGORİLER
+   ========================================================= */
+
+export function getEnabledCategories() {
+
+  return Object
+    .values(
+      CATEGORIES
+    )
+    .filter(
+      item =>
+        item?.enabled ===
+        true
+    );
+
+}
+
+
+/* =========================================================
    ID NORMALİZE
 
-   "Spor Kursları"
-   → "spor_kurslari"
+   Örnek:
 
-   "İş Veren"
-   → "is_veren"
+   "İşletme & Kurum"
+   → "isletme_kurum"
 
-   Fakat uygulama içinde mümkün olduğunca
+   "İş İlanları"
+   → "is_ilanlari"
+
+   Ancak sistem içinde mümkün olduğunca
    sabit teknik ID kullanacağız.
    ========================================================= */
 
@@ -1669,4 +2305,4 @@ export function normalizeTaxonomyId(
       ""
     );
 
-   }
+     }
