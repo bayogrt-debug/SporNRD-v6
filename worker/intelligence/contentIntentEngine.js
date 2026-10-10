@@ -4,30 +4,45 @@
 
    İçerik Niyet / Durum Anlama Motoru
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.2
 
    AMAÇ
    ---------------------------------------------------------
    Bir içeriği kategoriye atmadan ÖNCE şunu anlamak:
 
    - Bu içerik aslında ne anlatıyor?
-   - Kullanıcı burada bir şey yapabilir mi?
-   - Etkinlik geçmiş mi, yaklaşan mı?
-   - Sonuç haberi mi?
-   - Kayıt / başvuru duyurusu mu?
+   - Sonuç / başarı haberi mi?
+   - Görevlendirme / transfer haberi mi?
+   - Kayıt / başvuru var mı?
+   - Yaklaşan bir fırsat / etkinlik mi?
    - Kampanya mı?
    - İş ilanı mı?
-   - Ürün mü?
-   - Yalnızca haber / kurumsal içerik mi?
+   - Ürün / mağaza içeriği mi?
+   - Yalnızca duyuru / genel haber mi?
+   - Kullanıcı gerçekten işlem yapabilir mi?
+
+   ANA KATEGORİLERLE UYUMLU
+   ---------------------------------------------------------
+   news
+   course
+   event
+   campaign
+   jobs
+   stores
 
    TEMEL KURAL
    ---------------------------------------------------------
    Önce ANLA
    sonra SINIFLANDIR
+   sonra ZAMANI ÇÖZ
    sonra YAZ.
 
-   Bu motor kaynakta olmayan bilgiyi üretmez.
-   Emin olmadığı durumda "unknown" bırakır.
+   Bu motor:
+   - Kaynakta olmayan bilgi üretmez.
+   - Yayın tarihini olay tarihi saymaz.
+   - Temporal Engine'in görevini üstlenmez.
+   - Emin olmadığı durumda güvenli varsayım olarak
+     news / unknown kullanır.
    ========================================================= */
 
 
@@ -36,7 +51,7 @@
    ========================================================= */
 
 export const CONTENT_INTENT_VERSION =
-  "1.0";
+  "1.1";
 
 
 /* =========================================================
@@ -53,6 +68,15 @@ export const CONTENT_INTENTS = {
 
   result:
     "result",
+
+  achievement:
+    "achievement",
+
+  assignment:
+    "assignment",
+
+  transfer:
+    "transfer",
 
   announcement:
     "announcement",
@@ -74,6 +98,12 @@ export const CONTENT_INTENTS = {
 
 /* =========================================================
    EVENT STATUS
+
+   DİKKAT:
+   Bu yalnızca içerik dilinden çıkan ilk semantik karardır.
+
+   Nihai zaman kararı Temporal Engine tarafından
+   doğrulanacaktır.
    ========================================================= */
 
 export const EVENT_STATUSES = {
@@ -124,33 +154,8 @@ export function analyzeContentIntent(
     );
 
 
-  const scores = {
-
-    opportunity:
-      0,
-
-    registration:
-      0,
-
-    result:
-      0,
-
-    announcement:
-      0,
-
-    campaign:
-      0,
-
-    job:
-      0,
-
-    product:
-      0,
-
-    news:
-      0
-
-  };
+  const scores =
+    createScoreMap();
 
 
   const reasons =
@@ -159,7 +164,7 @@ export function analyzeContentIntent(
 
   /* =======================================================
      1. İŞ İLANI
-     ======================================================= */
+     ========================================================= */
 
   scorePatterns({
 
@@ -174,29 +179,21 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["is ilani", 8],
-
-      ["personel araniyor", 10],
-
-      ["antrenor araniyor", 10],
-
-      ["egitmen araniyor", 10],
-
-      ["calisma arkadasi ariyoruz", 9],
-
-      ["cv gonder", 9],
-
-      ["ozgecmis gonder", 8],
-
-      ["ise alim", 8],
-
-      ["tam zamanli", 5],
-
-      ["yari zamanli", 5],
-
-      ["part time", 5],
-
-      ["full time", 5]
+      ["is ilani", 12],
+      ["personel araniyor", 14],
+      ["antrenor araniyor", 14],
+      ["egitmen araniyor", 14],
+      ["calisma arkadasi ariyoruz", 12],
+      ["ekibimize katil", 8],
+      ["cv gonder", 12],
+      ["ozgecmis gonder", 12],
+      ["ise alim", 11],
+      ["acik pozisyon", 10],
+      ["pozisyon icin", 6],
+      ["tam zamanli", 6],
+      ["yari zamanli", 6],
+      ["part time", 6],
+      ["full time", 6]
 
     ],
 
@@ -211,7 +208,7 @@ export function analyzeContentIntent(
 
   /* =======================================================
      2. ÜRÜN / MAĞAZA
-     ======================================================= */
+     ========================================================= */
 
   scorePatterns({
 
@@ -226,22 +223,15 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["sepete ekle", 10],
-
-      ["satin al", 8],
-
-      ["stokta", 8],
-
-      ["stok", 4],
-
-      ["urun fiyati", 7],
-
+      ["sepete ekle", 14],
+      ["satin al", 11],
+      ["stokta", 10],
+      ["stok durumu", 9],
+      ["urun fiyati", 10],
+      ["liste fiyati", 7],
       ["kargo", 5],
-
-      ["beden", 3],
-
-      ["numara", 3],
-
+      ["beden sec", 6],
+      ["numara sec", 6],
       ["urun", 2]
 
     ],
@@ -257,7 +247,7 @@ export function analyzeContentIntent(
 
   /* =======================================================
      3. KAMPANYA
-     ======================================================= */
+     ========================================================= */
 
   scorePatterns({
 
@@ -272,27 +262,18 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["kampanya", 10],
-
-      ["indirim", 8],
-
-      ["firsat", 7],
-
-      ["ozel fiyat", 7],
-
-      ["erken kayit indirimi", 10],
-
-      ["uyelik indirimi", 9],
-
-      ["ilk ay ucretsiz", 10],
-
-      ["ilk ders ucretsiz", 9],
-
-      ["deneme dersi ucretsiz", 9],
-
-      ["promosyon", 7],
-
-      ["kupon", 6]
+      ["kampanya", 13],
+      ["indirim", 10],
+      ["ozel fiyat", 9],
+      ["erken kayit indirimi", 14],
+      ["uyelik indirimi", 13],
+      ["ilk ay ucretsiz", 14],
+      ["ilk ders ucretsiz", 12],
+      ["deneme dersi ucretsiz", 12],
+      ["promosyon", 9],
+      ["kupon kodu", 10],
+      ["indirim kodu", 10],
+      ["yuzde indirim", 9]
 
     ],
 
@@ -306,16 +287,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     4. SONUÇ / TAMAMLANMIŞ OLAY
-
-     Özellikle:
-     "Şampiyon Fenerbahçe"
-     "kupayı kazandı"
-     "finalde..."
-     "tebrik ederiz"
-
-     gibi içerikleri yakalar.
-     ======================================================= */
+     4. SONUÇ
+     ========================================================= */
 
   scorePatterns({
 
@@ -330,49 +303,20 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["sampiyon oldu", 12],
-
-      ["sampiyonlugunu ilan etti", 12],
-
-      ["sampiyonluga ulasti", 12],
-
-      ["sampiyon", 7],
-
-      ["kupayi kazandi", 12],
-
-      ["kupayi kaldirdi", 12],
-
-      ["kazandi", 7],
-
-      ["maglup etti", 8],
-
-      ["galip geldi", 8],
-
-      ["finalde", 5],
-
-      ["final macinda", 6],
-
-      ["derece elde etti", 8],
-
-      ["madalya kazandi", 9],
-
-      ["altin madalya", 7],
-
-      ["gumus madalya", 7],
-
-      ["bronz madalya", 7],
-
-      ["sonuclandi", 10],
-
-      ["tamamlandi", 9],
-
-      ["sona erdi", 9],
-
-      ["tebrik ederiz", 6],
-
-      ["basari elde etti", 6],
-
-      ["rekor kirdi", 8]
+      ["sampiyon oldu", 16],
+      ["sampiyonlugunu ilan etti", 16],
+      ["sampiyonluga ulasti", 16],
+      ["kupayi kazandi", 16],
+      ["kupayi kaldirdi", 15],
+      ["macini kazandi", 12],
+      ["karsilasmayi kazandi", 12],
+      ["maglup etti", 12],
+      ["galip geldi", 12],
+      ["sonuclandi", 13],
+      ["tamamlandi", 11],
+      ["sona erdi", 11],
+      ["final sona erdi", 12],
+      ["sonuc belli oldu", 12]
 
     ],
 
@@ -380,61 +324,131 @@ export function analyzeContentIntent(
       reasons,
 
     reasonLabel:
-      "Tamamlanmış sonuç sinyali"
+      "Sonuç sinyali"
 
   });
 
 
-  /* -------------------------------------------------------
-     Başlıkta güçlü sonuç sinyali daha değerli.
-     ------------------------------------------------------- */
+  /* =======================================================
+     5. BAŞARI
+     ========================================================= */
 
-  if (
-    containsAny(
-      titleText,
-      [
+  scorePatterns({
 
-        "sampiyon",
+    text:
+      text,
 
-        "kazandi",
+    target:
+      scores,
 
-        "maglup etti",
+    key:
+      "achievement",
 
-        "galip geldi",
+    patterns: [
 
-        "kupayi kazandi",
+      ["rekor kirdi", 15],
+      ["turkiye rekoru", 12],
+      ["dunya rekoru", 14],
+      ["madalya kazandi", 14],
+      ["altin madalya", 12],
+      ["gumus madalya", 11],
+      ["bronz madalya", 11],
+      ["derece elde etti", 11],
+      ["basari elde etti", 9],
+      ["kota kazandi", 11],
+      ["rekor yeniledi", 13]
 
-        "madalya kazandi",
+    ],
 
-        "rekor kirdi"
+    reasons:
+      reasons,
 
-      ]
-    )
-  ) {
+    reasonLabel:
+      "Başarı sinyali"
 
-    scores.result +=
-      8;
-
-
-    reasons.push(
-      "Başlık doğrudan sonuç / başarı bildiriyor."
-    );
-
-  }
+  });
 
 
   /* =======================================================
-     5. KAYIT / BAŞVURU
+     6. GÖREVLENDİRME
+     ========================================================= */
 
-     Bu alan sonuçtan sonra değil,
-     bağımsız skorlanıyor.
+  scorePatterns({
 
-     Örneğin:
-     "SEM kayıt hakkı kazanan sporcular açıklandı"
-     ama devamında
-     "10 iş günü içinde kayıt işlemlerini tamamlamalı"
-     deniyorsa kullanıcı aksiyonu vardır.
-     ======================================================= */
+    text:
+      text,
+
+    target:
+      scores,
+
+    key:
+      "assignment",
+
+    patterns: [
+
+      ["gorevlendirildi", 14],
+      ["goreve getirildi", 14],
+      ["gorevini aldi", 12],
+      ["gorev aldi", 11],
+      ["hakemlik gorevi", 12],
+      ["hakem olarak gorevlendirildi", 16],
+      ["antrenor olarak gorevlendirildi", 15],
+      ["teknik direktor olarak", 9],
+      ["atandi", 12],
+      ["atamasi yapildi", 12]
+
+    ],
+
+    reasons:
+      reasons,
+
+    reasonLabel:
+      "Görevlendirme sinyali"
+
+  });
+
+
+  /* =======================================================
+     7. TRANSFER / KARİYER HAREKETİ
+     ========================================================= */
+
+  scorePatterns({
+
+    text:
+      text,
+
+    target:
+      scores,
+
+    key:
+      "transfer",
+
+    patterns: [
+
+      ["transfer oldu", 14],
+      ["transfer edildi", 14],
+      ["kadroya katildi", 13],
+      ["takima katildi", 12],
+      ["sozlesme imzaladi", 14],
+      ["sozlesme yeniledi", 12],
+      ["yeni kulubu", 10],
+      ["ayrilik aciklamasi", 9],
+      ["yollar ayrildi", 11]
+
+    ],
+
+    reasons:
+      reasons,
+
+    reasonLabel:
+      "Transfer / kariyer sinyali"
+
+  });
+
+
+  /* =======================================================
+     8. KAYIT / BAŞVURU
+     ========================================================= */
 
   scorePatterns({
 
@@ -449,37 +463,25 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["basvurular basladi", 12],
-
-      ["kayitlar basladi", 12],
-
-      ["kayit yaptir", 10],
-
-      ["basvuru yap", 10],
-
-      ["basvuru formu", 8],
-
-      ["basvuru", 5],
-
-      ["kayit islemleri", 8],
-
-      ["kayit", 4],
-
-      ["son basvuru", 10],
-
-      ["son kayit", 10],
-
-      ["basvuru tarihi", 7],
-
-      ["kayit tarihi", 7],
-
-      ["e devlet uzerinden", 5],
-
-      ["is gunu icinde", 6],
-
-      ["tamamlamalari gerekmektedir", 8],
-
-      ["gerekli belgeler", 5]
+      ["basvurular basladi", 15],
+      ["kayitlar basladi", 15],
+      ["kayit yaptir", 13],
+      ["basvuru yap", 13],
+      ["basvuru formu", 11],
+      ["kayit formu", 11],
+      ["kayit islemleri", 10],
+      ["son basvuru", 13],
+      ["son kayit", 13],
+      ["basvuru tarihi", 9],
+      ["kayit tarihi", 9],
+      ["e devlet uzerinden", 6],
+      ["e devlet", 4],
+      ["is gunu icinde", 7],
+      ["tamamlamalari gerekmektedir", 10],
+      ["kayit yaptirmalari", 10],
+      ["gerekli belgeler", 6],
+      ["basvuru kosullari", 8],
+      ["kayit kosullari", 8]
 
     ],
 
@@ -493,10 +495,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     6. YAKLAŞAN FIRSAT / ETKİNLİK
-
-     Gelecek zaman fiillerine ağırlık veriyoruz.
-     ======================================================= */
+     9. YAKLAŞAN FIRSAT / ETKİNLİK
+     ========================================================= */
 
   scorePatterns({
 
@@ -511,34 +511,21 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["duzenlenecek", 10],
-
-      ["gerceklesecek", 10],
-
-      ["yapilacak", 8],
-
-      ["oynanacak", 9],
-
-      ["baslayacak", 9],
-
-      ["basliyor", 7],
-
+      ["duzenlenecek", 12],
+      ["gerceklesecek", 12],
+      ["gerceklestirilecek", 12],
+      ["yapilacak", 10],
+      ["oynanacak", 11],
+      ["baslayacak", 11],
+      ["basliyor", 8],
+      ["katilabilir", 9],
+      ["katilim icin", 8],
       ["katilim", 4],
-
-      ["katilabilir", 6],
-
-      ["katilimcilari", 3],
-
       ["program", 2],
-
       ["turnuva", 3],
-
       ["festival", 4],
-
       ["kamp", 3],
-
       ["seminer", 3],
-
       ["kurs", 3]
 
     ],
@@ -547,14 +534,14 @@ export function analyzeContentIntent(
       reasons,
 
     reasonLabel:
-      "Yaklaşan fırsat sinyali"
+      "Fırsat / yaklaşan faaliyet sinyali"
 
   });
 
 
   /* =======================================================
-     7. DUYURU
-     ======================================================= */
+     10. DUYURU
+     ========================================================= */
 
   scorePatterns({
 
@@ -569,25 +556,16 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["duyuru", 6],
-
-      ["duyuruldu", 5],
-
-      ["duyurusu", 5],
-
-      ["aciklandi", 4],
-
-      ["bilgilendirme", 6],
-
-      ["ilan edildi", 5],
-
-      ["yayimlandi", 4],
-
-      ["yayınlandı", 4],
-
-      ["programi aciklandi", 6],
-
-      ["liste aciklandi", 5]
+      ["duyuru", 8],
+      ["duyuruldu", 7],
+      ["duyurusu", 7],
+      ["aciklandi", 6],
+      ["bilgilendirme", 8],
+      ["ilan edildi", 7],
+      ["yayimlandi", 5],
+      ["programi aciklandi", 9],
+      ["liste aciklandi", 8],
+      ["takvim aciklandi", 8]
 
     ],
 
@@ -601,8 +579,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     8. GENEL HABER
-     ======================================================= */
+     11. GENEL HABER
+     ========================================================= */
 
   scorePatterns({
 
@@ -617,19 +595,15 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["ziyaret etti", 5],
-
-      ["bir araya geldi", 5],
-
-      ["toplanti", 4],
-
-      ["aciklama yapti", 4],
-
-      ["protokol", 4],
-
-      ["tarihinde", 1],
-
-      ["federasyonu", 1]
+      ["ziyaret etti", 6],
+      ["bir araya geldi", 6],
+      ["toplanti", 5],
+      ["aciklama yapti", 6],
+      ["protokol", 5],
+      ["roportaj", 5],
+      ["degerlendirmelerde bulundu", 5],
+      ["federasyonu", 1],
+      ["kulubu", 1]
 
     ],
 
@@ -643,8 +617,26 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     ÖZEL ÇAKIŞMA KURALLARI
-     ======================================================= */
+     12. STRUCTURED DATA / ACTION DESTEĞİ
+     ========================================================= */
+
+  applyStructuredSignals({
+
+    post:
+      post,
+
+    scores:
+      scores,
+
+    reasons:
+      reasons
+
+  });
+
+
+  /* =======================================================
+     13. ÖZEL ÇAKIŞMA KURALLARI
+     ========================================================= */
 
   applySpecialRules({
 
@@ -667,8 +659,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     NİHAİ INTENT
-     ======================================================= */
+     14. NİHAİ INTENT
+     ========================================================= */
 
   const contentIntent =
     selectIntent(
@@ -677,23 +669,17 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     EVENT STATUS
-     ======================================================= */
+     15. SEMANTİK EVENT STATUS
+     ========================================================= */
 
   const eventStatus =
     determineEventStatus({
-
-      post:
-        post,
 
       text:
         text,
 
       contentIntent:
         contentIntent,
-
-      scores:
-        scores,
 
       reasons:
         reasons
@@ -702,8 +688,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     ACTIONABLE
-     ======================================================= */
+     16. ACTIONABLE
+     ========================================================= */
 
   const actionable =
     determineActionable({
@@ -724,8 +710,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     OPPORTUNITY SCORE
-     ======================================================= */
+     17. OPPORTUNITY SCORE
+     ========================================================= */
 
   const opportunityScore =
     calculateOpportunityScore({
@@ -746,8 +732,8 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     CONFIDENCE
-     ======================================================= */
+     18. CONFIDENCE
+     ========================================================= */
 
   const confidenceScore =
     calculateConfidenceScore(
@@ -757,17 +743,14 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     AKIŞ DAVRANIŞI
-     ======================================================= */
+     19. FEED TREATMENT
+     ========================================================= */
 
   const feedTreatment =
     determineFeedTreatment({
 
       contentIntent:
         contentIntent,
-
-      eventStatus:
-        eventStatus,
 
       actionable:
         actionable,
@@ -851,27 +834,17 @@ export function applyContentIntent(
 
     ...post,
 
-
-    /*
-      Mevcut contentType alanını bozmayalım.
-      Daha özel anlam alanını ayrıca ekliyoruz.
-    */
-
     contentIntent:
       analysis.contentIntent,
-
 
     eventStatus:
       analysis.eventStatus,
 
-
     actionable:
       analysis.actionable,
 
-
     opportunityScore:
       analysis.opportunityScore,
-
 
     intentMeta: {
 
@@ -933,159 +906,93 @@ export function applyContentIntentToPosts(
 
 
 /* =========================================================
-   ÖZEL KURALLAR
+   SCORE MAP
    ========================================================= */
 
-function applySpecialRules({
+function createScoreMap() {
+
+  return {
+
+    opportunity:
+      0,
+
+    registration:
+      0,
+
+    result:
+      0,
+
+    achievement:
+      0,
+
+    assignment:
+      0,
+
+    transfer:
+      0,
+
+    announcement:
+      0,
+
+    campaign:
+      0,
+
+    job:
+      0,
+
+    product:
+      0,
+
+    news:
+      0
+
+  };
+
+}
+
+
+/* =========================================================
+   STRUCTURED SIGNALS
+   ========================================================= */
+
+function applyStructuredSignals({
 
   post,
-  text,
-  titleText,
   scores,
   reasons
 
 }) {
 
-  /* -------------------------------------------------------
-     ŞAMPİYON + TEBRİK
-     yaklaşan etkinlik değildir.
-     ------------------------------------------------------- */
-
-  if (
-    containsAny(
-      titleText,
-      [
-        "sampiyon",
-        "kupayi kazandi"
-      ]
+  const details =
+    isPlainObject(
+      post?.details
     )
-    &&
-    containsAny(
-      text,
-      [
-        "tebrik",
-        "final",
-        "sampiyonluga ulasti",
-        "kazandi"
-      ]
+      ? post.details
+      : {};
+
+
+  const facts =
+    isPlainObject(
+      post?.facts
     )
-  ) {
-
-    scores.result +=
-      15;
+      ? post.facts
+      : {};
 
 
-    scores.opportunity -=
-      8;
-
-
-    reasons.push(
-      "Şampiyonluk/sonuç dili yaklaşan etkinlik yorumunu bastırdı."
+  const category =
+    normalizeId(
+      post?.category
     );
 
-  }
+
+  const providerType =
+    normalizeId(
+      post?.providerType
+    );
 
 
   /* -------------------------------------------------------
-     "Kayıt hakkı kazananlar açıklandı"
-
-     Sonuç vardır ama hâlâ kayıt işlemi gerekiyorsa
-     kullanıcı aksiyonu da vardır.
-     ------------------------------------------------------- */
-
-  if (
-    containsAny(
-      text,
-      [
-        "kayit hakki kazanan",
-        "hak kazanan sporcular"
-      ]
-    )
-  ) {
-
-    scores.result +=
-      7;
-
-
-    scores.announcement +=
-      5;
-
-
-    if (
-      containsAny(
-        text,
-        [
-          "kayit islemlerini",
-          "is gunu icinde",
-          "tamamlamalari gerekmektedir",
-          "kayit yaptirmalari"
-        ]
-      )
-    ) {
-
-      scores.registration +=
-        15;
-
-
-      reasons.push(
-        "Sonuç duyurusu sonrası kullanıcıdan kayıt işlemi bekleniyor."
-      );
-
-    }
-
-  }
-
-
-  /* -------------------------------------------------------
-     Gelecek zaman varsa result skorunu biraz azalt.
-     ------------------------------------------------------- */
-
-  if (
-    containsAny(
-      text,
-      [
-        "duzenlenecek",
-        "gerceklesecek",
-        "oynanacak",
-        "yapilacak",
-        "baslayacak"
-      ]
-    )
-  ) {
-
-    scores.result -=
-      3;
-
-  }
-
-
-  /* -------------------------------------------------------
-     Doğrudan geçmiş zaman + başarı dili
-     ------------------------------------------------------- */
-
-  if (
-    containsAny(
-      text,
-      [
-        "tamamlandi",
-        "sona erdi",
-        "sampiyon oldu",
-        "kazandi",
-        "maglup etti",
-        "galip geldi"
-      ]
-    )
-  ) {
-
-    scores.result +=
-      5;
-
-  }
-
-
-  /* -------------------------------------------------------
-     Postta transactional action varsa
-     registration / opportunity desteği.
+     GERÇEK ACTION TİPLERİ
      ------------------------------------------------------- */
 
   if (
@@ -1093,7 +1000,26 @@ function applySpecialRules({
       post,
       [
         "register",
-        "apply",
+        "apply"
+      ]
+    )
+  ) {
+
+    scores.registration +=
+      12;
+
+
+    reasons.push(
+      "Post üzerinde doğrudan kayıt/başvuru aksiyonu var."
+    );
+
+  }
+
+
+  if (
+    hasActionType(
+      post,
+      [
         "ticket",
         "join",
         "contact"
@@ -1101,11 +1027,13 @@ function applySpecialRules({
     )
   ) {
 
-    scores.registration +=
-      5;
-
     scores.opportunity +=
-      3;
+      8;
+
+
+    reasons.push(
+      "Post üzerinde katılım/iletişim aksiyonu var."
+    );
 
   }
 
@@ -1121,7 +1049,12 @@ function applySpecialRules({
   ) {
 
     scores.product +=
-      8;
+      14;
+
+
+    reasons.push(
+      "Post üzerinde ürün/satın alma aksiyonu var."
+    );
 
   }
 
@@ -1136,7 +1069,523 @@ function applySpecialRules({
   ) {
 
     scores.campaign +=
+      14;
+
+
+    reasons.push(
+      "Post üzerinde kampanya aksiyonu var."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     İŞ
+     ------------------------------------------------------- */
+
+  if (
+    category ===
+    "jobs"
+    ||
+    hasUsefulValue(
+      details.position
+    )
+    ||
+    hasUsefulValue(
+      details.employmentType
+    )
+    ||
+    hasUsefulValue(
+      details.salaryMin
+    )
+    ||
+    hasUsefulValue(
+      details.salaryMax
+    )
+  ) {
+
+    scores.job +=
+      category ===
+      "jobs"
+        ? 8
+        : 5;
+
+  }
+
+
+  /* -------------------------------------------------------
+     ÜRÜN
+     ------------------------------------------------------- */
+
+  if (
+    category ===
+    "stores"
+    ||
+    providerType ===
+    "store"
+    ||
+    hasUsefulValue(
+      details.productName
+    )
+    ||
+    hasUsefulValue(
+      details.stockStatus
+    )
+  ) {
+
+    scores.product +=
+      (
+        category ===
+        "stores"
+        ||
+        providerType ===
+        "store"
+      )
+        ? 7
+        : 4;
+
+  }
+
+
+  /* -------------------------------------------------------
+     KAMPANYA
+     ------------------------------------------------------- */
+
+  if (
+    category ===
+    "campaign"
+    ||
+    hasUsefulValue(
+      details.discountRate
+    )
+    ||
+    (
+      hasUsefulValue(
+        details.oldPrice
+      )
+      &&
+      (
+        hasUsefulValue(
+          details.newPrice
+        )
+        ||
+        hasUsefulValue(
+          details.price
+        )
+      )
+    )
+  ) {
+
+    scores.campaign +=
+      category ===
+      "campaign"
+        ? 7
+        : 5;
+
+  }
+
+
+  /* -------------------------------------------------------
+     REGISTRATION
+     ------------------------------------------------------- */
+
+  if (
+    hasUsefulValue(
+      details.registrationDeadline
+    )
+    ||
+    hasUsefulValue(
+      details.deadlineIso
+    )
+    ||
+    hasUsefulValue(
+      facts.registrationDeadline
+    )
+  ) {
+
+    if (
+      category !==
+      "jobs"
+    ) {
+
+      scores.registration +=
+        7;
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     LEGACY FACT ENGINE
+     ------------------------------------------------------- */
+
+  if (
+    facts.isCoachCourse ===
+    true
+  ) {
+
+    scores.opportunity +=
+      5;
+
+  }
+
+
+  if (
+    facts.actionRequired ===
+    true
+  ) {
+
+    scores.registration +=
+      4;
+
+  }
+
+}
+
+
+/* =========================================================
+   ÖZEL KURALLAR
+   ========================================================= */
+
+function applySpecialRules({
+
+  post,
+  text,
+  titleText,
+  scores,
+  reasons
+
+}) {
+
+  /* -------------------------------------------------------
+     GÜÇLÜ SONUÇ BAŞLIĞI
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      titleText,
+      [
+        "sampiyon oldu",
+        "kupayi kazandi",
+        "kupayi kaldirdi",
+        "maglup etti",
+        "galip geldi"
+      ]
+    )
+  ) {
+
+    scores.result +=
+      10;
+
+
+    reasons.push(
+      "Başlık doğrudan sonuç bildiriyor."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     GÜÇLÜ BAŞARI BAŞLIĞI
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      titleText,
+      [
+        "rekor kirdi",
+        "madalya kazandi",
+        "derece elde etti",
+        "kota kazandi"
+      ]
+    )
+  ) {
+
+    scores.achievement +=
+      10;
+
+
+    reasons.push(
+      "Başlık doğrudan başarı bildiriyor."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     ŞAMPİYON ≠ ŞAMPİYONA
+     ------------------------------------------------------- */
+
+  if (
+    containsPhrase(
+      titleText,
+      "sampiyon"
+    )
+  ) {
+
+    scores.result +=
+      6;
+
+  }
+
+
+  /* -------------------------------------------------------
+     ŞAMPİYONLUK + TEBRİK
+     ------------------------------------------------------- */
+
+  if (
+    (
+      containsPhrase(
+        titleText,
+        "sampiyon"
+      )
+      ||
+      containsAnyPhrase(
+        titleText,
+        [
+          "kupayi kazandi",
+          "sampiyon oldu"
+        ]
+      )
+    )
+    &&
+    containsAnyPhrase(
+      text,
+      [
+        "tebrik ederiz",
+        "sampiyonluga ulasti",
+        "kupayi kazandi",
+        "kazandi"
+      ]
+    )
+  ) {
+
+    scores.result +=
+      12;
+
+
+    scores.opportunity -=
       8;
+
+
+    reasons.push(
+      "Şampiyonluk/sonuç dili yaklaşan etkinlik yorumunu bastırdı."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     KAYIT HAKKI KAZANANLAR
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      text,
+      [
+        "kayit hakki kazanan",
+        "hak kazanan sporcular",
+        "hak kazanan adaylar"
+      ]
+    )
+  ) {
+
+    scores.result +=
+      8;
+
+
+    scores.announcement +=
+      7;
+
+
+    if (
+      containsAnyPhrase(
+        text,
+        [
+          "kayit islemlerini",
+          "is gunu icinde",
+          "tamamlamalari gerekmektedir",
+          "kayit yaptirmalari",
+          "basvuru yapmalari"
+        ]
+      )
+    ) {
+
+      scores.registration +=
+        18;
+
+
+      reasons.push(
+        "Sonuç duyurusu sonrası kullanıcıdan gerçek kayıt/başvuru işlemi bekleniyor."
+      );
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     GELECEK ZAMAN
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      text,
+      [
+        "duzenlenecek",
+        "gerceklesecek",
+        "gerceklestirilecek",
+        "oynanacak",
+        "yapilacak",
+        "baslayacak"
+      ]
+    )
+  ) {
+
+    scores.result -=
+      5;
+
+
+    scores.achievement -=
+      3;
+
+  }
+
+
+  /* -------------------------------------------------------
+     GEÇMİŞ SONUÇ
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      text,
+      [
+        "tamamlandi",
+        "sona erdi",
+        "sampiyon oldu",
+        "kupayi kazandi",
+        "maglup etti",
+        "galip geldi"
+      ]
+    )
+  ) {
+
+    scores.result +=
+      5;
+
+
+    scores.opportunity -=
+      5;
+
+  }
+
+
+  /* -------------------------------------------------------
+     AKTİF KAYIT
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      text,
+      [
+        "basvurular basladi",
+        "kayitlar basladi",
+        "basvurular devam ediyor",
+        "kayitlar devam ediyor",
+        "son basvuru",
+        "son kayit"
+      ]
+    )
+  ) {
+
+    scores.registration +=
+      8;
+
+  }
+
+
+  /* -------------------------------------------------------
+     ÜRÜN + KAMPANYA
+     ------------------------------------------------------- */
+
+  if (
+    scores.campaign >=
+    10
+    &&
+    scores.product >
+    0
+  ) {
+
+    scores.campaign +=
+      4;
+
+  }
+
+
+  /* -------------------------------------------------------
+     İŞ İLANI + BAŞVURU
+     ------------------------------------------------------- */
+
+  if (
+    scores.job >=
+    10
+  ) {
+
+    scores.registration =
+      Math.max(
+
+        0,
+
+        scores.registration -
+        5
+
+      );
+
+  }
+
+
+  /* -------------------------------------------------------
+     ÜRÜN / KAMPANYA + FIRSAT
+     ------------------------------------------------------- */
+
+  if (
+    scores.product >=
+    10
+    ||
+    scores.campaign >=
+    10
+  ) {
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        3
+
+      );
+
+  }
+
+
+  /* -------------------------------------------------------
+     ACTION
+     ------------------------------------------------------- */
+
+  if (
+    hasActionType(
+      post,
+      [
+        "register",
+        "apply"
+      ]
+    )
+  ) {
+
+    scores.registration +=
+      5;
 
   }
 
@@ -1151,10 +1600,6 @@ function selectIntent(
   scores
 ) {
 
-  /*
-    Ticari / iş içerikleri yüksek özgüllüğe sahip.
-  */
-
   const priority = [
 
     "job",
@@ -1166,6 +1611,12 @@ function selectIntent(
     "registration",
 
     "result",
+
+    "achievement",
+
+    "assignment",
+
+    "transfer",
 
     "opportunity",
 
@@ -1206,6 +1657,7 @@ function selectIntent(
       bestScore =
         score;
 
+
       bestKey =
         key;
 
@@ -1214,16 +1666,12 @@ function selectIntent(
   }
 
 
-  /*
-    Hiçbir anlamlı sinyal yoksa genel haber.
-  */
-
   if (
     bestScore <=
     0
   ) {
 
-    return "news";
+    return CONTENT_INTENTS.news;
 
   }
 
@@ -1234,218 +1682,97 @@ function selectIntent(
 
 
 /* =========================================================
-   EVENT STATUS
+   SEMANTİK EVENT STATUS
+
+   Gerçek tarih karşılaştırması burada YOKTUR.
+   Temporal Engine daha sonra doğrular.
    ========================================================= */
 
 function determineEventStatus({
 
-  post,
   text,
   contentIntent,
-  scores,
   reasons
 
 }) {
 
-  /* -------------------------------------------------------
-     Sonuç içerikleri doğrudan tamamlanmış sayılır.
-     ------------------------------------------------------- */
-
   if (
     contentIntent ===
-    "result"
+    CONTENT_INTENTS.result
+    ||
+    contentIntent ===
+    CONTENT_INTENTS.achievement
   ) {
 
     reasons.push(
-      "Sonuç içeriği olduğu için eventStatus completed."
+      "Sonuç/başarı içeriği semantik olarak tamamlanmış olay bildiriyor."
     );
 
 
-    return "completed";
+    return EVENT_STATUSES.completed;
 
   }
 
 
-  /* -------------------------------------------------------
-     Açık geçmiş zaman sinyalleri
-     ------------------------------------------------------- */
-
   if (
-    containsAny(
+    containsAnyPhrase(
       text,
       [
-
         "tamamlandi",
-
         "sona erdi",
-
-        "sampiyon oldu",
-
-        "kazandi",
-
-        "maglup etti",
-
-        "galip geldi",
-
         "duzenlendi",
-
-        "gerceklestirildi"
-
+        "gerceklestirildi",
+        "sampiyon oldu",
+        "kupayi kazandi",
+        "maglup etti",
+        "galip geldi"
       ]
     )
   ) {
 
-    return "completed";
+    return EVENT_STATUSES.completed;
 
   }
 
 
-  /* -------------------------------------------------------
-     Devam ediyor
-     ------------------------------------------------------- */
-
   if (
-    containsAny(
+    containsAnyPhrase(
       text,
       [
-
         "devam ediyor",
-
         "suruyor",
-
         "devam etmekte",
-
-        "halen devam eden"
-
+        "halen devam eden",
+        "bugun devam ediyor"
       ]
     )
   ) {
 
-    return "ongoing";
+    return EVENT_STATUSES.ongoing;
 
   }
 
 
-  /* -------------------------------------------------------
-     Gelecek zaman
-     ------------------------------------------------------- */
-
   if (
-    containsAny(
+    containsAnyPhrase(
       text,
       [
-
         "duzenlenecek",
-
         "gerceklesecek",
-
+        "gerceklestirilecek",
         "oynanacak",
-
         "yapilacak",
-
-        "baslayacak",
-
-        "gerceklestirilecek"
-
+        "baslayacak"
       ]
     )
   ) {
 
-    return "upcoming";
+    return EVENT_STATUSES.upcoming;
 
   }
 
 
-  /* -------------------------------------------------------
-     Structured dates
-
-     Normalizer artık publication date'i
-     startDate'e koymadığı için burada daha güvenli.
-     ------------------------------------------------------- */
-
-  const startDate =
-    cleanString(
-      post?.details?.startDate
-    );
-
-
-  const endDate =
-    cleanString(
-      post?.details?.endDate
-    );
-
-
-  const startTimestamp =
-    parseDateValue(
-      startDate
-    );
-
-
-  const endTimestamp =
-    parseDateValue(
-      endDate
-    );
-
-
-  const now =
-    Date.now();
-
-
-  if (
-    endTimestamp >
-    0 &&
-    endTimestamp <
-    now
-  ) {
-
-    return "completed";
-
-  }
-
-
-  if (
-    startTimestamp >
-    now
-  ) {
-
-    return "upcoming";
-
-  }
-
-
-  if (
-    startTimestamp >
-    0 &&
-    startTimestamp <=
-    now &&
-    (
-      endTimestamp ===
-      0 ||
-      endTimestamp >=
-      now
-    )
-  ) {
-
-    return "ongoing";
-
-  }
-
-
-  /* -------------------------------------------------------
-     Registration tek başına etkinlik tarihi anlamına gelmez.
-     ------------------------------------------------------- */
-
-  if (
-    contentIntent ===
-    "registration"
-  ) {
-
-    return "unknown";
-
-  }
-
-
-  return "unknown";
+  return EVENT_STATUSES.unknown;
 
 }
 
@@ -1463,32 +1790,35 @@ function determineActionable({
 
 }) {
 
-  /* -------------------------------------------------------
-     Açık kullanıcı aksiyonu
-     ------------------------------------------------------- */
+  if (
+    [
+      CONTENT_INTENTS.result,
+      CONTENT_INTENTS.achievement,
+      CONTENT_INTENTS.assignment,
+      CONTENT_INTENTS.transfer,
+      CONTENT_INTENTS.news,
+      CONTENT_INTENTS.announcement
+    ].includes(
+      contentIntent
+    )
+  ) {
+
+    if (
+      !hasTransactionalAction(
+        post
+      )
+    ) {
+
+      return false;
+
+    }
+
+  }
+
 
   if (
-    hasActionType(
-      post,
-      [
-
-        "register",
-
-        "apply",
-
-        "buy",
-
-        "ticket",
-
-        "join",
-
-        "campaign",
-
-        "product",
-
-        "contact"
-
-      ]
+    hasTransactionalAction(
+      post
     )
   ) {
 
@@ -1497,16 +1827,12 @@ function determineActionable({
   }
 
 
-  /* -------------------------------------------------------
-     Intent bazlı
-     ------------------------------------------------------- */
-
   if (
     [
-      "registration",
-      "campaign",
-      "job",
-      "product"
+      CONTENT_INTENTS.registration,
+      CONTENT_INTENTS.campaign,
+      CONTENT_INTENTS.job,
+      CONTENT_INTENTS.product
     ].includes(
       contentIntent
     )
@@ -1519,58 +1845,26 @@ function determineActionable({
 
   if (
     contentIntent ===
-    "opportunity" &&
+    CONTENT_INTENTS.opportunity
+    &&
     eventStatus !==
-    "completed"
-  ) {
-
-    return true;
-
-  }
-
-
-  /* -------------------------------------------------------
-     Metinsel aksiyon
-     ------------------------------------------------------- */
-
-  if (
-    containsAny(
+    EVENT_STATUSES.completed
+    &&
+    containsAnyPhrase(
       text,
       [
-
-        "basvuru yap",
-
-        "kayit yaptir",
-
-        "bilet al",
-
-        "satin al",
-
-        "cv gonder",
-
+        "katilabilir",
         "katilim icin",
-
-        "basvurular devam ediyor"
-
+        "basvuru yap",
+        "kayit yaptir",
+        "bilet al",
+        "basvurular basladi",
+        "kayitlar basladi"
       ]
     )
   ) {
 
     return true;
-
-  }
-
-
-  /*
-    Sonuç haberi kullanıcı aksiyonu değildir.
-  */
-
-  if (
-    contentIntent ===
-    "result"
-  ) {
-
-    return false;
 
   }
 
@@ -1581,7 +1875,37 @@ function determineActionable({
 
 
 /* =========================================================
+   TRANSACTIONAL ACTION
+   ========================================================= */
+
+function hasTransactionalAction(
+  post
+) {
+
+  return hasActionType(
+    post,
+    [
+      "register",
+      "apply",
+      "buy",
+      "ticket",
+      "join",
+      "campaign",
+      "product",
+      "contact"
+    ]
+  );
+
+}
+
+
+/* =========================================================
    OPPORTUNITY SCORE
+
+   Bu Ranking Score değildir.
+
+   Kullanıcının şu anda değerlendirebileceği
+   fırsat ihtimalini anlatır.
    ========================================================= */
 
 function calculateOpportunityScore({
@@ -1597,90 +1921,88 @@ function calculateOpportunityScore({
     0;
 
 
-  if (
-    contentIntent ===
-    "registration"
+  switch (
+    contentIntent
   ) {
 
-    score +=
-      85;
+    case CONTENT_INTENTS.registration:
 
-  }
+      score =
+        82;
 
-
-  else if (
-    contentIntent ===
-    "opportunity"
-  ) {
-
-    score +=
-      75;
-
-  }
+      break;
 
 
-  else if (
-    contentIntent ===
-    "campaign"
-  ) {
+    case CONTENT_INTENTS.opportunity:
 
-    score +=
-      80;
+      score =
+        68;
 
-  }
+      break;
 
 
-  else if (
-    contentIntent ===
-    "job"
-  ) {
+    case CONTENT_INTENTS.campaign:
 
-    score +=
-      80;
+      score =
+        78;
 
-  }
+      break;
 
 
-  else if (
-    contentIntent ===
-    "product"
-  ) {
+    case CONTENT_INTENTS.job:
 
-    score +=
-      70;
+      score =
+        78;
 
-  }
+      break;
 
 
-  else if (
-    contentIntent ===
-    "announcement"
-  ) {
+    case CONTENT_INTENTS.product:
 
-    score +=
-      35;
+      score =
+        65;
 
-  }
+      break;
 
 
-  else if (
-    contentIntent ===
-    "news"
-  ) {
+    case CONTENT_INTENTS.announcement:
 
-    score +=
-      15;
+      score =
+        28;
 
-  }
+      break;
 
 
-  else if (
-    contentIntent ===
-    "result"
-  ) {
+    case CONTENT_INTENTS.news:
+    case CONTENT_INTENTS.assignment:
+    case CONTENT_INTENTS.transfer:
 
-    score =
-      5;
+      score =
+        15;
+
+      break;
+
+
+    case CONTENT_INTENTS.achievement:
+
+      score =
+        10;
+
+      break;
+
+
+    case CONTENT_INTENTS.result:
+
+      score =
+        8;
+
+      break;
+
+
+    default:
+
+      score =
+        0;
 
   }
 
@@ -1697,37 +2019,32 @@ function calculateOpportunityScore({
 
   if (
     eventStatus ===
-    "upcoming"
+    EVENT_STATUSES.upcoming
   ) {
 
     score +=
-      10;
+      8;
 
   }
 
 
   if (
     eventStatus ===
-    "completed"
+    EVENT_STATUSES.completed
   ) {
 
     score -=
-      20;
+      8;
 
   }
 
-
-  /*
-    registration skoru çok güçlüyse
-    birkaç puan destek.
-  */
 
   if (
     Number(
       scores.registration ||
       0
     ) >=
-    15
+    18
   ) {
 
     score +=
@@ -1737,11 +2054,15 @@ function calculateOpportunityScore({
 
 
   return clamp(
+
     Math.round(
       score
     ),
+
     0,
+
     100
+
   );
 
 }
@@ -1749,31 +2070,23 @@ function calculateOpportunityScore({
 
 /* =========================================================
    FEED TREATMENT
+
+   Haber/sonuç içerikleri otomatik cezalandırılmaz.
+
+   Asıl sıralama Ranking Engine'e aittir.
    ========================================================= */
 
 function determineFeedTreatment({
 
   contentIntent,
-  eventStatus,
   actionable,
   opportunityScore
 
 }) {
 
   if (
-    contentIntent ===
-    "result" ||
-    eventStatus ===
-    "completed"
-  ) {
-
-    return "deprioritize";
-
-  }
-
-
-  if (
-    actionable &&
+    actionable
+    &&
     opportunityScore >=
     70
   ) {
@@ -1784,8 +2097,16 @@ function determineFeedTreatment({
 
 
   if (
-    contentIntent ===
-    "news"
+    [
+      CONTENT_INTENTS.news,
+      CONTENT_INTENTS.result,
+      CONTENT_INTENTS.achievement,
+      CONTENT_INTENTS.assignment,
+      CONTENT_INTENTS.transfer,
+      CONTENT_INTENTS.announcement
+    ].includes(
+      contentIntent
+    )
   ) {
 
     return "inform";
@@ -1843,16 +2164,27 @@ function calculateConfidenceScore(
 
 
   let confidence =
-    40;
+    35;
 
 
   if (
     first >=
-    10
+    6
   ) {
 
     confidence +=
-      20;
+      15;
+
+  }
+
+
+  if (
+    first >=
+    12
+  ) {
+
+    confidence +=
+      15;
 
   }
 
@@ -1863,7 +2195,7 @@ function calculateConfidenceScore(
   ) {
 
     confidence +=
-      15;
+      10;
 
   }
 
@@ -1875,18 +2207,18 @@ function calculateConfidenceScore(
 
   if (
     difference >=
-    10
+    5
   ) {
 
     confidence +=
-      15;
+      10;
 
   }
 
 
   if (
     difference >=
-    20
+    12
   ) {
 
     confidence +=
@@ -1897,7 +2229,8 @@ function calculateConfidenceScore(
 
   if (
     selected ===
-    "news" &&
+    CONTENT_INTENTS.news
+    &&
     first <=
     2
   ) {
@@ -1909,9 +2242,15 @@ function calculateConfidenceScore(
 
 
   return clamp(
-    confidence,
+
+    Math.round(
+      confidence
+    ),
+
     0,
+
     100
+
   );
 
 }
@@ -1919,8 +2258,6 @@ function calculateConfidenceScore(
 
 /* =========================================================
    SEARCH TEXT
-
-   Postun mümkün olduğu kadar bütün içeriğini okur.
    ========================================================= */
 
 function buildSearchText(
@@ -1929,27 +2266,29 @@ function buildSearchText(
 
   const values = [
 
-    post?.editorial?.headline,
-
     post?.editorial?.originalTitle,
 
-    post?.editorial?.influencerText,
-
     post?.editorial?.originalText,
+
+    post?.originalTitle,
+
+    post?.originalText,
 
     post?.title,
 
     post?.summary,
 
-    post?.originalTitle,
+    post?.editorial?.headline,
 
-    post?.originalText,
+    post?.editorial?.influencerText,
 
     post?.source?.name,
 
     post?.source?.shortName,
 
     post?.sport,
+
+    post?.section,
 
     post?.category,
 
@@ -2006,17 +2345,20 @@ function buildSearchText(
 
 
   return normalizeText(
+
     values
       .filter(
         value =>
           value !==
-          null &&
+          null
+          &&
           value !==
           undefined
       )
       .join(
         " "
       )
+
   );
 
 }
@@ -2032,13 +2374,21 @@ function buildTitleText(
 
   return normalizeText(
 
-    post?.editorial?.originalTitle ||
+    post?.editorial?.originalTitle
 
-    post?.originalTitle ||
+    ||
 
-    post?.editorial?.headline ||
+    post?.originalTitle
 
-    post?.title ||
+    ||
+
+    post?.editorial?.headline
+
+    ||
+
+    post?.title
+
+    ||
 
     ""
 
@@ -2070,14 +2420,11 @@ function scorePatterns({
     of patterns
   ) {
 
-    const normalizedPattern =
-      normalizeText(
-        pattern
-      );
-
-
     if (
-      !normalizedPattern
+      !containsPhrase(
+        text,
+        pattern
+      )
     ) {
 
       continue;
@@ -2085,33 +2432,25 @@ function scorePatterns({
     }
 
 
+    target[
+      key
+    ] +=
+      Number(
+        weight
+      ) ||
+      0;
+
+
     if (
-      text.includes(
-        normalizedPattern
-      )
+      Number(
+        weight
+      ) >=
+      9
     ) {
 
-      target[
-        key
-      ] +=
-        Number(
-          weight
-        ) ||
-        0;
-
-
-      if (
-        Number(
-          weight
-        ) >=
-        7
-      ) {
-
-        reasons.push(
-          `${reasonLabel}: "${pattern}"`
-        );
-
-      }
+      reasons.push(
+        `${reasonLabel}: "${pattern}"`
+      );
 
     }
 
@@ -2140,6 +2479,12 @@ function hasActionType(
   }
 
 
+  const normalizedTypes =
+    types.map(
+      normalizeId
+    );
+
+
   return post.actions.some(
     action => {
 
@@ -2154,181 +2499,13 @@ function hasActionType(
       }
 
 
-      return types.includes(
-        cleanString(
+      return normalizedTypes.includes(
+        normalizeId(
           action.type
         )
-          .toLowerCase()
       );
 
     }
-  );
-
-}
-
-
-/* =========================================================
-   DATE PARSE
-
-   Publication date burada kullanılmaz.
-   Yalnızca explicit details tarihleri çağrılır.
-   ========================================================= */
-
-function parseDateValue(
-  value
-) {
-
-  const text =
-    cleanString(
-      value
-    );
-
-
-  if (
-    !text
-  ) {
-
-    return 0;
-
-  }
-
-
-  /* -------------------------------------------------------
-     dd.mm.yyyy
-     ------------------------------------------------------- */
-
-  let match =
-    text.match(
-      /\b(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})\b/
-    );
-
-
-  if (
-    match
-  ) {
-
-    return Date.UTC(
-
-      Number(
-        match[3]
-      ),
-
-      Number(
-        match[2]
-      ) -
-      1,
-
-      Number(
-        match[1]
-      )
-
-    );
-
-  }
-
-
-  /* -------------------------------------------------------
-     7 Ekim 2026
-     ------------------------------------------------------- */
-
-  match =
-    text.match(
-
-      /\b(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(20\d{2})\b/i
-
-    );
-
-
-  if (
-    match
-  ) {
-
-    const month =
-      turkishMonthIndex(
-        match[2]
-      );
-
-
-    if (
-      month >=
-      0
-    ) {
-
-      return Date.UTC(
-
-        Number(
-          match[3]
-        ),
-
-        month,
-
-        Number(
-          match[1]
-        )
-
-      );
-
-    }
-
-  }
-
-
-  const parsed =
-    Date.parse(
-      text
-    );
-
-
-  return Number.isFinite(
-    parsed
-  )
-    ? parsed
-    : 0;
-
-}
-
-
-/* =========================================================
-   TÜRKÇE AY
-   ========================================================= */
-
-function turkishMonthIndex(
-  value
-) {
-
-  const months = [
-
-    "ocak",
-
-    "subat",
-
-    "mart",
-
-    "nisan",
-
-    "mayis",
-
-    "haziran",
-
-    "temmuz",
-
-    "agustos",
-
-    "eylul",
-
-    "ekim",
-
-    "kasim",
-
-    "aralik"
-
-  ];
-
-
-  return months.indexOf(
-    normalizeText(
-      value
-    )
   );
 
 }
@@ -2366,7 +2543,8 @@ function flattenValues(
 
     if (
       item ===
-      null ||
+      null
+      ||
       item ===
       undefined
     ) {
@@ -2423,22 +2601,115 @@ function flattenValues(
 
 
 /* =========================================================
-   KEYWORD
+   PHRASE MATCH
+
+   ÖNEMLİ:
+
+   "sampiyon"
+   "sampiyona"
+
+   birbirine karışmaz.
    ========================================================= */
 
-function containsAny(
+function containsPhrase(
+  text,
+  value
+) {
+
+  const haystack =
+    ` ${normalizeText(
+      text
+    )} `;
+
+
+  const needle =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !needle
+  ) {
+
+    return false;
+
+  }
+
+
+  return haystack.includes(
+    ` ${needle} `
+  );
+
+}
+
+
+/* =========================================================
+   ANY PHRASE
+   ========================================================= */
+
+function containsAnyPhrase(
   text,
   values
 ) {
 
   return values.some(
     value =>
-      text.includes(
-        normalizeText(
-          value
-        )
+      containsPhrase(
+        text,
+        value
       )
   );
+
+}
+
+
+/* =========================================================
+   HAS USEFUL VALUE
+   ========================================================= */
+
+function hasUsefulValue(
+  value
+) {
+
+  if (
+    value ===
+    null
+    ||
+    value ===
+    undefined
+  ) {
+
+    return false;
+
+  }
+
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+
+    return value.length >
+    0;
+
+  }
+
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+
+    return Boolean(
+      value.trim()
+    );
+
+  }
+
+
+  return true;
 
 }
 
@@ -2469,11 +2740,14 @@ function roundScores(
       key
     ] =
       Math.round(
+
         Number(
           value ||
           0
-        ) *
+        )
+        *
         100
+
       )
       /
       100;
@@ -2498,10 +2772,10 @@ function createFallbackResult() {
       CONTENT_INTENT_VERSION,
 
     contentIntent:
-      "news",
+      CONTENT_INTENTS.news,
 
     eventStatus:
-      "unknown",
+      EVENT_STATUSES.unknown,
 
     actionable:
       false,
@@ -2515,33 +2789,8 @@ function createFallbackResult() {
     feedTreatment:
       "inform",
 
-    scores: {
-
-      opportunity:
-        0,
-
-      registration:
-        0,
-
-      result:
-        0,
-
-      announcement:
-        0,
-
-      campaign:
-        0,
-
-      job:
-        0,
-
-      product:
-        0,
-
-      news:
-        0
-
-    },
+    scores:
+      createScoreMap(),
 
     reasons:
       [],
@@ -2556,6 +2805,29 @@ function createFallbackResult() {
 
 
 /* =========================================================
+   NORMALIZE ID
+   ========================================================= */
+
+function normalizeId(
+  value
+) {
+
+  return normalizeText(
+    value
+  )
+    .replace(
+      /[^a-z0-9]+/g,
+      "_"
+    )
+    .replace(
+      /^_+|_+$/g,
+      ""
+    );
+
+}
+
+
+/* =========================================================
    NORMALIZE TEXT
    ========================================================= */
 
@@ -2564,7 +2836,7 @@ function normalizeText(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
 
@@ -2618,25 +2890,8 @@ function normalizeText(
 
 
 /* =========================================================
-   HELPERS
+   PLAIN OBJECT
    ========================================================= */
-
-function cleanString(
-  value
-) {
-
-  return String(
-    value ||
-    ""
-  )
-    .replace(
-      /\s+/g,
-      " "
-    )
-    .trim();
-
-}
-
 
 function isPlainObject(
   value
@@ -2644,10 +2899,14 @@ function isPlainObject(
 
   return Boolean(
 
-    value &&
+    value
+
+    &&
 
     typeof value ===
-    "object" &&
+    "object"
+
+    &&
 
     !Array.isArray(
       value
@@ -2658,11 +2917,29 @@ function isPlainObject(
 }
 
 
+/* =========================================================
+   CLAMP
+   ========================================================= */
+
 function clamp(
   value,
   min,
   max
 ) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  const safe =
+    Number.isFinite(
+      number
+    )
+      ? number
+      : 0;
+
 
   return Math.max(
 
@@ -2670,12 +2947,9 @@ function clamp(
 
     Math.min(
       max,
-      Number(
-        value
-      ) ||
-      0
+      safe
     )
 
   );
 
-      }
+         }
