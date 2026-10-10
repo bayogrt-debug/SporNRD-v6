@@ -4,19 +4,33 @@
 
    Kaynak Verisi → SporNRD Post Standardı
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.1
 
    Amaç:
    ---------------------------------------------------------
    - TYF / TBF mevcut veri modelini yeni post modeline çevirmek
    - Kaynak kayıt merkezindeki bilgileri posta eklemek
    - Bütün kaynaklardan gelen veriyi tek standarda oturtmak
+   - Yayın tarihi ile etkinlik tarihini kesin olarak ayırmak
    - Hatalı postların bütün akışı bozmasını engellemek
    - Tekrarları temizlemek
-   - Yeni post modelini eski frontend formatına geri çevirebilmek
+   - Yeni post modelini eski frontend formatına geri çevirmek
 
-   ÖNEMLİ:
-   Şimdilik mevcut worker.js buna bağlanmayacak.
+   TARİH KURALI
+   ---------------------------------------------------------
+   source.publishedAt
+   lifecycle.publishedAt
+   =
+   HABERİN YAYIN TARİHİ
+
+   details.startDate
+   details.endDate
+   lifecycle.startsAt
+   lifecycle.endsAt
+   =
+   YALNIZCA ETKİNLİĞE AİT KANITLI TARİHLER
+
+   item.date ASLA otomatik olarak etkinlik tarihi değildir.
    ========================================================= */
 
 
@@ -49,7 +63,7 @@ import {
    ========================================================= */
 
 export const NORMALIZER_VERSION =
-  "1.0";
+  "1.1";
 
 
 /* =========================================================
@@ -109,6 +123,92 @@ export function normalizeLegacyItem(
     );
 
 
+  if (
+    !legacyPost ||
+    typeof legacyPost !==
+    "object"
+  ) {
+
+    return null;
+
+  }
+
+
+  /* =======================================================
+     YAYIN TARİHİ
+
+     ÖNEMLİ:
+     Bu tarih haberin yayın tarihidir.
+     Etkinlik başlangıcı değildir.
+     ======================================================= */
+
+  const publishedAt =
+    resolvePublishedAt(
+      item,
+      legacyPost
+    );
+
+
+  /* =======================================================
+     ETKİNLİK TARİHLERİ
+
+     item.date burada kullanılmaz.
+     ======================================================= */
+
+  const eventDates =
+    resolveEventDates(
+      item,
+      legacyPost,
+      publishedAt
+    );
+
+
+  /* =======================================================
+     DETAILS
+
+     fromLegacyPost yanlışlıkla publication date'i
+     startDate'e koyduysa burada kesin olarak temizlenir.
+     ======================================================= */
+
+  const details =
+    normalizeDetails({
+
+      item:
+        item,
+
+      legacyPost:
+        legacyPost,
+
+      publishedAt:
+        publishedAt,
+
+      eventDates:
+        eventDates
+
+    });
+
+
+  /* =======================================================
+     LIFECYCLE
+
+     publishedAt ≠ startsAt
+     ======================================================= */
+
+  const lifecycle =
+    normalizeLifecycle({
+
+      legacyPost:
+        legacyPost,
+
+      publishedAt:
+        publishedAt,
+
+      eventDates:
+        eventDates
+
+    });
+
+
   /* -------------------------------------------------------
      Registry bilgileriyle zenginleştir
      ------------------------------------------------------- */
@@ -141,6 +241,14 @@ export function normalizeLegacyItem(
         registrySource?.providerType ||
 
         legacyPost.providerType,
+
+
+      /* ---------------------------------------------------
+         Details
+         --------------------------------------------------- */
+
+      details:
+        details,
 
 
       /* ---------------------------------------------------
@@ -207,15 +315,14 @@ export function normalizeLegacyItem(
           ||
           "",
 
-        publishedAt:
 
-          cleanString(
-            item.date
-          )
-          ||
-          legacyPost.source?.publishedAt
-          ||
-          "",
+        /*
+          HABER YAYIN TARİHİ
+        */
+
+        publishedAt:
+          publishedAt,
+
 
         verified:
 
@@ -280,29 +387,8 @@ export function normalizeLegacyItem(
          Lifecycle
          --------------------------------------------------- */
 
-      lifecycle: {
-
-        ...legacyPost.lifecycle,
-
-        status:
-          "active",
-
-        publishedAt:
-
-          cleanString(
-            item.date
-          )
-          ||
-          legacyPost.lifecycle?.publishedAt
-          ||
-          "",
-
-        lastSeenAt:
-
-          new Date()
-            .toISOString()
-
-      }
+      lifecycle:
+        lifecycle
 
     });
 
@@ -547,9 +633,6 @@ export function normalizeLegacyFeed(
 
 /* =========================================================
    BİRDEN FAZLA FEED BİRLEŞTİR
-
-   İleride:
-   TYF + TBF + Akademi + Kulüp + ...
    ========================================================= */
 
 export function normalizeAndMergeFeeds(
@@ -744,11 +827,6 @@ export function normalizeAndMergeFeeds(
 
 /* =========================================================
    YENİ POST → ESKİ FRONTEND POSTU
-
-   Bu fonksiyon çok önemli.
-
-   Böylece Worker içeride yeni v6.1 modelini kullanırken
-   mevcut telefon arayüzü bozulmadan çalışabilir.
    ========================================================= */
 
 export function toLegacyPost(
@@ -902,8 +980,6 @@ export function toLegacyPost(
 
     /* -----------------------------------------------------
        Branş
-
-       Eski frontend Türkçe branş adı bekliyor.
        ----------------------------------------------------- */
 
     sport:
@@ -915,7 +991,7 @@ export function toLegacyPost(
 
 
     /* -----------------------------------------------------
-       Yeni kategori alanları da korunuyor
+       Yeni kategori alanları
        ----------------------------------------------------- */
 
     discoveryCategory:
@@ -935,13 +1011,9 @@ export function toLegacyPost(
       "",
 
 
-    /*
-      Eski frontend henüz coach / athlete / event...
-      bekleyebilir.
-
-      Geçiş döneminde içerik türünü legacy category
-      olarak kullanıyoruz.
-    */
+    /* -----------------------------------------------------
+       Legacy category
+       ----------------------------------------------------- */
 
     category:
       mapNewContentTypeToLegacyCategory(
@@ -1032,15 +1104,19 @@ export function toLegacyPost(
         location.venue ||
         "",
 
+
+      /*
+        Artık yalnızca GERÇEK etkinlik tarihi.
+      */
+
       startDate:
         details.startDate ||
-        lifecycle.startsAt ||
         "",
 
       endDate:
         details.endDate ||
-        lifecycle.endsAt ||
         "",
+
 
       registrationDeadline:
         details.registrationDeadline ||
@@ -1074,7 +1150,9 @@ export function toLegacyPost(
 
 
     /* -----------------------------------------------------
-       Tarih / konum
+       HABER YAYIN TARİHİ
+
+       Etkinlik tarihi değildir.
        ----------------------------------------------------- */
 
     date:
@@ -1185,6 +1263,632 @@ export function toLegacyItems(
     .filter(
       Boolean
     );
+
+}
+
+
+/* =========================================================
+   DETAILS NORMALIZE
+
+   Buradaki temel iş:
+   yayın tarihini etkinlik tarihinden ayırmak.
+   ========================================================= */
+
+function normalizeDetails({
+
+  item,
+  legacyPost,
+  publishedAt,
+  eventDates
+
+}) {
+
+  const existing =
+    isPlainObject(
+      legacyPost.details
+    )
+      ? legacyPost.details
+      : {};
+
+
+  const details = {
+
+    ...existing,
+
+
+    /*
+      Etkinlik tarihleri yalnızca
+      resolveEventDates() sonucundan gelir.
+    */
+
+    startDate:
+      eventDates.startDate,
+
+    endDate:
+      eventDates.endDate
+
+  };
+
+
+  /* -------------------------------------------------------
+     Eski modelden sızmış publication date temizliği
+     ------------------------------------------------------- */
+
+  if (
+    sameDateValue(
+      details.startDate,
+      publishedAt
+    )
+    &&
+    !eventDates.startDateExplicit
+  ) {
+
+    details.startDate =
+      "";
+
+  }
+
+
+  if (
+    sameDateValue(
+      details.endDate,
+      publishedAt
+    )
+    &&
+    !eventDates.endDateExplicit
+  ) {
+
+    details.endDate =
+      "";
+
+  }
+
+
+  return details;
+
+}
+
+
+/* =========================================================
+   LIFECYCLE NORMALIZE
+   ========================================================= */
+
+function normalizeLifecycle({
+
+  legacyPost,
+  publishedAt,
+  eventDates
+
+}) {
+
+  const existing =
+    isPlainObject(
+      legacyPost.lifecycle
+    )
+      ? legacyPost.lifecycle
+      : {};
+
+
+  return {
+
+    ...existing,
+
+    status:
+      existing.status ||
+      "active",
+
+
+    /*
+      Haber yayın tarihi.
+    */
+
+    publishedAt:
+      publishedAt,
+
+
+    /*
+      Etkinlik tarihleri.
+      Publication date burada kullanılmaz.
+    */
+
+    startsAt:
+      eventDates.startDate ||
+      "",
+
+    endsAt:
+      eventDates.endDate ||
+      "",
+
+
+    lastSeenAt:
+      new Date()
+        .toISOString()
+
+  };
+
+}
+
+
+/* =========================================================
+   HABER YAYIN TARİHİ
+
+   Buradaki değer yalnızca yayın zamanıdır.
+   ========================================================= */
+
+function resolvePublishedAt(
+  item,
+  legacyPost
+) {
+
+  const candidates = [
+
+    item.date,
+
+    item.publishedAt,
+
+    legacyPost?.source?.publishedAt,
+
+    legacyPost?.lifecycle?.publishedAt
+
+  ];
+
+
+  for (
+    const candidate
+    of candidates
+  ) {
+
+    const value =
+      cleanString(
+        candidate
+      );
+
+
+    if (
+      value
+    ) {
+
+      return value;
+
+    }
+
+  }
+
+
+  /*
+    Timestamp varsa okunabilir ISO tarihine çevir.
+  */
+
+  const timestamp =
+    safeNumber(
+      item.timestamp
+    );
+
+
+  if (
+    timestamp >
+    0
+  ) {
+
+    try {
+
+      return new Date(
+        timestamp
+      )
+        .toISOString();
+
+    }
+
+    catch {
+
+      return "";
+
+    }
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
+   GERÇEK ETKİNLİK TARİHLERİ
+
+   KRİTİK KURAL:
+   item.date BURADA YOK.
+   ========================================================= */
+
+function resolveEventDates(
+  item,
+  legacyPost,
+  publishedAt
+) {
+
+  const facts =
+    isPlainObject(
+      item.facts
+    )
+      ? item.facts
+      : {};
+
+
+  const legacyDetails =
+    isPlainObject(
+      legacyPost?.details
+    )
+      ? legacyPost.details
+      : {};
+
+
+  const legacyLifecycle =
+    isPlainObject(
+      legacyPost?.lifecycle
+    )
+      ? legacyPost.lifecycle
+      : {};
+
+
+  /* =======================================================
+     START DATE
+
+     En güvenilir kaynaklardan sırayla.
+     ======================================================= */
+
+  const explicitStartCandidates = [
+
+    item.eventDate,
+
+    facts.eventDate,
+
+    facts.startDate,
+
+    facts.dateRange,
+
+    item.startDate
+
+  ];
+
+
+  let startDate =
+    "";
+
+
+  let startDateExplicit =
+    false;
+
+
+  for (
+    const candidate
+    of explicitStartCandidates
+  ) {
+
+    const value =
+      cleanString(
+        candidate
+      );
+
+
+    if (
+      !value
+    ) {
+
+      continue;
+
+    }
+
+
+    startDate =
+      value;
+
+    startDateExplicit =
+      true;
+
+    break;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Eski details.startDate yalnızca publication date
+     değilse yedek olarak kabul edilir.
+     ------------------------------------------------------- */
+
+  if (
+    !startDate
+  ) {
+
+    const legacyCandidate =
+      cleanString(
+        legacyDetails.startDate
+      );
+
+
+    if (
+      legacyCandidate &&
+      !sameDateValue(
+        legacyCandidate,
+        publishedAt
+      )
+    ) {
+
+      startDate =
+        legacyCandidate;
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     Eski lifecycle.startsAt da publication date değilse
+     son yedek olarak kabul edilir.
+     ------------------------------------------------------- */
+
+  if (
+    !startDate
+  ) {
+
+    const lifecycleCandidate =
+      cleanString(
+        legacyLifecycle.startsAt
+      );
+
+
+    if (
+      lifecycleCandidate &&
+      !sameDateValue(
+        lifecycleCandidate,
+        publishedAt
+      )
+    ) {
+
+      startDate =
+        lifecycleCandidate;
+
+    }
+
+  }
+
+
+  /* =======================================================
+     END DATE
+     ======================================================= */
+
+  const explicitEndCandidates = [
+
+    item.endDate,
+
+    facts.endDate
+
+  ];
+
+
+  let endDate =
+    "";
+
+
+  let endDateExplicit =
+    false;
+
+
+  for (
+    const candidate
+    of explicitEndCandidates
+  ) {
+
+    const value =
+      cleanString(
+        candidate
+      );
+
+
+    if (
+      !value
+    ) {
+
+      continue;
+
+    }
+
+
+    endDate =
+      value;
+
+    endDateExplicit =
+      true;
+
+    break;
+
+  }
+
+
+  if (
+    !endDate
+  ) {
+
+    const legacyCandidate =
+      cleanString(
+        legacyDetails.endDate
+      );
+
+
+    if (
+      legacyCandidate &&
+      !sameDateValue(
+        legacyCandidate,
+        publishedAt
+      )
+    ) {
+
+      endDate =
+        legacyCandidate;
+
+    }
+
+  }
+
+
+  if (
+    !endDate
+  ) {
+
+    const lifecycleCandidate =
+      cleanString(
+        legacyLifecycle.endsAt
+      );
+
+
+    if (
+      lifecycleCandidate &&
+      !sameDateValue(
+        lifecycleCandidate,
+        publishedAt
+      )
+    ) {
+
+      endDate =
+        lifecycleCandidate;
+
+    }
+
+  }
+
+
+  return {
+
+    startDate:
+      startDate,
+
+    endDate:
+      endDate,
+
+    startDateExplicit:
+      startDateExplicit,
+
+    endDateExplicit:
+      endDateExplicit
+
+  };
+
+}
+
+
+/* =========================================================
+   AYNI TARİH Mİ?
+
+   Farklı formatlardaki:
+   07.10.2026
+   2026-10-07
+   gibi değerleri karşılaştırabilir.
+   ========================================================= */
+
+function sameDateValue(
+  left,
+  right
+) {
+
+  if (
+    !left ||
+    !right
+  ) {
+
+    return false;
+
+  }
+
+
+  const leftTimestamp =
+    dateToTimestamp(
+      left
+    );
+
+
+  const rightTimestamp =
+    dateToTimestamp(
+      right
+    );
+
+
+  if (
+    leftTimestamp >
+    0 &&
+    rightTimestamp >
+    0
+  ) {
+
+    return (
+      getUtcDay(
+        leftTimestamp
+      ) ===
+      getUtcDay(
+        rightTimestamp
+      )
+    );
+
+  }
+
+
+  return (
+    normalizeText(
+      left
+    ) ===
+    normalizeText(
+      right
+    )
+  );
+
+}
+
+
+/* =========================================================
+   UTC GÜN ANAHTARI
+   ========================================================= */
+
+function getUtcDay(
+  timestamp
+) {
+
+  try {
+
+    const date =
+      new Date(
+        timestamp
+      );
+
+
+    return [
+
+      date.getUTCFullYear(),
+
+      String(
+        date.getUTCMonth() + 1
+      )
+        .padStart(
+          2,
+          "0"
+        ),
+
+      String(
+        date.getUTCDate()
+      )
+        .padStart(
+          2,
+          "0"
+        )
+
+    ].join(
+      "-"
+    );
+
+  }
+
+  catch {
+
+    return "";
+
+  }
 
 }
 
@@ -1395,8 +2099,6 @@ export function comparePosts(
 
 /* =========================================================
    NORMALIZATION SUMMARY
-
-   Health / debug için kullanılabilir.
    ========================================================= */
 
 export function createNormalizationSummary(
@@ -1480,10 +2182,6 @@ function calculateConfidenceScore(
     40;
 
 
-  /* -------------------------------------------------------
-     Resmî kaynak
-     ------------------------------------------------------- */
-
   if (
     registrySource?.verified ===
     true
@@ -1495,10 +2193,6 @@ function calculateConfidenceScore(
   }
 
 
-  /* -------------------------------------------------------
-     Kaynak URL
-     ------------------------------------------------------- */
-
   if (
     item.url
   ) {
@@ -1508,10 +2202,6 @@ function calculateConfidenceScore(
 
   }
 
-
-  /* -------------------------------------------------------
-     Başlık
-     ------------------------------------------------------- */
 
   if (
     item.title ||
@@ -1524,10 +2214,6 @@ function calculateConfidenceScore(
   }
 
 
-  /* -------------------------------------------------------
-     Tarih
-     ------------------------------------------------------- */
-
   if (
     item.date ||
     item.timestamp
@@ -1538,10 +2224,6 @@ function calculateConfidenceScore(
 
   }
 
-
-  /* -------------------------------------------------------
-     Görsel
-     ------------------------------------------------------- */
 
   if (
     item.image
@@ -1751,8 +2433,6 @@ function normalizeUnknownSource(
 
 /* =========================================================
    FINGERPRINT
-
-   Farklı URL'deki aynı içeriği yakalamaya yardımcı olur.
    ========================================================= */
 
 function createFingerprint(
@@ -2068,6 +2748,8 @@ function uniqueSources(
 
 /* =========================================================
    POST TIMESTAMP
+
+   Sıralamada önce yayın tarihi kullanılır.
    ========================================================= */
 
 function getPostTimestamp(
@@ -2078,11 +2760,11 @@ function getPostTimestamp(
 
     post?.lifecycle?.publishedAt,
 
+    post?.source?.publishedAt,
+
     post?.lifecycle?.updatedAt,
 
-    post?.lifecycle?.firstSeenAt,
-
-    post?.source?.publishedAt
+    post?.lifecycle?.firstSeenAt
 
   ];
 
@@ -2132,34 +2814,20 @@ function dateToTimestamp(
   }
 
 
-  const direct =
-    Date.parse(
+  const text =
+    cleanString(
       value
     );
 
 
-  if (
-    Number.isFinite(
-      direct
-    )
-  ) {
-
-    return direct;
-
-  }
-
-
   /* -------------------------------------------------------
-     dd.mm.yyyy
+     dd.mm.yyyy / dd-mm-yyyy / dd/mm/yyyy
      ------------------------------------------------------- */
 
-  const match =
-    String(
-      value
-    )
-      .match(
-        /\b(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})\b/
-      );
+  let match =
+    text.match(
+      /\b(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d{2})\b/
+    );
 
 
   if (
@@ -2186,7 +2854,114 @@ function dateToTimestamp(
   }
 
 
-  return 0;
+  /* -------------------------------------------------------
+     Türkçe:
+     7 Ekim 2026
+     ------------------------------------------------------- */
+
+  match =
+    text.match(
+
+      /\b(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(20\d{2})\b/i
+
+    );
+
+
+  if (
+    match
+  ) {
+
+    const monthIndex =
+      getTurkishMonthIndex(
+        match[2]
+      );
+
+
+    if (
+      monthIndex >=
+      0
+    ) {
+
+      return Date.UTC(
+
+        Number(
+          match[3]
+        ),
+
+        monthIndex,
+
+        Number(
+          match[1]
+        )
+
+      );
+
+    }
+
+  }
+
+
+  /* -------------------------------------------------------
+     ISO / standart parse
+     ------------------------------------------------------- */
+
+  const direct =
+    Date.parse(
+      text
+    );
+
+
+  return Number.isFinite(
+    direct
+  )
+    ? direct
+    : 0;
+
+}
+
+
+/* =========================================================
+   TÜRKÇE AY
+   ========================================================= */
+
+function getTurkishMonthIndex(
+  value
+) {
+
+  const months = [
+
+    "ocak",
+
+    "subat",
+
+    "mart",
+
+    "nisan",
+
+    "mayis",
+
+    "haziran",
+
+    "temmuz",
+
+    "agustos",
+
+    "eylul",
+
+    "ekim",
+
+    "kasim",
+
+    "aralik"
+
+  ];
+
+
+  return months.indexOf(
+    normalizeText(
+      value
+    )
+  );
 
 }
 
