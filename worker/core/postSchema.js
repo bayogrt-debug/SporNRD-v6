@@ -394,10 +394,6 @@ export function createPost(
     createEmptyPost();
 
 
-  /* =======================================================
-     KİMLİK
-     ========================================================= */
-
   post.id =
     cleanString(
       input.id
@@ -410,10 +406,6 @@ export function createPost(
       input.id
     );
 
-
-  /* =======================================================
-     SINIFLANDIRMA
-     ========================================================= */
 
   post.sport =
     normalizeSport(
@@ -452,19 +444,11 @@ export function createPost(
     );
 
 
-  /* =======================================================
-     KAYNAK
-     ========================================================= */
-
   post.source =
     normalizeSource(
       input.source
     );
 
-
-  /* =======================================================
-     EDİTÖR
-     ========================================================= */
 
   post.editorial =
     normalizeEditorial(
@@ -472,29 +456,17 @@ export function createPost(
     );
 
 
-  /* =======================================================
-     MEDYA
-     ========================================================= */
-
   post.media =
     normalizeMedia(
       input.media
     );
 
 
-  /* =======================================================
-     KONUM
-     ========================================================= */
-
   post.location =
     normalizeLocation(
       input.location
     );
 
-
-  /* =======================================================
-     DETAYLAR
-     ========================================================= */
 
   post.details =
     normalizeDetails(
@@ -503,19 +475,11 @@ export function createPost(
     );
 
 
-  /* =======================================================
-     ACTIONS
-     ========================================================= */
-
   post.actions =
     normalizeActions(
       input.actions
     );
 
-
-  /* =======================================================
-     INTERACTIONS
-     ========================================================= */
 
   post.interactions =
     normalizeInteractions(
@@ -523,19 +487,11 @@ export function createPost(
     );
 
 
-  /* =======================================================
-     TRUST
-     ========================================================= */
-
   post.trust =
     normalizeTrust(
       input.trust
     );
 
-
-  /* =======================================================
-     LIFECYCLE
-     ========================================================= */
 
   post.lifecycle =
     normalizeLifecycle(
@@ -543,19 +499,11 @@ export function createPost(
     );
 
 
-  /* =======================================================
-     SCORING
-     ========================================================= */
-
   post.scoring =
     normalizeScoring(
       input.scoring
     );
 
-
-  /* =======================================================
-     TAGS
-     ========================================================= */
 
   post.tags =
     normalizeTags(
@@ -563,20 +511,12 @@ export function createPost(
     );
 
 
-  /* =======================================================
-     DISPLAY
-     ========================================================= */
-
   post.display =
     normalizeDisplay(
       input.display,
       post.sport
     );
 
-
-  /* =======================================================
-     OTOMATİK DEFAULTLAR
-     ========================================================= */
 
   applyAutomaticDefaults(
     post
@@ -688,22 +628,11 @@ export function validatePost(
 
 /* =========================================================
    LEGACY POST → YENİ POST
-
-   TYF / TBF mevcut veri modelini
-   yeni ortak modele taşır.
    ========================================================= */
 
 export function fromLegacyPost(
   item = {}
 ) {
-
-  const facts =
-    plainObject(
-      item.facts
-    )
-      ? item.facts
-      : {};
-
 
   const sourceId =
     cleanString(
@@ -717,10 +646,6 @@ export function fromLegacyPost(
     );
 
 
-  /* =======================================================
-     FACT ENGINE GERÇEKLERİNİ AKTAR
-     ========================================================= */
-
   const legacyDetails =
     buildLegacyDetails(
       item
@@ -732,10 +657,6 @@ export function fromLegacyPost(
       item
     );
 
-
-  /* =======================================================
-     MEDYA
-     ========================================================= */
 
   const media =
     [];
@@ -758,10 +679,6 @@ export function fromLegacyPost(
   }
 
 
-  /* =======================================================
-     ACTIONS
-     ========================================================= */
-
   const actions = [
 
     {
@@ -771,7 +688,13 @@ export function fromLegacyPost(
 
       label:
         item.actionLabel ||
-        "Detay"
+        "Detay",
+
+      url:
+        "",
+
+      enabled:
+        true
 
     }
 
@@ -791,16 +714,15 @@ export function fromLegacyPost(
         "Resmî Kaynak",
 
       url:
-        item.url
+        item.url,
+
+      enabled:
+        true
 
     });
 
   }
 
-
-  /* =======================================================
-     POST
-     ========================================================= */
 
   return createPost({
 
@@ -808,15 +730,9 @@ export function fromLegacyPost(
       item.id,
 
     externalId:
-      item.externalId,
+      item.externalId ||
+      item.id,
 
-
-    /* -----------------------------------------------------
-       SINIFLANDIRMA
-
-       Discovery Engine daha sonra bu değerleri
-       yeniden değerlendirebilir.
-       ----------------------------------------------------- */
 
     sport:
       mapLegacySport(
@@ -854,10 +770,6 @@ export function fromLegacyPost(
       ),
 
 
-    /* -----------------------------------------------------
-       KAYNAK
-       ----------------------------------------------------- */
-
     source: {
 
       id:
@@ -879,10 +791,7 @@ export function fromLegacyPost(
         item.url,
 
       /*
-        KRİTİK:
-
-        item.date yayın tarihidir.
-        Burada doğru yerde tutulur.
+        Yalnız yayın tarihi.
       */
 
       publishedAt:
@@ -894,10 +803,6 @@ export function fromLegacyPost(
 
     },
 
-
-    /* -----------------------------------------------------
-       EDİTÖR
-       ----------------------------------------------------- */
 
     editorial: {
 
@@ -943,41 +848,21 @@ export function fromLegacyPost(
     },
 
 
-    /* -----------------------------------------------------
-       MEDYA
-       ----------------------------------------------------- */
-
     media:
       media,
 
-
-    /* -----------------------------------------------------
-       KONUM
-       ----------------------------------------------------- */
 
     location:
       legacyLocation,
 
 
-    /* -----------------------------------------------------
-       FACT ENGINE → DETAILS
-       ----------------------------------------------------- */
-
     details:
       legacyDetails,
 
 
-    /* -----------------------------------------------------
-       ACTIONS
-       ----------------------------------------------------- */
-
     actions:
       actions,
 
-
-    /* -----------------------------------------------------
-       TRUST
-       ----------------------------------------------------- */
 
     trust: {
 
@@ -998,23 +883,13 @@ export function fromLegacyPost(
 
       lastCheckedAt:
         new Date()
-          .toISOString()
+          .toISOString(),
+
+      notes:
+        []
 
     },
 
-
-    /* -----------------------------------------------------
-       LIFECYCLE
-
-       KRİTİK:
-
-       publishedAt = yayın tarihi
-       startsAt    = gerçek başlangıç tarihi
-       endsAt      = gerçek bitiş tarihi
-       expiresAt   = deadline
-
-       Birbirine karıştırılmaz.
-       ----------------------------------------------------- */
 
     lifecycle: {
 
@@ -1025,15 +900,48 @@ export function fromLegacyPost(
         item.date ||
         "",
 
+      /*
+        ISO varsa lifecycle için ISO tercih edilir.
+
+        Böylece zaman motoru:
+        2026-10-26
+        gibi güvenilir değer kullanabilir.
+
+        Ekranda gösterilecek okunabilir değer ise
+        details.startDate içinde korunur.
+      */
+
       startsAt:
-        legacyDetails.startDate ||
+
+        legacyDetails.startDateIso
+
+        ||
+
+        legacyDetails.startDate
+
+        ||
+
         "",
+
 
       endsAt:
-        legacyDetails.endDate ||
+
+        legacyDetails.endDateIso
+
+        ||
+
+        legacyDetails.endDate
+
+        ||
+
         "",
 
+
       expiresAt:
+
+        legacyDetails.deadlineIso
+
+        ||
 
         legacyDetails.registrationDeadline
 
@@ -1045,16 +953,13 @@ export function fromLegacyPost(
 
         "",
 
+
       lastSeenAt:
         new Date()
           .toISOString()
 
     },
 
-
-    /* -----------------------------------------------------
-       SCORING
-       ----------------------------------------------------- */
 
     scoring: {
 
@@ -1076,18 +981,10 @@ export function fromLegacyPost(
     },
 
 
-    /* -----------------------------------------------------
-       TAGS
-       ----------------------------------------------------- */
-
     tags:
       item.tags ||
       [],
 
-
-    /* -----------------------------------------------------
-       DISPLAY
-       ----------------------------------------------------- */
 
     display: {
 
@@ -1095,23 +992,7 @@ export function fromLegacyPost(
         item.emoji ||
         ""
 
-    },
-
-
-    /*
-      facts burada doğrudan createPost modeline
-      eklenmiyor.
-
-      Fact Engine gerçekleri yukarıda:
-      location
-      details
-      lifecycle
-
-      yapılarına ayrılmıştır.
-    */
-
-    _legacyFacts:
-      facts
+    }
 
   });
 
@@ -1475,7 +1356,7 @@ function normalizeLocation(
    jobs
    stores
 
-   Eski çoğul ID'lere de geçiş desteği vardır.
+   Eski çoğul ID'lere geçiş desteği vardır.
    ========================================================= */
 
 function normalizeDetails(
@@ -1621,11 +1502,6 @@ function normalizeCourseDetails(
       nullableNumber(
         input.capacity
       ),
-
-    /*
-      Fact Engine tarafından çıkarılan
-      gerçek etkinlik tarihleri.
-    */
 
     startDate:
       cleanString(
@@ -2023,10 +1899,6 @@ function normalizeStoreDetails(
 
 /* =========================================================
    NEWS DETAILS
-
-   Haberlerde ticari alan zorunlu değildir.
-
-   Fakat olay tarihi gerçekten varsa kaybedilmez.
    ========================================================= */
 
 function normalizeNewsDetails(
@@ -2568,33 +2440,46 @@ function applyAutomaticDefaults(
 
 
   /* -------------------------------------------------------
-     Structured tarih → lifecycle
+     STRUCTURED TARİH → LIFECYCLE
 
-     Yalnızca GERÇEK details alanlarından yapılır.
-     source.publishedAt burada kullanılmaz.
+     KRİTİK:
+
+     source.publishedAt kullanılmaz.
+
+     ISO değer varsa onu tercih ederiz.
      ------------------------------------------------------- */
 
   if (
-    !post.lifecycle.startsAt &&
-    post.details?.startDate
+    !post.lifecycle.startsAt
   ) {
 
     post.lifecycle.startsAt =
       cleanString(
-        post.details.startDate
+
+        post.details?.startDateIso
+
+        ||
+
+        post.details?.startDate
+
       );
 
   }
 
 
   if (
-    !post.lifecycle.endsAt &&
-    post.details?.endDate
+    !post.lifecycle.endsAt
   ) {
 
     post.lifecycle.endsAt =
       cleanString(
-        post.details.endDate
+
+        post.details?.endDateIso
+
+        ||
+
+        post.details?.endDate
+
       );
 
   }
@@ -2606,6 +2491,10 @@ function applyAutomaticDefaults(
 
     post.lifecycle.expiresAt =
       cleanString(
+
+        post.details?.deadlineIso
+
+        ||
 
         post.details?.registrationDeadline
 
@@ -2666,48 +2555,82 @@ function buildLegacyDetails(
 
 
   /*
-    ÖNEMLİ:
+    KRİTİK:
 
-    item.date burada YOK.
+    item.date burada kullanılmaz.
 
-    Çünkü item.date:
-    → haberin yayın tarihi.
+    item.date:
+    haberin YAYIN tarihidir.
 
-    Etkinlik başlangıcı değildir.
+    Olay / kurs / etkinlik başlangıcı değildir.
   */
 
+
+  /* -------------------------------------------------------
+     EVENT DATE
+
+     Fact Engine bazen:
+     eventDate
+
+     bazen:
+     dateRange
+
+     üretebilir.
+     ------------------------------------------------------- */
+
+  const eventDate =
+    firstString(
+
+      facts.eventDate,
+
+      facts.dateRange
+
+    );
+
+
+  /* -------------------------------------------------------
+     BAŞLANGIÇ
+
+     Okunabilir startDate varsa onu koruruz.
+
+     Yoksa ISO kullanılabilir.
+
+     İkisi de yoksa eventDate son güvenli fallback'tir.
+     ------------------------------------------------------- */
+
   const startDate =
-  firstString(
+    firstString(
 
-    facts.startDateIso,
+      facts.startDate,
 
-    facts.startDate,
+      facts.startDateIso,
 
-    (
-      !facts.endDateIso &&
-      !facts.endDate
-    )
-      ? facts.eventDate
-      : ""
+      eventDate
 
-  );
+    );
 
 
-const endDate =
-  firstString(
+  /* -------------------------------------------------------
+     BİTİŞ
 
-    facts.endDateIso,
+     HATA DÜZELTİLDİ:
 
-    facts.endDate
-
-  );
-
+     Burada yalnızca TEK const endDate vardır.
+     ------------------------------------------------------- */
 
   const endDate =
     firstString(
-      facts.endDate
+
+      facts.endDate,
+
+      facts.endDateIso
+
     );
 
+
+  /* -------------------------------------------------------
+     DEADLINE
+     ------------------------------------------------------- */
 
   const registrationDeadline =
     firstString(
@@ -2758,10 +2681,7 @@ const endDate =
       ),
 
     eventDate:
-      cleanString(
-        facts.eventDate ||
-        facts.dateRange
-      ),
+      eventDate,
 
 
     /* -----------------------------------------------------
@@ -3162,10 +3082,6 @@ function mapLegacySport(
 
 /* =========================================================
    LEGACY SECTION
-
-   Kaynağa / eski kategoriye göre başlangıç section.
-
-   Discovery daha sonra daha güçlü karar verebilir.
    ========================================================= */
 
 function mapLegacySection(
@@ -3184,21 +3100,25 @@ function mapLegacySection(
     );
 
 
+  /*
+    Federasyon / kulüp / akademi / tesis / mağaza vb.
+    yayıncı yapılar:
+
+    İşletme & Kurum
+  */
+
   if (
-    providerType ===
-    "federation" ||
-    providerType ===
-    "club" ||
-    providerType ===
-    "academy" ||
-    providerType ===
-    "gym" ||
-    providerType ===
-    "facility" ||
-    providerType ===
-    "store" ||
-    providerType ===
-    "organizer"
+    [
+      "federation",
+      "club",
+      "academy",
+      "gym",
+      "facility",
+      "store",
+      "organizer"
+    ].includes(
+      providerType
+    )
   ) {
 
     return "business_institution";
@@ -3234,10 +3154,9 @@ function mapLegacySection(
 /* =========================================================
    LEGACY CATEGORY
 
-   Bu yalnız başlangıç değeridir.
+   Yalnız başlangıç kararıdır.
 
-   Discovery Engine gerçek içeriği okuyarak
-   nihai kategoriyi belirler.
+   Discovery Engine nihai kategoriyi belirler.
    ========================================================= */
 
 function mapLegacyCategory(
@@ -3252,9 +3171,11 @@ function mapLegacyCategory(
       : {};
 
 
-  /* -------------------------------------------------------
-     Açık kurs sinyali
-     ------------------------------------------------------- */
+  /*
+    Federasyonun açık şekilde:
+    antrenör yetiştirme kursu
+    vb. içeriği.
+  */
 
   if (
     facts.isCoachCourse ===
@@ -3271,18 +3192,6 @@ function mapLegacyCategory(
       item.category
     );
 
-
-  /*
-    Legacy sistemdeki event/education vb.
-    doğrudan yeni kategoriyle aynı anlamda değildir.
-
-    Ancak createPost geçerli kategori isterse
-    güvenli başlangıç "event" olur.
-
-    Discovery daha sonra:
-    news / course / event / ...
-    kararını verecektir.
-  */
 
   if (
     [
@@ -3334,6 +3243,14 @@ function mapLegacySubCategory(
       : {};
 
 
+  /*
+    Kurs kategorisinde alt kategori branştır.
+
+    Örnek:
+    category    = course
+    subCategory = swimming
+  */
+
   if (
     facts.isCoachCourse ===
     true
@@ -3371,6 +3288,18 @@ function mapLegacySubCategory(
 
   }
 
+
+  /*
+    Haber alt kategorisini Discovery / Intent
+    belirleyecek.
+
+    result
+    achievement
+    assignment
+    transfer
+    announcement
+    vb.
+  */
 
   return "";
 
@@ -3544,9 +3473,10 @@ function normalizeSection(
    CATEGORY
 
    Eski isimlere geçiş desteği:
-   courses   → course
-   events    → event
-   campaigns → campaign
+
+   courses     → course
+   events      → event
+   campaigns   → campaign
    sports_news → news
    ========================================================= */
 
@@ -3707,11 +3637,15 @@ function sportEmoji(
 ) {
 
   return (
+
     getSport(
       sport
     )?.emoji
+
     ||
+
     "🏆"
+
   );
 
 }
@@ -3918,10 +3852,13 @@ function nonNegativeNumber(
 ) {
 
   return Math.max(
+
     0,
+
     numberValue(
       value
     )
+
   );
 
 }
