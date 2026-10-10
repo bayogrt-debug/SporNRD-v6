@@ -4,48 +4,114 @@
 
    SporNRD Persona / Influencer Motoru
 
-   Sürüm: 6.1.1
+   Sürüm: 6.1.2
 
-   Amaç:
+   AMAÇ
    ---------------------------------------------------------
-   Ham ve yapılandırılmış spor bilgisini
-   son tüketiciye sıcak, dikkat çekici,
-   anlaşılır ve güvenilir SporNRD diliyle sunmak.
+   Yapılandırılmış SporNRD postunu:
 
-   YENİ 6.1.1 MANTIĞI
+   - sıcak
+   - dikkat çekici
+   - Instagram / influencer hissi taşıyan
+   - kısa
+   - anlaşılır
+   - son tüketici odaklı
+   - ama GERÇEĞİ DEĞİŞTİRMEYEN
+
+   bir anlatıma dönüştürmek.
+
+   =========================================================
+   YENİ ANA KATEGORİLER
    ---------------------------------------------------------
-   Persona artık yalnız kategoriye bakmaz.
 
-   Öncelikle:
-   - contentIntent
-   - eventStatus
-   - actionable
-   - intentMeta.feedTreatment
+   news
+   course
+   event
+   campaign
+   jobs
+   stores
 
-   alanlarını dikkate alır.
-
-   Böylece:
-   SONUÇ HABERİ
-   yaklaşan etkinlik gibi anlatılmaz.
-
-   TEMEL KURAL:
+   =========================================================
+   PERSONA KARAR GİRDİLERİ
    ---------------------------------------------------------
-   - Gerçek veri ASLA uydurulmaz.
-   - Kaynakta olmayan fiyat üretilmez.
-   - Kaynakta olmayan tarih üretilmez.
-   - Kaynakta olmayan konum kesin bilgi gibi kullanılmaz.
-   - Kaynakta olmayan kontenjan üretilmez.
-   - Kaynakta olmayan yaş bilgisi üretilmez.
+
+   sport
+   section
+   category
+   subCategory
+   providerType
+
+   contentIntent
+   eventStatus
+   actionable
+
+   temporal.state
+   temporal.basis
+   temporal.languageMode
+   temporal.actionState
+   temporal.freshness
+
+   location
+   details
+   source
+   lifecycle
+
+   =========================================================
+   ZAMAN KURALI
+   ---------------------------------------------------------
+
+   PAST
+   → oldu
+   → tamamlandı
+   → sona erdi
+   → kazandı
+
+   PRESENT
+   → devam ediyor
+   → bugün
+   → şu anda geçerli
+
+   FUTURE
+   → yapılacak
+   → başlayacak
+   → geliyor
+
+   UNKNOWN + PUBLISHED DATE
+   → olayın zamanı uydurulmaz
+
+   Sadece:
+
+   "bugün yayımlandı"
+   "kısa süre önce yayımlandı"
+   "daha önce yayımlanmış"
+
+   gibi yayın güncelliği dili kullanılır.
+
+   =========================================================
+   TEMEL GÜVEN KURALI
+   ---------------------------------------------------------
+
+   Sistem gerçeği çıkartırken editör değildir.
+   Editör olurken gerçeği değiştiremez.
+
+   - Fiyat uydurulmaz.
+   - Tarih uydurulmaz.
+   - Yaş uydurulmaz.
+   - Konum uydurulmaz.
+   - Kontenjan uydurulmaz.
+   - İndirim uydurulmaz.
+   - Başvuru açık değilse "kayıt ol" denmez.
    - Tamamlanmış olay yaklaşan etkinlik gibi sunulmaz.
+   - Yayın tarihi olay tarihi kabul edilmez.
    - Clickbait yapılmaz.
-   - Sahte övgü yapılmaz.
-   - Reklam dili kullanılmaz.
+   - Sahte reklam dili kullanılmaz.
    ========================================================= */
 
 
 import {
 
   getSport,
+  getSection,
   getCategory,
   getSubCategory,
   getProviderType
@@ -54,11 +120,11 @@ import {
 
 
 /* =========================================================
-   PERSONA VERSION
+   VERSION
    ========================================================= */
 
 export const PERSONA_VERSION =
-  "1.1";
+  "1.2";
 
 
 /* =========================================================
@@ -82,9 +148,6 @@ export const PERSONA_STYLES = {
   professional:
     "professional",
 
-  weekend:
-    "weekend",
-
   practical:
     "practical",
 
@@ -92,13 +155,16 @@ export const PERSONA_STYLES = {
     "informative",
 
   result:
-    "result"
+    "result",
+
+  news:
+    "news"
 
 };
 
 
 /* =========================================================
-   ANA PERSONA ÜRETİMİ
+   ANA PERSONA
    ========================================================= */
 
 export function buildPersona(
@@ -135,8 +201,6 @@ export function buildPersona(
 
   const style =
     chooseStyle(
-      post,
-      facts,
       angle
     );
 
@@ -185,6 +249,12 @@ export function buildPersona(
     note:
       note,
 
+    languageMode:
+      facts.languageMode,
+
+    timeState:
+      facts.timeState,
+
     factsUsed:
       facts.used,
 
@@ -231,12 +301,10 @@ export function applyPersona(
     editorial: {
 
       ...(
-        post.editorial &&
-        typeof post.editorial ===
-        "object"
-
+        isPlainObject(
+          post.editorial
+        )
           ? post.editorial
-
           : {}
       ),
 
@@ -247,7 +315,7 @@ export function applyPersona(
         "SporNRD Özeti",
 
       version:
-        `6.1.0-persona-${PERSONA_VERSION}`,
+        `6.1.2-persona-${PERSONA_VERSION}`,
 
       headline:
         persona.headline,
@@ -272,6 +340,18 @@ export function applyPersona(
       version:
         persona.version,
 
+      style:
+        persona.style,
+
+      angle:
+        persona.angle,
+
+      languageMode:
+        persona.languageMode,
+
+      timeState:
+        persona.timeState,
+
       factsUsed:
         persona.factsUsed,
 
@@ -286,7 +366,7 @@ export function applyPersona(
 
 
 /* =========================================================
-   PERSONA AÇISI
+   SADECE PERSONA AÇISI
    ========================================================= */
 
 export function choosePersonaAngle(
@@ -347,6 +427,14 @@ function collectFacts(
       : {};
 
 
+  const temporal =
+    isPlainObject(
+      post.temporal
+    )
+      ? post.temporal
+      : {};
+
+
   const intentMeta =
     isPlainObject(
       post.intentMeta
@@ -355,9 +443,19 @@ function collectFacts(
       : {};
 
 
+  /* =======================================================
+     TAXONOMY
+     ========================================================= */
+
   const sportDefinition =
     getSport(
       post.sport
+    );
+
+
+  const sectionDefinition =
+    getSection(
+      post.section
     );
 
 
@@ -379,6 +477,10 @@ function collectFacts(
       post.providerType
     );
 
+
+  /* =======================================================
+     FİYAT
+     ========================================================= */
 
   const price =
     firstNumber(
@@ -406,6 +508,10 @@ function collectFacts(
     );
 
 
+  /* =======================================================
+     YAŞ
+     ========================================================= */
+
   const ageMin =
     nullableNumber(
       details.ageMin
@@ -418,14 +524,29 @@ function collectFacts(
     );
 
 
+  /* =======================================================
+     PROGRAM
+     ========================================================= */
+
   const days =
     stringArray(
       details.days
     );
 
 
+  /* =======================================================
+     TARİHLER
+
+     Öncelik Temporal Engine.
+
+     Çünkü artık gerçek tarih kararı merkezi olarak
+     temporalEngine.js tarafından veriliyor.
+     ========================================================= */
+
   const startDate =
     cleanString(
+
+      temporal.startDate ||
 
       details.startDate ||
 
@@ -437,6 +558,8 @@ function collectFacts(
   const endDate =
     cleanString(
 
+      temporal.endDate ||
+
       details.endDate ||
 
       lifecycle.endsAt
@@ -447,6 +570,8 @@ function collectFacts(
   const deadline =
     cleanString(
 
+      temporal.deadlineAt ||
+
       details.registrationDeadline ||
 
       details.applicationDeadline ||
@@ -456,28 +581,81 @@ function collectFacts(
     );
 
 
-  const contentIntent =
+  const publishedAt =
     cleanString(
+
+      temporal.publishedAt ||
+
+      source.publishedAt ||
+
+      lifecycle.publishedAt
+
+    );
+
+
+  /* =======================================================
+     INTENT
+     ========================================================= */
+
+  const contentIntent =
+    normalizeId(
       post.contentIntent
     );
 
 
   const eventStatus =
-    cleanString(
+    normalizeId(
+
+      temporal.eventStatus ||
+
       post.eventStatus
+
     );
 
 
-  const actionable =
-    post.actionable ===
-    true;
+  const timeState =
+    normalizeId(
+      temporal.state
+    )
+    ||
+    "unknown";
 
 
-  const feedTreatment =
-    cleanString(
-      intentMeta.feedTreatment
-    );
+  const languageMode =
+    normalizeId(
+      temporal.languageMode
+    )
+    ||
+    "neutral";
 
+
+  const actionState =
+    normalizeId(
+      temporal.actionState
+    )
+    ||
+    "unknown";
+
+
+  const temporalBasis =
+    normalizeId(
+      temporal.basis
+    )
+    ||
+    "none";
+
+
+  const freshness =
+    normalizeId(
+      temporal.freshness
+    )
+    ||
+    "unknown";
+
+
+  /* =======================================================
+     KULLANILAN GERÇEKLER
+     ========================================================= */
 
   const used =
     [];
@@ -495,6 +673,28 @@ function collectFacts(
 
 
   if (
+    post.section
+  ) {
+
+    used.push(
+      "section"
+    );
+
+  }
+
+
+  if (
+    post.category
+  ) {
+
+    used.push(
+      "category"
+    );
+
+  }
+
+
+  if (
     contentIntent
   ) {
 
@@ -506,42 +706,18 @@ function collectFacts(
 
 
   if (
-    eventStatus
+    timeState
   ) {
 
     used.push(
-      "eventStatus"
+      "temporal"
     );
 
   }
 
 
   if (
-    price !==
-    null
-  ) {
-
-    used.push(
-      "price"
-    );
-
-  }
-
-
-  /*
-    Result/completed içeriklerde konum
-    persona anlatımında kullanılmayacak.
-
-    Çünkü takım/kurum adlarından gelen
-    sahte konum ihtimali daha yüksek.
-  */
-
-  if (
-    location.city &&
-    !isCompletedResult({
-      contentIntent,
-      eventStatus
-    })
+    location.city
   ) {
 
     used.push(
@@ -552,11 +728,7 @@ function collectFacts(
 
 
   if (
-    location.district &&
-    !isCompletedResult({
-      contentIntent,
-      eventStatus
-    })
+    location.district
   ) {
 
     used.push(
@@ -603,6 +775,18 @@ function collectFacts(
 
 
   if (
+    price !==
+    null
+  ) {
+
+    used.push(
+      "price"
+    );
+
+  }
+
+
+  if (
     deadline
   ) {
 
@@ -625,6 +809,10 @@ function collectFacts(
   }
 
 
+  /* =======================================================
+     SONUÇ
+     ========================================================= */
+
   return {
 
     sport:
@@ -639,17 +827,36 @@ function collectFacts(
       sportDefinition?.emoji ||
       "🏆",
 
+
+    section:
+      sectionDefinition?.label ||
+      "",
+
+
     category:
       categoryDefinition?.label ||
-      "",
+      cleanString(
+        post.category
+      ),
+
 
     subCategory:
       subCategoryDefinition?.label ||
-      "",
+      cleanString(
+        post.subCategory
+      ),
+
 
     providerType:
       providerDefinition?.label ||
-      "",
+      cleanString(
+        post.providerType
+      ),
+
+
+    /* -----------------------------------------------------
+       Kaynak
+       ----------------------------------------------------- */
 
     sourceName:
       cleanString(
@@ -661,9 +868,31 @@ function collectFacts(
         source.shortName
       ),
 
+
+    /* -----------------------------------------------------
+       Orijinal
+       ----------------------------------------------------- */
+
     originalTitle:
       cleanString(
-        post.editorial?.originalTitle
+
+        post.editorial?.originalTitle ||
+
+        post.originalTitle ||
+
+        post.title
+
+      ),
+
+    originalText:
+      cleanString(
+
+        post.editorial?.originalText ||
+
+        post.originalText ||
+
+        post.summary
+
       ),
 
     currentHeadline:
@@ -671,10 +900,10 @@ function collectFacts(
         post.editorial?.headline
       ),
 
-    originalText:
-      cleanString(
-        post.editorial?.originalText
-      ),
+
+    /* -----------------------------------------------------
+       Konum
+       ----------------------------------------------------- */
 
     city:
       cleanString(
@@ -690,6 +919,11 @@ function collectFacts(
       cleanString(
         location.venue
       ),
+
+
+    /* -----------------------------------------------------
+       Fiyat
+       ----------------------------------------------------- */
 
     price:
       price,
@@ -710,6 +944,11 @@ function collectFacts(
 
     discountRate:
       discountRate,
+
+
+    /* -----------------------------------------------------
+       Program
+       ----------------------------------------------------- */
 
     days:
       days,
@@ -733,6 +972,14 @@ function collectFacts(
     deadline:
       deadline,
 
+    publishedAt:
+      publishedAt,
+
+
+    /* -----------------------------------------------------
+       Yaş
+       ----------------------------------------------------- */
+
     ageMin:
       ageMin,
 
@@ -743,6 +990,11 @@ function collectFacts(
       cleanString(
         details.ageGroup
       ),
+
+
+    /* -----------------------------------------------------
+       Kurs
+       ----------------------------------------------------- */
 
     level:
       cleanString(
@@ -758,6 +1010,11 @@ function collectFacts(
       nullableNumber(
         details.capacity
       ),
+
+
+    /* -----------------------------------------------------
+       İş
+       ----------------------------------------------------- */
 
     position:
       cleanString(
@@ -784,6 +1041,11 @@ function collectFacts(
         details.salaryMax
       ),
 
+
+    /* -----------------------------------------------------
+       Ürün
+       ----------------------------------------------------- */
+
     brand:
       cleanString(
         details.brand
@@ -799,10 +1061,10 @@ function collectFacts(
         details.stockStatus
       ),
 
-    lifecycleStatus:
-      cleanString(
-        lifecycle.status
-      ),
+
+    /* -----------------------------------------------------
+       Anlam
+       ----------------------------------------------------- */
 
     contentIntent:
       contentIntent,
@@ -811,18 +1073,66 @@ function collectFacts(
       eventStatus,
 
     actionable:
-      actionable,
-
-    opportunityScore:
-      safeNumber(
-        post.opportunityScore
-      ),
+      post.actionable ===
+      true,
 
     feedTreatment:
-      feedTreatment,
+      cleanString(
+        intentMeta.feedTreatment
+      ),
+
+
+    /* -----------------------------------------------------
+       Temporal
+       ----------------------------------------------------- */
+
+    timeState:
+      timeState,
+
+    languageMode:
+      languageMode,
+
+    actionState:
+      actionState,
+
+    temporalBasis:
+      temporalBasis,
+
+    freshness:
+      freshness,
+
+    daysUntilStart:
+      nullableNumber(
+        temporal.daysUntilStart
+      ),
+
+    daysUntilEnd:
+      nullableNumber(
+        temporal.daysUntilEnd
+      ),
+
+    daysUntilDeadline:
+      nullableNumber(
+        temporal.daysUntilDeadline
+      ),
+
+
+    /* -----------------------------------------------------
+       Lifecycle
+       ----------------------------------------------------- */
+
+    lifecycleStatus:
+      normalizeId(
+        lifecycle.status
+      ),
+
 
     used:
-      used
+      [
+        ...new Set(
+          used
+        )
+      ]
 
   };
 
@@ -831,9 +1141,6 @@ function collectFacts(
 
 /* =========================================================
    AÇI SEÇ
-
-   KRİTİK:
-   İçeriğin anlamı kategori seçiminden önce gelir.
    ========================================================= */
 
 function chooseAngle(
@@ -842,23 +1149,69 @@ function chooseAngle(
 ) {
 
   /* =======================================================
-     1. SONUÇ / TAMAMLANMIŞ OLAY
+     HABER
 
-     En yüksek öncelik.
-
-     Örn:
-     Şampiyon oldu
-     Kazandı
-     Final tamamlandı
-     Madalya aldı
-
-     Bunlar ASLA yaklaşan etkinlik değildir.
-     ======================================================= */
+     Haber kendi başına bir ana kategoridir.
+     ========================================================= */
 
   if (
-    isCompletedResult(
-      facts
-    )
+    post.category ===
+    "news"
+  ) {
+
+    switch (
+      normalizeId(
+        post.subCategory
+      )
+    ) {
+
+      case "result":
+
+        return "result";
+
+
+      case "achievement":
+
+        return "achievement";
+
+
+      case "assignment":
+
+        return "assignment";
+
+
+      case "transfer":
+
+        return "transfer";
+
+
+      case "announcement":
+
+        return "announcement";
+
+
+      default:
+
+        return "news";
+
+    }
+
+  }
+
+
+  /* =======================================================
+     TAMAMLANMIŞ SONUÇ
+
+     Discovery yanlış sınıflandırmış olsa bile
+     güvenlik katmanı.
+     ========================================================= */
+
+  if (
+    facts.contentIntent ===
+    "result"
+    ||
+    facts.eventStatus ===
+    "completed"
   ) {
 
     return "result";
@@ -867,114 +1220,57 @@ function chooseAngle(
 
 
   /* =======================================================
-     2. KAYIT / BAŞVURU
-     ======================================================= */
-
-  if (
-    facts.contentIntent ===
-    "registration"
-  ) {
-
-    return facts.deadline
-      ? "deadline"
-      : "registration";
-
-  }
-
-
-  /* =======================================================
-     3. SON BAŞVURU
-     ======================================================= */
-
-  if (
-    facts.lifecycleStatus ===
-    "closing_soon"
-    ||
-    facts.deadline
-  ) {
-
-    return "deadline";
-
-  }
-
-
-  /* =======================================================
-     4. KAMPANYA
-     ======================================================= */
-
-  if (
-    facts.contentIntent ===
-    "campaign"
-    ||
-    post.category ===
-    "campaigns"
-    ||
-    facts.discountRate !==
-    null
-  ) {
-
-    return "opportunity";
-
-  }
-
-
-  /* =======================================================
-     5. İŞ
-     ======================================================= */
-
-  if (
-    facts.contentIntent ===
-    "job"
-    ||
-    post.category ===
-    "jobs"
-  ) {
-
-    return "career";
-
-  }
-
-
-  /* =======================================================
-     6. ÜRÜN
-     ======================================================= */
-
-  if (
-    facts.contentIntent ===
-    "product"
-    ||
-    post.category ===
-    "stores"
-  ) {
-
-    return "product";
-
-  }
-
-
-  /* =======================================================
-     7. ÇOCUK / AİLE
-     ======================================================= */
-
-  if (
-    isChildAudience(
-      facts
-    )
-  ) {
-
-    return "family";
-
-  }
-
-
-  /* =======================================================
-     8. KURS
-     ======================================================= */
+     KURS
+     ========================================================= */
 
   if (
     post.category ===
-    "courses"
+    "course"
   ) {
+
+    if (
+      facts.actionState ===
+      "closed"
+    ) {
+
+      return "expired";
+
+    }
+
+
+    if (
+      facts.lifecycleStatus ===
+      "closing_soon"
+      ||
+      facts.actionState ===
+      "closing_today"
+    ) {
+
+      return "deadline";
+
+    }
+
+
+    if (
+      isChildAudience(
+        facts
+      )
+    ) {
+
+      return "family";
+
+    }
+
+
+    if (
+      facts.contentIntent ===
+      "registration"
+    ) {
+
+      return "registration";
+
+    }
+
 
     return "course";
 
@@ -982,19 +1278,33 @@ function chooseAngle(
 
 
   /* =======================================================
-     9. YAKLAŞAN / AKSİYON ALINABİLİR ETKİNLİK
-     ======================================================= */
+     ETKİNLİK
+     ========================================================= */
 
   if (
     post.category ===
-    "events"
-    &&
-    facts.eventStatus !==
-    "completed"
-    &&
-    facts.contentIntent !==
-    "result"
+    "event"
   ) {
+
+    if (
+      facts.timeState ===
+      "past"
+    ) {
+
+      return "past_event";
+
+    }
+
+
+    if (
+      facts.actionState ===
+      "closed"
+    ) {
+
+      return "expired";
+
+    }
+
 
     return "event";
 
@@ -1002,15 +1312,66 @@ function chooseAngle(
 
 
   /* =======================================================
-     10. DUYURU / HABER
-     ======================================================= */
+     KAMPANYA
+     ========================================================= */
 
   if (
-    facts.contentIntent ===
-    "announcement"
+    post.category ===
+    "campaign"
   ) {
 
-    return "announcement";
+    if (
+      facts.timeState ===
+      "past"
+      ||
+      facts.actionState ===
+      "closed"
+    ) {
+
+      return "expired";
+
+    }
+
+
+    return "opportunity";
+
+  }
+
+
+  /* =======================================================
+     İŞ
+     ========================================================= */
+
+  if (
+    post.category ===
+    "jobs"
+  ) {
+
+    if (
+      facts.actionState ===
+      "closed"
+    ) {
+
+      return "expired";
+
+    }
+
+
+    return "career";
+
+  }
+
+
+  /* =======================================================
+     MAĞAZA
+     ========================================================= */
+
+  if (
+    post.category ===
+    "stores"
+  ) {
+
+    return "product";
 
   }
 
@@ -1025,21 +1386,35 @@ function chooseAngle(
    ========================================================= */
 
 function chooseStyle(
-  post,
-  facts,
   angle
 ) {
 
-  void post;
-  void facts;
-
-
   if (
-    angle ===
-    "result"
+    [
+      "result",
+      "achievement"
+    ].includes(
+      angle
+    )
   ) {
 
     return PERSONA_STYLES.result;
+
+  }
+
+
+  if (
+    [
+      "news",
+      "assignment",
+      "transfer",
+      "announcement"
+    ].includes(
+      angle
+    )
+  ) {
+
+    return PERSONA_STYLES.news;
 
   }
 
@@ -1065,8 +1440,12 @@ function chooseStyle(
 
 
   if (
-    angle ===
-    "deadline"
+    [
+      "deadline",
+      "expired"
+    ].includes(
+      angle
+    )
   ) {
 
     return PERSONA_STYLES.reminder;
@@ -1075,11 +1454,12 @@ function chooseStyle(
 
 
   if (
-    angle ===
-    "opportunity"
-    ||
-    angle ===
-    "product"
+    [
+      "opportunity",
+      "product"
+    ].includes(
+      angle
+    )
   ) {
 
     return PERSONA_STYLES.opportunity;
@@ -1088,11 +1468,12 @@ function chooseStyle(
 
 
   if (
-    angle ===
-    "course"
-    ||
-    angle ===
-    "registration"
+    [
+      "course",
+      "registration"
+    ].includes(
+      angle
+    )
   ) {
 
     return PERSONA_STYLES.practical;
@@ -1131,68 +1512,51 @@ function buildHeadline(
     );
 
 
-  const location =
-    shortLocation(
-      facts
-    );
-
-
   /* =======================================================
-     SONUÇ
-
-     Konum kullanılmaz.
-     Katılım çağrısı kullanılmaz.
-     ======================================================= */
+     HABER
+     ========================================================= */
 
   if (
-    angle ===
-    "result"
+    post.category ===
+    "news"
   ) {
 
-    return buildResultHeadline(
-      facts
+    return buildNewsHeadline(
+      facts,
+      angle
     );
 
   }
 
 
   /* =======================================================
-     SON TARİH
-     ======================================================= */
+     SÜRESİ GEÇMİŞ
+     ========================================================= */
+
+  if (
+    angle ===
+    "expired"
+  ) {
+
+    return shorten(
+      `⏳ ${original}`,
+      120
+    );
+
+  }
+
+
+  /* =======================================================
+     KAYIT SON TARİHİ
+     ========================================================= */
 
   if (
     angle ===
     "deadline"
   ) {
 
-    if (
-      post.category ===
-      "jobs"
-    ) {
-
-      return shorten(
-        `💼 ${facts.sport} tarafında başvuru düşünenler, son tarihi kaçırmayın`,
-        120
-      );
-
-    }
-
-
-    if (
-      post.category ===
-      "courses"
-    ) {
-
-      return shorten(
-        `⏳ ${facts.sport} kursunda kayıt takvimine dikkat`,
-        120
-      );
-
-    }
-
-
     return shorten(
-      `⏳ Son tarih yaklaşırken: ${original}`,
+      `⏳ ${original}`,
       120
     );
 
@@ -1200,25 +1564,8 @@ function buildHeadline(
 
 
   /* =======================================================
-     KAYIT
-     ======================================================= */
-
-  if (
-    angle ===
-    "registration"
-  ) {
-
-    return shorten(
-      `📌 ${original}`,
-      120
-    );
-
-  }
-
-
-  /* =======================================================
-     AİLE / ÇOCUK
-     ======================================================= */
+     AİLE
+     ========================================================= */
 
   if (
     angle ===
@@ -1227,13 +1574,7 @@ function buildHeadline(
 
     return shorten(
 
-      `${facts.sportEmoji} Çocuğu için ${facts.sport.toLocaleLowerCase(
-        "tr-TR"
-      )} arayanlara ${
-        location
-          ? `${location} tarafında `
-          : ""
-      }bir seçenek`,
+      `${facts.sportEmoji} ${original}`,
 
       120
 
@@ -1244,29 +1585,19 @@ function buildHeadline(
 
   /* =======================================================
      KURS
-     ======================================================= */
+     ========================================================= */
 
   if (
-    angle ===
-    "course"
+    [
+      "course",
+      "registration"
+    ].includes(
+      angle
+    )
   ) {
 
-    if (
-      location
-    ) {
-
-      return shorten(
-        `${facts.sportEmoji} ${location}’da ${facts.sport.toLocaleLowerCase(
-          "tr-TR"
-        )} kursu arayanlar buraya`,
-        120
-      );
-
-    }
-
-
     return shorten(
-      `${facts.sportEmoji} ${facts.sport} kursu arayanlar için yeni bir seçenek`,
+      `${facts.sportEmoji} ${original}`,
       120
     );
 
@@ -1275,29 +1606,19 @@ function buildHeadline(
 
   /* =======================================================
      ETKİNLİK
-
-     Yalnız completed/result olmayan içerikler buraya gelir.
-     ======================================================= */
+     ========================================================= */
 
   if (
-    angle ===
-    "event"
+    [
+      "event",
+      "past_event"
+    ].includes(
+      angle
+    )
   ) {
 
-    if (
-      location
-    ) {
-
-      return shorten(
-        `${facts.sportEmoji} ${location}’da spor planı yapanların radarına`,
-        120
-      );
-
-    }
-
-
     return shorten(
-      `${facts.sportEmoji} Spor planına eklenebilecek yeni bir etkinlik`,
+      `${facts.sportEmoji} ${original}`,
       120
     );
 
@@ -1306,7 +1627,7 @@ function buildHeadline(
 
   /* =======================================================
      KAMPANYA
-     ======================================================= */
+     ========================================================= */
 
   if (
     angle ===
@@ -1319,17 +1640,20 @@ function buildHeadline(
     ) {
 
       return shorten(
+
         `👀 %${formatNumber(
           facts.discountRate
-        )} indirimle dikkat çeken bir spor fırsatı`,
+        )} indirim: ${original}`,
+
         120
+
       );
 
     }
 
 
     return shorten(
-      "👀 Spor tarafında dikkat çeken yeni bir kampanya",
+      `👀 ${original}`,
       120
     );
 
@@ -1338,27 +1662,15 @@ function buildHeadline(
 
   /* =======================================================
      İŞ
-     ======================================================= */
+     ========================================================= */
 
   if (
     angle ===
     "career"
   ) {
 
-    if (
-      facts.position
-    ) {
-
-      return shorten(
-        `💼 ${facts.position} arayanlar, bu ilana göz atabilir`,
-        120
-      );
-
-    }
-
-
     return shorten(
-      `💼 ${facts.sport} alanında yeni bir iş ilanı`,
+      `💼 ${original}`,
       120
     );
 
@@ -1366,8 +1678,8 @@ function buildHeadline(
 
 
   /* =======================================================
-     MAĞAZA / ÜRÜN
-     ======================================================= */
+     MAĞAZA
+     ========================================================= */
 
   if (
     angle ===
@@ -1385,44 +1697,26 @@ function buildHeadline(
     ) {
 
       return shorten(
-        `🛍️ ${product}: ${formatMoney(
+
+        `🛍️ ${product} · ${formatMoney(
           facts.price,
           facts.currency
         )}`,
+
         120
+
       );
 
     }
 
 
     return shorten(
-      `🛍️ Spor alışverişi yapanların radarına: ${product}`,
+      `🛍️ ${product}`,
       120
     );
 
   }
 
-
-  /* =======================================================
-     DUYURU
-     ======================================================= */
-
-  if (
-    angle ===
-    "announcement"
-  ) {
-
-    return shorten(
-      `📢 ${original}`,
-      120
-    );
-
-  }
-
-
-  /* =======================================================
-     GENEL
-     ======================================================= */
 
   return shorten(
     `${facts.sportEmoji} ${original}`,
@@ -1433,34 +1727,89 @@ function buildHeadline(
 
 
 /* =========================================================
-   SONUÇ BAŞLIĞI
-
-   Kaynağın gerçek başlığını temel alır.
-   Yeni olay/fakt uydurmaz.
+   HABER BAŞLIĞI
    ========================================================= */
 
-function buildResultHeadline(
-  facts
+function buildNewsHeadline(
+  facts,
+  angle
 ) {
 
-  const original =
-    cleanResultTitle(
+  const title =
+    cleanHeadline(
       facts.originalTitle ||
       facts.currentHeadline
     );
 
 
   if (
-    original
+    !title
   ) {
 
-    /*
-      Orijinal başlık zaten güçlü sonuç dili taşıyorsa
-      onu koruyoruz.
-    */
+    return `${facts.sportEmoji} ${facts.sport} Haber`;
+
+  }
+
+
+  if (
+    angle ===
+    "result"
+  ) {
 
     return shorten(
-      `🏆 ${original}`,
+      `🏆 ${title}`,
+      120
+    );
+
+  }
+
+
+  if (
+    angle ===
+    "achievement"
+  ) {
+
+    return shorten(
+      `👏 ${title}`,
+      120
+    );
+
+  }
+
+
+  if (
+    angle ===
+    "assignment"
+  ) {
+
+    return shorten(
+      `📣 ${title}`,
+      120
+    );
+
+  }
+
+
+  if (
+    angle ===
+    "transfer"
+  ) {
+
+    return shorten(
+      `🔄 ${title}`,
+      120
+    );
+
+  }
+
+
+  if (
+    angle ===
+    "announcement"
+  ) {
+
+    return shorten(
+      `📢 ${title}`,
       120
     );
 
@@ -1468,7 +1817,7 @@ function buildResultHeadline(
 
 
   return shorten(
-    `🏆 ${facts.sport} tarafında sonuç belli oldu`,
+    `${facts.sportEmoji} ${title}`,
     120
   );
 
@@ -1485,39 +1834,19 @@ function buildInfluencerText(
   angle
 ) {
 
-  /* -------------------------------------------------------
-     RESULT her kategorinin önüne geçer.
-     ------------------------------------------------------- */
-
-  if (
-    angle ===
-    "result"
-  ) {
-
-    return buildResultText(
-      facts
-    );
-
-  }
-
-
-  if (
-    angle ===
-    "registration"
-  ) {
-
-    return buildRegistrationText(
-      facts
-    );
-
-  }
-
-
   switch (
     post.category
   ) {
 
-    case "courses":
+    case "news":
+
+      return buildNewsText(
+        facts,
+        angle
+      );
+
+
+    case "course":
 
       return buildCourseText(
         facts,
@@ -1525,7 +1854,7 @@ function buildInfluencerText(
       );
 
 
-    case "events":
+    case "event":
 
       return buildEventText(
         facts,
@@ -1533,17 +1862,19 @@ function buildInfluencerText(
       );
 
 
-    case "campaigns":
+    case "campaign":
 
       return buildCampaignText(
-        facts
+        facts,
+        angle
       );
 
 
     case "jobs":
 
       return buildJobText(
-        facts
+        facts,
+        angle
       );
 
 
@@ -1566,70 +1897,124 @@ function buildInfluencerText(
 
 
 /* =========================================================
-   SONUÇ METNİ
-
-   ÖNEMLİ:
-   - Katılım çağrısı yok.
-   - Gelecek zaman yok.
-   - "Planına ekle" yok.
-   - Şehir üzerinden çıkarım yok.
+   HABER METNİ
    ========================================================= */
 
-function buildResultText(
-  facts
+function buildNewsText(
+  facts,
+  angle
 ) {
 
   const sentences =
     [];
 
 
-  const originalText =
-    cleanString(
-      facts.originalText
+  const publishLead =
+    buildPublishFreshnessSentence(
+      facts
     );
 
-
-  const originalTitle =
-    cleanResultTitle(
-      facts.originalTitle
-    );
-
-
-  /*
-    Kaynak açıklaması varsa onu esas alıyoruz.
-  */
 
   if (
-    originalText
+    publishLead
   ) {
 
-    const summary =
-      shorten(
-        originalText,
-        360
-      );
+    sentences.push(
+      publishLead
+    );
 
+  }
+
+
+  /* -------------------------------------------------------
+     Haber türü
+     ------------------------------------------------------- */
+
+  if (
+    angle ===
+    "result"
+  ) {
 
     sentences.push(
-      summary
+      "Sonuç netleşti."
+    );
+
+  }
+
+
+  else if (
+    angle ===
+    "achievement"
+  ) {
+
+    sentences.push(
+      "Spor tarafında dikkat çeken bir başarı haberi var."
+    );
+
+  }
+
+
+  else if (
+    angle ===
+    "assignment"
+  ) {
+
+    sentences.push(
+      "Yeni bir görevlendirme gelişmesi paylaşıldı."
+    );
+
+  }
+
+
+  else if (
+    angle ===
+    "transfer"
+  ) {
+
+    sentences.push(
+      "Kariyer tarafında yeni bir gelişme var."
+    );
+
+  }
+
+
+  else if (
+    angle ===
+    "announcement"
+  ) {
+
+    sentences.push(
+      "Yeni bir açıklama veya duyuru paylaşıldı."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Kaynaktaki gerçek açıklama
+     ------------------------------------------------------- */
+
+  if (
+    facts.originalText
+  ) {
+
+    sentences.push(
+      shorten(
+        facts.originalText,
+        340
+      )
     );
 
   }
 
   else if (
-    originalTitle
+    facts.originalTitle
   ) {
 
     sentences.push(
-      `${originalTitle}.`
-    );
-
-  }
-
-  else {
-
-    sentences.push(
-      `${facts.sport} tarafında sonuçlanan bir organizasyonla ilgili yeni bilgi paylaşıldı.`
+      `${cleanHeadline(
+        facts.originalTitle
+      )}.`
     );
 
   }
@@ -1637,60 +2022,7 @@ function buildResultText(
 
   return finalizeText(
     sentences,
-    "Sonucun ayrıntılarını resmî kaynaktan inceleyebilirsin."
-  );
-
-}
-
-
-/* =========================================================
-   KAYIT / BAŞVURU METNİ
-   ========================================================= */
-
-function buildRegistrationText(
-  facts
-) {
-
-  const sentences =
-    [];
-
-
-  const title =
-    getBaseTitle(
-      facts
-    );
-
-
-  sentences.push(
-    `${title} için kullanıcıdan işlem gerektiren bir kayıt veya başvuru süreci bulunuyor.`
-  );
-
-
-  if (
-    facts.deadline
-  ) {
-
-    sentences.push(
-      `Kaynakta belirtilen son tarih: ${facts.deadline}.`
-    );
-
-  }
-
-
-  if (
-    facts.startDate
-  ) {
-
-    sentences.push(
-      `İlgili tarih bilgisi ${facts.startDate} olarak belirtilmiş.`
-    );
-
-  }
-
-
-  return finalizeText(
-    sentences,
-    "Başvuru şartlarını ve gerekli adımları resmî kaynaktan kontrol edebilirsin."
+    "Ayrıntıları kaynağın kendi paylaşımından inceleyebilirsin."
   );
 
 }
@@ -1715,28 +2047,94 @@ function buildCourseText(
     );
 
 
+  /* -------------------------------------------------------
+     ZAMAN
+     ------------------------------------------------------- */
+
   if (
-    angle ===
-    "family"
+    facts.actionState ===
+    "closed"
+  ) {
+
+    sentences.push(
+      "Bu kurs için belirtilen kayıt veya başvuru süresi sona ermiş görünüyor."
+    );
+
+  }
+
+
+  else if (
+    facts.timeState ===
+    "future"
   ) {
 
     sentences.push(
 
       location
 
-        ? `${location} çevresinde çocuğu için ${facts.sport.toLocaleLowerCase(
+        ? `${location} tarafında yaklaşan bir ${facts.sport.toLocaleLowerCase(
             "tr-TR"
-          )} seçeneği arayanların bakabileceği bir kurs var.`
+          )} kursu var.`
 
-        : `Çocuğu için ${facts.sport.toLocaleLowerCase(
-            "tr-TR"
-          )} kursu arayanların bakabileceği bir seçenek var.`
+        : `${facts.sport} tarafında yaklaşan bir kurs var.`
 
     );
 
   }
 
+
+  else if (
+    facts.timeState ===
+    "present"
+  ) {
+
+    sentences.push(
+
+      location
+
+        ? `${location} tarafındaki bu ${facts.sport.toLocaleLowerCase(
+            "tr-TR"
+          )} programı şu anda devam ediyor.`
+
+        : `Bu ${facts.sport.toLocaleLowerCase(
+            "tr-TR"
+          )} programı şu anda devam ediyor.`
+
+    );
+
+  }
+
+
+  else if (
+    facts.timeState ===
+    "past"
+  ) {
+
+    sentences.push(
+      "Kaynakta belirtilen kurs dönemi geçmiş durumda."
+    );
+
+  }
+
+
   else {
+
+    const freshness =
+      buildPublishFreshnessSentence(
+        facts
+      );
+
+
+    if (
+      freshness
+    ) {
+
+      sentences.push(
+        freshness
+      );
+
+    }
+
 
     sentences.push(
 
@@ -1744,14 +2142,33 @@ function buildCourseText(
 
         ? `${location} tarafında ${facts.sport.toLocaleLowerCase(
             "tr-TR"
-          )} kursu arayanların değerlendirebileceği bir seçenek var.`
+          )} kursu arayanların inceleyebileceği bir seçenek.`
 
-        : `${facts.sport} kursu arayanların değerlendirebileceği yeni bir seçenek var.`
+        : `${facts.sport} kursu arayanların inceleyebileceği bir seçenek.`
 
     );
 
   }
 
+
+  /* -------------------------------------------------------
+     Başlangıç
+     ------------------------------------------------------- */
+
+  if (
+    facts.startDate
+  ) {
+
+    sentences.push(
+      `Başlangıç tarihi ${facts.startDate}.`
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Program
+     ------------------------------------------------------- */
 
   const schedule =
     buildScheduleSentence(
@@ -1770,6 +2187,10 @@ function buildCourseText(
   }
 
 
+  /* -------------------------------------------------------
+     Yaş
+     ------------------------------------------------------- */
+
   const age =
     buildAgeSentence(
       facts
@@ -1787,6 +2208,10 @@ function buildCourseText(
   }
 
 
+  /* -------------------------------------------------------
+     Fiyat
+     ------------------------------------------------------- */
+
   const price =
     buildPriceSentence(
       facts
@@ -1803,6 +2228,10 @@ function buildCourseText(
 
   }
 
+
+  /* -------------------------------------------------------
+     Kontenjan
+     ------------------------------------------------------- */
 
   if (
     facts.capacity !==
@@ -1818,12 +2247,33 @@ function buildCourseText(
   }
 
 
+  /* -------------------------------------------------------
+     Deadline
+     ------------------------------------------------------- */
+
   if (
     facts.deadline
   ) {
 
     sentences.push(
-      "Kayıt için belirtilen son tarihi ayrıca kontrol etmekte fayda var."
+      `Belirtilen son kayıt / başvuru tarihi ${facts.deadline}.`
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Bitiş
+     ------------------------------------------------------- */
+
+  if (
+    facts.actionState ===
+    "closed"
+  ) {
+
+    return finalizeText(
+      sentences,
+      "Yeni dönem veya güncel kayıt bilgisi için kaynağı kontrol edebilirsin."
     );
 
   }
@@ -1831,7 +2281,7 @@ function buildCourseText(
 
   return finalizeText(
     sentences,
-    "Ayrıntıları ve güncel kayıt durumunu resmî kaynaktan kontrol edebilirsin."
+    "Güncel kayıt durumunu ve şartları kaynağın kendi sayfasından kontrol edebilirsin."
   );
 
 }
@@ -1839,17 +2289,12 @@ function buildCourseText(
 
 /* =========================================================
    ETKİNLİK METNİ
-
-   Bu fonksiyon RESULT için artık çağrılmaz.
    ========================================================= */
 
 function buildEventText(
   facts,
   angle
 ) {
-
-  void angle;
-
 
   const sentences =
     [];
@@ -1861,35 +2306,128 @@ function buildEventText(
     );
 
 
+  /* -------------------------------------------------------
+     Geçmiş
+     ------------------------------------------------------- */
+
   if (
-    location
+    angle ===
+    "past_event"
+    ||
+    facts.timeState ===
+    "past"
   ) {
 
     sentences.push(
-      `${location} tarafında spor planına eklenebilecek bir etkinlik var.`
+      "Bu etkinlik için belirtilen tarih geçmiş durumda."
     );
 
   }
+
+
+  /* -------------------------------------------------------
+     Şimdi
+     ------------------------------------------------------- */
+
+  else if (
+    facts.timeState ===
+    "present"
+  ) {
+
+    sentences.push(
+
+      location
+
+        ? `${location} tarafındaki etkinlik şu anda devam ediyor.`
+
+        : "Etkinlik şu anda devam ediyor."
+
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Gelecek
+     ------------------------------------------------------- */
+
+  else if (
+    facts.timeState ===
+    "future"
+  ) {
+
+    sentences.push(
+
+      location
+
+        ? `${location} tarafında yaklaşan bir spor etkinliği var.`
+
+        : `${facts.sport} tarafında yaklaşan bir etkinlik var.`
+
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Tarih bilinmiyor
+     ------------------------------------------------------- */
 
   else {
 
+    const freshness =
+      buildPublishFreshnessSentence(
+        facts
+      );
+
+
+    if (
+      freshness
+    ) {
+
+      sentences.push(
+        freshness
+      );
+
+    }
+
+
     sentences.push(
-      `${facts.sport} tarafında yaklaşan bir etkinlik bulunuyor.`
+      `${facts.sport} tarafında bir etkinlik duyurusu bulunuyor.`
     );
 
   }
 
+
+  /* -------------------------------------------------------
+     Tarihler
+     ------------------------------------------------------- */
 
   if (
     facts.startDate
   ) {
 
     sentences.push(
-      `Etkinlik tarihi kaynakta ${facts.startDate} olarak belirtiliyor.`
+      `Başlangıç: ${facts.startDate}.`
     );
 
   }
 
+
+  if (
+    facts.endDate
+  ) {
+
+    sentences.push(
+      `Bitiş: ${facts.endDate}.`
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Saat
+     ------------------------------------------------------- */
 
   const time =
     buildTimeText(
@@ -1902,11 +2440,15 @@ function buildEventText(
   ) {
 
     sentences.push(
-      `Saat bilgisi: ${time}.`
+      `Saat bilgisi ${time}.`
     );
 
   }
 
+
+  /* -------------------------------------------------------
+     Fiyat
+     ------------------------------------------------------- */
 
   const price =
     buildPriceSentence(
@@ -1925,12 +2467,28 @@ function buildEventText(
   }
 
 
+  /* -------------------------------------------------------
+     Kayıt son tarihi
+     ------------------------------------------------------- */
+
   if (
     facts.deadline
   ) {
 
     sentences.push(
-      "Katılım düşünüyorsan kayıt tarihini kontrol etmek önemli."
+      `Belirtilen kayıt / başvuru son tarihi ${facts.deadline}.`
+    );
+
+  }
+
+
+  if (
+    facts.actionState ===
+    "closed"
+  ) {
+
+    sentences.push(
+      "Katılım tarihi ileride olsa bile belirtilen başvuru süresi sona ermiş olabilir."
     );
 
   }
@@ -1938,7 +2496,7 @@ function buildEventText(
 
   return finalizeText(
     sentences,
-    "Program ve katılım koşullarını resmî kaynaktan kontrol edebilirsin."
+    "Program ve katılım şartlarını kaynağın kendi sayfasından kontrol edebilirsin."
   );
 
 }
@@ -1949,11 +2507,80 @@ function buildEventText(
    ========================================================= */
 
 function buildCampaignText(
-  facts
+  facts,
+  angle
 ) {
 
   const sentences =
     [];
+
+
+  if (
+    angle ===
+    "expired"
+    ||
+    facts.timeState ===
+    "past"
+    ||
+    facts.actionState ===
+    "closed"
+  ) {
+
+    sentences.push(
+      "Bu kampanya için belirtilen geçerlilik süresi sona ermiş görünüyor."
+    );
+
+  }
+
+
+  else if (
+    facts.timeState ===
+    "future"
+  ) {
+
+    sentences.push(
+      "Bu kampanya henüz başlamamış; belirtilen başlangıç tarihini takip etmekte fayda var."
+    );
+
+  }
+
+
+  else if (
+    facts.timeState ===
+    "present"
+  ) {
+
+    sentences.push(
+      "Kaynakta yer alan tarihlere göre kampanya şu anda geçerli."
+    );
+
+  }
+
+
+  else {
+
+    const freshness =
+      buildPublishFreshnessSentence(
+        facts
+      );
+
+
+    if (
+      freshness
+    ) {
+
+      sentences.push(
+        freshness
+      );
+
+    }
+
+
+    sentences.push(
+      "Spor tarafında dikkat çeken bir kampanya paylaşılmış."
+    );
+
+  }
 
 
   if (
@@ -1962,17 +2589,9 @@ function buildCampaignText(
   ) {
 
     sentences.push(
-      `Spor tarafında %${formatNumber(
+      `Belirtilen indirim oranı %${formatNumber(
         facts.discountRate
-      )} indirim bilgisiyle dikkat çeken bir kampanya var.`
-    );
-
-  }
-
-  else {
-
-    sentences.push(
-      "Spor tarafında yeni bir kampanya var."
+      )}.`
     );
 
   }
@@ -1986,7 +2605,7 @@ function buildCampaignText(
   ) {
 
     sentences.push(
-      `Kaynakta fiyat ${formatMoney(
+      `Kaynakta ${formatMoney(
         facts.oldPrice,
         facts.currency
       )} yerine ${formatMoney(
@@ -2013,12 +2632,11 @@ function buildCampaignText(
 
 
   if (
-    facts.deadline ||
     facts.endDate
   ) {
 
     sentences.push(
-      "Kampanyanın geçerlilik tarihini işlem yapmadan önce kontrol etmek önemli."
+      `Belirtilen bitiş tarihi ${facts.endDate}.`
     );
 
   }
@@ -2026,7 +2644,7 @@ function buildCampaignText(
 
   return finalizeText(
     sentences,
-    "Kampanya koşulları ve güncel fiyat için resmî kaynağa göz atabilirsin."
+    "Fiyat ve kampanya koşulları değişebileceği için işlem öncesinde kaynağı kontrol etmek iyi olur."
   );
 
 }
@@ -2037,7 +2655,8 @@ function buildCampaignText(
    ========================================================= */
 
 function buildJobText(
-  facts
+  facts,
+  angle
 ) {
 
   const sentences =
@@ -2051,20 +2670,55 @@ function buildJobText(
 
 
   if (
-    facts.position
+    angle ===
+    "expired"
+    ||
+    facts.actionState ===
+    "closed"
   ) {
 
     sentences.push(
-      `${facts.position} pozisyonuyla ilgilenen spor profesyonelleri için yeni bir ilan var.`
+      "Bu ilan için belirtilen başvuru süresi sona ermiş görünüyor."
     );
 
   }
 
   else {
 
-    sentences.push(
-      `${facts.sport} alanında çalışanların ilgisini çekebilecek yeni bir iş ilanı var.`
-    );
+    const freshness =
+      buildPublishFreshnessSentence(
+        facts
+      );
+
+
+    if (
+      freshness
+    ) {
+
+      sentences.push(
+        freshness
+      );
+
+    }
+
+
+    if (
+      facts.position
+    ) {
+
+      sentences.push(
+        `${facts.position} pozisyonuyla ilgilenenler için bir ilan var.`
+      );
+
+    }
+
+    else {
+
+      sentences.push(
+        `${facts.sport} alanında yeni bir iş fırsatı bulunuyor.`
+      );
+
+    }
 
   }
 
@@ -2074,7 +2728,7 @@ function buildJobText(
   ) {
 
     sentences.push(
-      `İlanın konumu ${location}.`
+      `Konum: ${location}.`
     );
 
   }
@@ -2082,8 +2736,11 @@ function buildJobText(
 
   const work =
     [
+
       facts.employmentType,
+
       facts.workMode
+
     ]
       .filter(
         Boolean
@@ -2126,7 +2783,7 @@ function buildJobText(
   ) {
 
     sentences.push(
-      "Başvuru düşünüyorsan son tarihi ayrıca kontrol et."
+      `Son başvuru tarihi ${facts.deadline}.`
     );
 
   }
@@ -2134,7 +2791,7 @@ function buildJobText(
 
   return finalizeText(
     sentences,
-    "Şartların tamamını ve başvuru yöntemini resmî ilandan kontrol edebilirsin."
+    "Şartların tamamını ve başvuru yöntemini ilanın asıl kaynağından kontrol edebilirsin."
   );
 
 }
@@ -2163,7 +2820,7 @@ function buildStoreText(
   ) {
 
     sentences.push(
-      `${facts.brand} imzalı ${product} spor alışverişi yapanların ilgisini çekebilir.`
+      `${facts.brand} imzalı ${product} spor alışverişi yapanların radarına girebilir.`
     );
 
   }
@@ -2171,7 +2828,7 @@ function buildStoreText(
   else {
 
     sentences.push(
-      `${product} spor alışverişi yapanların ilgisini çekebilir.`
+      `${product} spor alışverişi yapanların radarına girebilir.`
     );
 
   }
@@ -2202,7 +2859,7 @@ function buildStoreText(
   ) {
 
     sentences.push(
-      `Gördüğümüz fiyat ${formatMoney(
+      `Listelenen fiyat ${formatMoney(
         facts.price,
         facts.currency
       )}.`
@@ -2216,7 +2873,7 @@ function buildStoreText(
   ) {
 
     sentences.push(
-      `Stok bilgisi kaynakta “${facts.stockStatus}” olarak görünüyor.`
+      `Stok bilgisi “${facts.stockStatus}” olarak belirtilmiş.`
     );
 
   }
@@ -2238,21 +2895,99 @@ function buildGenericText(
   facts
 ) {
 
-  const title =
-    getBaseTitle(
+  const sentences =
+    [];
+
+
+  const freshness =
+    buildPublishFreshnessSentence(
       facts
     );
 
 
-  return finalizeText(
+  if (
+    freshness
+  ) {
 
-    [
-      `${facts.sport} tarafında yeni bir içerik var: ${title}.`
-    ],
+    sentences.push(
+      freshness
+    );
 
-    "Ayrıntıları resmî kaynaktan kontrol edebilirsin."
+  }
 
+
+  sentences.push(
+    `${facts.sport} tarafında yeni bir içerik var: ${getBaseTitle(
+      facts
+    )}.`
   );
+
+
+  return finalizeText(
+    sentences,
+    "Ayrıntıları asıl kaynaktan inceleyebilirsin."
+  );
+
+}
+
+
+/* =========================================================
+   YAYIN GÜNCELLİĞİ DİLİ
+
+   Burada yayın tarihi olay tarihi yapılmaz.
+   ========================================================= */
+
+function buildPublishFreshnessSentence(
+  facts
+) {
+
+  if (
+    facts.temporalBasis !==
+    "published_at"
+    &&
+    !facts.publishedAt
+  ) {
+
+    return "";
+
+  }
+
+
+  switch (
+    facts.languageMode
+  ) {
+
+    case "published_today":
+
+      return facts.sourceName
+        ? `${facts.sourceName} bu içeriği bugün yayımladı.`
+        : "Bu içerik bugün yayımlandı.";
+
+
+    case "published_recent":
+
+      return facts.sourceName
+        ? `${facts.sourceName} bu içeriği kısa süre önce yayımladı.`
+        : "Bu içerik kısa süre önce yayımlandı.";
+
+
+    case "published_current":
+
+      return facts.sourceName
+        ? `${facts.sourceName} bu içeriği yakın zamanda yayımladı.`
+        : "Bu içerik yakın zamanda yayımlandı.";
+
+
+    case "published_old":
+
+      return "Bu içerik daha önce yayımlanmış; güncel durumu yeniden kontrol etmekte fayda var.";
+
+
+    default:
+
+      return "";
+
+  }
 
 }
 
@@ -2268,142 +3003,73 @@ function buildSporNRDNote(
 ) {
 
   if (
-    angle ===
-    "result"
-  ) {
-
-    return "Bu içerik tamamlanmış bir sonuç/haber; yaklaşan etkinlik olarak değerlendirilmemeli.";
-
-  }
-
-
-  if (
-    angle ===
-    "deadline"
-  ) {
-
-    return "Takvim bilgisi bu postta en önemli detay.";
-
-  }
-
-
-  if (
-    angle ===
-    "family" &&
-    (
-      facts.ageMin !==
-      null ||
-      facts.ageMax !==
-      null
+    post.category ===
+    "news"
+    &&
+    [
+      "result",
+      "achievement"
+    ].includes(
+      angle
     )
   ) {
 
-    return "Yaş grubunun uygunluğu karar verirken ilk bakılacak bilgilerden biri.";
+    return "Bu içerik haber niteliğinde; yaklaşan etkinlik olarak değerlendirilmemeli.";
 
   }
 
 
   if (
-    facts.price !==
-    null &&
-    post.category ===
-    "courses"
+    facts.actionState ===
+    "closed"
   ) {
 
-    return "Gün, saat ve fiyatı birlikte değerlendirmek bu seçenek için daha anlamlı.";
+    return "Belirtilen işlem süresi geçmiş; kullanıcıya aktif başvuru veya kayıt çağrısı yapılmamalı.";
 
   }
 
 
   if (
-    facts.discountRate !==
-    null
+    facts.timeState ===
+    "future"
   ) {
 
-    return "İndirim oranı dikkat çekiyor; son fiyatı yine resmî kaynaktan doğrulamak önemli.";
+    return "İçerik ileri tarihli; gelecek zaman dili kullanılmalı.";
 
   }
 
 
   if (
-    post.category ===
-    "jobs"
+    facts.timeState ===
+    "present"
   ) {
 
-    return "Pozisyon şartları ve çalışma düzeni başvuru öncesinde kontrol edilmeli.";
+    return "İçerik bugün veya devam eden zaman aralığında.";
+
+  }
+
+
+  if (
+    facts.timeState ===
+    "past"
+  ) {
+
+    return "İçerikteki gerçek tarih geçmiş durumda; yaklaşan fırsat dili kullanılmamalı.";
+
+  }
+
+
+  if (
+    facts.temporalBasis ===
+    "published_at"
+  ) {
+
+    return "Olay tarihi bilinmiyor; yayın tarihi yalnızca güncellik anlatımı için kullanılmalı.";
 
   }
 
 
   return "";
-
-}
-
-
-/* =========================================================
-   COMPLETED RESULT?
-   ========================================================= */
-
-function isCompletedResult(
-  facts
-) {
-
-  return Boolean(
-
-    facts?.contentIntent ===
-    "result"
-
-    ||
-
-    facts?.eventStatus ===
-    "completed"
-
-  );
-
-}
-
-
-/* =========================================================
-   SONUÇ BAŞLIĞI TEMİZLE
-   ========================================================= */
-
-function cleanResultTitle(
-  value
-) {
-
-  let text =
-    cleanString(
-      value
-    );
-
-
-  if (
-    !text
-  ) {
-
-    return "";
-
-  }
-
-
-  /*
-    Son noktadaki gereksiz noktalama temizliği.
-  */
-
-  text =
-    text
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .replace(
-        /[.!…]+$/,
-        ""
-      )
-      .trim();
-
-
-  return text;
 
 }
 
@@ -2469,7 +3135,7 @@ function buildScheduleSentence(
 
 
 /* =========================================================
-   SAAT METNİ
+   SAAT
    ========================================================= */
 
 function buildTimeText(
@@ -2503,7 +3169,7 @@ function buildTimeText(
 
 
 /* =========================================================
-   YAŞ CÜMLESİ
+   YAŞ
    ========================================================= */
 
 function buildAgeSentence(
@@ -2522,7 +3188,7 @@ function buildAgeSentence(
         facts.ageMin
       )}–${formatNumber(
         facts.ageMax
-      )} yaş grubu için uygun olduğu belirtilmiş.`
+      )} yaş grubu için belirtilmiş.`
     );
 
   }
@@ -2573,7 +3239,7 @@ function buildAgeSentence(
 
 
 /* =========================================================
-   FİYAT CÜMLESİ
+   FİYAT
    ========================================================= */
 
 function buildPriceSentence(
@@ -2643,7 +3309,7 @@ function buildSalaryText(
   ) {
 
     return (
-      `İlanda ücret aralığı ${formatMoney(
+      `Ücret aralığı ${formatMoney(
         facts.salaryMin,
         facts.currency
       )} – ${formatMoney(
@@ -2661,7 +3327,7 @@ function buildSalaryText(
   ) {
 
     return (
-      `İlanda belirtilen başlangıç ücreti ${formatMoney(
+      `Belirtilen başlangıç ücreti ${formatMoney(
         facts.salaryMin,
         facts.currency
       )}.`
@@ -2671,7 +3337,7 @@ function buildSalaryText(
 
 
   return (
-    `İlanda belirtilen ücret ${formatMoney(
+    `Belirtilen ücret ${formatMoney(
       facts.salaryMax,
       facts.currency
     )}.`
@@ -2775,12 +3441,10 @@ function resolveDiscountRate(
     null
   ) {
 
-    return Math.max(
+    return clamp(
+      explicit,
       0,
-      Math.min(
-        explicit,
-        100
-      )
+      100
     );
 
   }
@@ -2858,92 +3522,44 @@ function isChildAudience(
     );
 
 
-  return (
+  return Boolean(
+
     text.includes(
       "cocuk"
     )
+
     ||
+
     text.includes(
       "minik"
     )
+
     ||
+
     text.includes(
       "genc"
     )
+
   );
 
 }
 
 
 /* =========================================================
-   KISA KONUM
-   ========================================================= */
-
-function shortLocation(
-  facts
-) {
-
-  /*
-    Tamamlanmış sonuçlarda konum kullanma.
-  */
-
-  if (
-    isCompletedResult(
-      facts
-    )
-  ) {
-
-    return "";
-
-  }
-
-
-  if (
-    facts.district
-  ) {
-
-    return facts.district;
-
-  }
-
-
-  if (
-    facts.city
-  ) {
-
-    return facts.city;
-
-  }
-
-
-  return "";
-
-}
-
-
-/* =========================================================
-   OKUNABİLİR KONUM
+   KONUM
    ========================================================= */
 
 function readableLocation(
   facts
 ) {
 
-  if (
-    isCompletedResult(
-      facts
-    )
-  ) {
-
-    return "";
-
-  }
-
-
   const parts =
     [
+
       facts.district,
+
       facts.city
+
     ]
       .filter(
         Boolean
@@ -2971,17 +3587,49 @@ function getBaseTitle(
 
   return (
 
-    facts.originalTitle ||
+    cleanHeadline(
+      facts.originalTitle
+    )
 
-    facts.currentHeadline ||
+    ||
 
-    facts.subCategory ||
+    cleanHeadline(
+      facts.currentHeadline
+    )
 
-    facts.category ||
+    ||
+
+    facts.subCategory
+
+    ||
+
+    facts.category
+
+    ||
 
     `${facts.sport} içeriği`
 
   );
+
+}
+
+
+/* =========================================================
+   BAŞLIK TEMİZLE
+   ========================================================= */
+
+function cleanHeadline(
+  value
+) {
+
+  return cleanString(
+    value
+  )
+    .replace(
+      /[.!…]+$/,
+      ""
+    )
+    .trim();
 
 }
 
@@ -2997,9 +3645,11 @@ function finalizeText(
 
   const clean =
     sentences
+
       .map(
         cleanString
       )
+
       .filter(
         Boolean
       );
@@ -3010,7 +3660,9 @@ function finalizeText(
   ) {
 
     clean.push(
-      fallbackEnding
+      cleanString(
+        fallbackEnding
+      )
     );
 
   }
@@ -3020,7 +3672,7 @@ function finalizeText(
     clean.join(
       " "
     ),
-    520
+    560
   );
 
 }
@@ -3047,10 +3699,16 @@ function createFallbackPersona() {
       "SporNRD’de yeni bir spor içeriği",
 
     influencerText:
-      "Yeni spor içeriğinin ayrıntılarını resmî kaynaktan kontrol edebilirsin.",
+      "İçeriğin ayrıntılarını kaynağın kendi paylaşımından kontrol edebilirsin.",
 
     note:
       "",
+
+    languageMode:
+      "neutral",
+
+    timeState:
+      "unknown",
 
     factsUsed:
       [],
@@ -3136,6 +3794,9 @@ function firstNumber(
 
 /* =========================================================
    NULLABLE NUMBER
+
+   DİKKAT:
+   0 geçerli değerdir.
    ========================================================= */
 
 function nullableNumber(
@@ -3172,29 +3833,6 @@ function nullableNumber(
 
 
 /* =========================================================
-   SAFE NUMBER
-   ========================================================= */
-
-function safeNumber(
-  value
-) {
-
-  const number =
-    Number(
-      value
-    );
-
-
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : 0;
-
-}
-
-
-/* =========================================================
    ARRAY
    ========================================================= */
 
@@ -3221,6 +3859,29 @@ function stringArray(
 
     .filter(
       Boolean
+    );
+
+}
+
+
+/* =========================================================
+   ID NORMALİZE
+   ========================================================= */
+
+function normalizeId(
+  value
+) {
+
+  return normalizeText(
+    value
+  )
+    .replace(
+      /[^a-z0-9]+/g,
+      "_"
+    )
+    .replace(
+      /^_+|_+$/g,
+      ""
     );
 
 }
@@ -3321,6 +3982,33 @@ function isPlainObject(
 
 
 /* =========================================================
+   CLAMP
+   ========================================================= */
+
+function clamp(
+  value,
+  min,
+  max
+) {
+
+  return Math.max(
+
+    min,
+
+    Math.min(
+      max,
+      Number(
+        value
+      ) ||
+      0
+    )
+
+  );
+
+}
+
+
+/* =========================================================
    SHORTEN
    ========================================================= */
 
@@ -3360,14 +4048,17 @@ function shorten(
 
   return (
     part.slice(
+
       0,
+
       lastSpace >
       0
         ? lastSpace
         : max
+
     )
     +
     "…"
   );
 
-}
+       }
