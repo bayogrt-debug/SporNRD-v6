@@ -4,7 +4,7 @@
 
    Gerçek Kaynak → v6.1 Preview Pipeline
 
-   Sürüm: 6.1.0-preview
+   Sürüm: 6.1.1-preview
 
    Amaç:
    ---------------------------------------------------------
@@ -13,6 +13,8 @@
    Legacy Feed
         ↓
    Normalizer
+        ↓
+   Content Intent Engine
         ↓
    Discovery Engine
         ↓
@@ -27,7 +29,7 @@
    ÖNEMLİ:
    ---------------------------------------------------------
    Bu dosya mevcut /api/feed sistemini değiştirmez.
-   Yalnızca /api/feed-preview için kullanılacaktır.
+   Yalnızca /api/feed-preview için kullanılır.
    ========================================================= */
 
 
@@ -39,6 +41,14 @@ import {
   createNormalizationSummary
 
 } from "./normalizer.js";
+
+
+import {
+
+  applyContentIntent,
+  CONTENT_INTENT_VERSION
+
+} from "../intelligence/contentIntentEngine.js";
 
 
 import {
@@ -69,7 +79,7 @@ import {
    ========================================================= */
 
 export const FEED_PREVIEW_VERSION =
-  "1.0";
+  "1.1";
 
 
 const DEFAULT_LIMIT =
@@ -172,6 +182,9 @@ export async function buildFeedPreview({
       version:
         FEED_PREVIEW_VERSION,
 
+      contentIntentVersion:
+        CONTENT_INTENT_VERSION,
+
       startedAt:
         startedAt,
 
@@ -187,6 +200,15 @@ export async function buildFeedPreview({
 
       sources:
         [],
+
+      rawPostCount:
+        0,
+
+      uniquePostCount:
+        0,
+
+      visiblePostCount:
+        0,
 
       count:
         0,
@@ -215,6 +237,11 @@ export async function buildFeedPreview({
 
         normalization:
           createNormalizationSummary(
+            []
+          ),
+
+        intent:
+          createIntentSummary(
             []
           ),
 
@@ -447,9 +474,8 @@ export async function buildFeedPreview({
             Legacy postlarda createPost()
             firstSeenAt alanını "şimdi" yapabilir.
 
-            Preview sırasında eski haberleri yanlışlıkla
-            YENİ göstermemek için bilinen yayın tarihini
-            ilk görülme tarihi olarak kullanıyoruz.
+            Eski haberleri yanlışlıkla yeni göstermemek için
+            yayın tarihi biliniyorsa onu koruyoruz.
           */
 
           let post =
@@ -458,15 +484,47 @@ export async function buildFeedPreview({
             );
 
 
-          /* -------------------------------------------------
+          /* =================================================
+             CONTENT INTENT
+
+             Önce içeriğin NE ANLATTIĞINI anlamaya çalışır.
+
+             result
+             registration
+             opportunity
+             announcement
+             campaign
+             job
+             product
+             news
+
+             Ayrıca:
+
+             upcoming
+             ongoing
+             completed
+             unknown
+
+             durumunu üretir.
+             ================================================= */
+
+          post =
+            applyContentIntent(
+              post
+            );
+
+
+          /* =================================================
              DISCOVERY
+
+             Content Intent kararından SONRA:
 
              Branş
              Ana kategori
              Alt kategori
              Provider
              Eksik filtre alanları
-             ------------------------------------------------- */
+             ================================================= */
 
           post =
             applyDiscovery(
@@ -474,16 +532,9 @@ export async function buildFeedPreview({
             );
 
 
-          /* -------------------------------------------------
+          /* =================================================
              LIFECYCLE
-
-             new
-             active
-             closing_soon
-             updated
-             expired
-             removed
-             ------------------------------------------------- */
+             ================================================= */
 
           post =
             applyLifecycle(
@@ -491,11 +542,15 @@ export async function buildFeedPreview({
             );
 
 
-          /* -------------------------------------------------
+          /* =================================================
              PERSONA
 
-             SporNRD influencer/fenomen anlatımı
-             ------------------------------------------------- */
+             Şimdilik mevcut persona motoru çalışıyor.
+
+             Bir sonraki aşamada contentIntent/result bilgisini
+             kullanarak geçmiş sonuç haberlerinde
+             "gidilecek etkinlik" dili üretmesini engelleyeceğiz.
+             ================================================= */
 
           post =
             applyPersona(
@@ -632,6 +687,9 @@ export async function buildFeedPreview({
     version:
       FEED_PREVIEW_VERSION,
 
+    contentIntentVersion:
+      CONTENT_INTENT_VERSION,
+
     startedAt:
       startedAt,
 
@@ -677,12 +735,125 @@ export async function buildFeedPreview({
           uniquePosts
         ),
 
+      intent:
+        createIntentSummary(
+          uniquePosts
+        ),
+
       lifecycle:
         createLifecycleSummary(
           uniquePosts
         )
 
     }
+
+  };
+
+}
+
+
+/* =========================================================
+   INTENT SUMMARY
+
+   Preview ekranında motorun genel kararlarını
+   kolayca görmemizi sağlar.
+   ========================================================= */
+
+function createIntentSummary(
+  posts
+) {
+
+  const items =
+    Array.isArray(
+      posts
+    )
+      ? posts
+      : [];
+
+
+  const intents =
+    {};
+
+
+  const statuses =
+    {};
+
+
+  const treatments =
+    {};
+
+
+  let actionable =
+    0;
+
+
+  let nonActionable =
+    0;
+
+
+  for (
+    const post
+    of items
+  ) {
+
+    incrementCounter(
+      intents,
+      post?.contentIntent ||
+      "unknown"
+    );
+
+
+    incrementCounter(
+      statuses,
+      post?.eventStatus ||
+      "unknown"
+    );
+
+
+    incrementCounter(
+      treatments,
+      post?.intentMeta?.feedTreatment ||
+      "unknown"
+    );
+
+
+    if (
+      post?.actionable ===
+      true
+    ) {
+
+      actionable++;
+
+    }
+
+    else {
+
+      nonActionable++;
+
+    }
+
+  }
+
+
+  return {
+
+    count:
+      items.length,
+
+    intents:
+      intents,
+
+    eventStatuses:
+      statuses,
+
+    feedTreatments:
+      treatments,
+
+    actionable:
+      actionable,
+
+    nonActionable:
+      nonActionable
 
   };
 
@@ -944,6 +1115,37 @@ function normalizeLimit(
 
 
 /* =========================================================
+   COUNTER
+   ========================================================= */
+
+function incrementCounter(
+  target,
+  key
+) {
+
+  const safeKey =
+    cleanString(
+      key ||
+      "unknown"
+    );
+
+
+  target[
+    safeKey
+  ] =
+    Number(
+      target[
+        safeKey
+      ] ||
+      0
+    )
+    +
+    1;
+
+}
+
+
+/* =========================================================
    ID NORMALİZE
    ========================================================= */
 
@@ -1032,4 +1234,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-}
+       }
