@@ -4,7 +4,7 @@
 
    SporNRD Persona / Influencer Motoru
 
-   Sürüm: 6.1.2
+   Sürüm: 6.1.3
 
    AMAÇ
    ---------------------------------------------------------
@@ -21,7 +21,7 @@
    bir anlatıma dönüştürmek.
 
    =========================================================
-   YENİ ANA KATEGORİLER
+   ANA KATEGORİLER
    ---------------------------------------------------------
 
    news
@@ -79,13 +79,33 @@
    UNKNOWN + PUBLISHED DATE
    → olayın zamanı uydurulmaz
 
-   Sadece:
+   Yayın tarihi yalnızca:
 
    "bugün yayımlandı"
    "kısa süre önce yayımlandı"
-   "daha önce yayımlanmış"
+   "daha önce yayımlandı"
 
-   gibi yayın güncelliği dili kullanılır.
+   gibi güncellik anlatımında kullanılabilir.
+
+   =========================================================
+   KRİTİK DEADLINE KURALI
+   ---------------------------------------------------------
+
+   Son kayıt / son başvuru tarihi yalnızca:
+
+   details.registrationDeadline
+   details.applicationDeadline
+
+   alanlarından alınır.
+
+   temporal.deadlineAt
+   lifecycle.expiresAt
+
+   kullanıcıya doğrudan "son başvuru tarihi"
+   olarak anlatılmaz.
+
+   Böylece etkinliğin bitiş tarihi yanlışlıkla
+   son başvuru tarihi yapılamaz.
 
    =========================================================
    TEMEL GÜVEN KURALI
@@ -103,6 +123,7 @@
    - Başvuru açık değilse "kayıt ol" denmez.
    - Tamamlanmış olay yaklaşan etkinlik gibi sunulmaz.
    - Yayın tarihi olay tarihi kabul edilmez.
+   - Etkinlik bitiş tarihi son başvuru tarihi yapılmaz.
    - Clickbait yapılmaz.
    - Sahte reklam dili kullanılmaz.
    ========================================================= */
@@ -124,7 +145,7 @@ import {
    ========================================================= */
 
 export const PERSONA_VERSION =
-  "1.2";
+  "1.3";
 
 
 /* =========================================================
@@ -315,7 +336,7 @@ export function applyPersona(
         "SporNRD Özeti",
 
       version:
-        `6.1.2-persona-${PERSONA_VERSION}`,
+        `6.1.3-persona-${PERSONA_VERSION}`,
 
       headline:
         persona.headline,
@@ -537,18 +558,20 @@ function collectFacts(
   /* =======================================================
      TARİHLER
 
-     Öncelik Temporal Engine.
+     Temporal tarih yorumu için kullanılabilir.
 
-     Çünkü artık gerçek tarih kararı merkezi olarak
-     temporalEngine.js tarafından veriliyor.
+     Fakat deadline için aşağıda ayrıca daha sıkı
+     güven kuralı uygulanır.
      ========================================================= */
 
   const startDate =
-    cleanString(
+    firstString(
 
-      temporal.startDate ||
+      temporal.startDate,
 
-      details.startDate ||
+      details.startDateIso,
+
+      details.startDate,
 
       lifecycle.startsAt
 
@@ -556,37 +579,45 @@ function collectFacts(
 
 
   const endDate =
-    cleanString(
+    firstString(
 
-      temporal.endDate ||
+      temporal.endDate,
 
-      details.endDate ||
+      details.endDateIso,
+
+      details.endDate,
 
       lifecycle.endsAt
 
     );
 
 
+  /*
+    KRİTİK:
+
+    Son başvuru tarihi yalnızca kaynak gerçeklerinden
+    gelen açık deadline alanlarından okunur.
+
+    temporal.deadlineAt YOK.
+    lifecycle.expiresAt YOK.
+  */
+
   const deadline =
-    cleanString(
+    firstString(
 
-      temporal.deadlineAt ||
+      details.registrationDeadline,
 
-      details.registrationDeadline ||
-
-      details.applicationDeadline ||
-
-      lifecycle.expiresAt
+      details.applicationDeadline
 
     );
 
 
   const publishedAt =
-    cleanString(
+    firstString(
 
-      temporal.publishedAt ||
+      temporal.publishedAt,
 
-      source.publishedAt ||
+      source.publishedAt,
 
       lifecycle.publishedAt
 
@@ -706,7 +737,9 @@ function collectFacts(
 
 
   if (
-    timeState
+    timeState &&
+    timeState !==
+    "unknown"
   ) {
 
     used.push(
@@ -733,6 +766,28 @@ function collectFacts(
 
     used.push(
       "district"
+    );
+
+  }
+
+
+  if (
+    startDate
+  ) {
+
+    used.push(
+      "startDate"
+    );
+
+  }
+
+
+  if (
+    endDate
+  ) {
+
+    used.push(
+      "endDate"
     );
 
   }
@@ -969,8 +1024,18 @@ function collectFacts(
     endDate:
       endDate,
 
+    eventDate:
+      cleanString(
+        details.eventDate
+      ),
+
     deadline:
       deadline,
+
+    hasExplicitDeadline:
+      Boolean(
+        deadline
+      ),
 
     publishedAt:
       publishedAt,
@@ -1150,8 +1215,6 @@ function chooseAngle(
 
   /* =======================================================
      HABER
-
-     Haber kendi başına bir ana kategoridir.
      ========================================================= */
 
   if (
@@ -1201,9 +1264,6 @@ function chooseAngle(
 
   /* =======================================================
      TAMAMLANMIŞ SONUÇ
-
-     Discovery yanlış sınıflandırmış olsa bile
-     güvenlik katmanı.
      ========================================================= */
 
   if (
@@ -1228,7 +1288,14 @@ function chooseAngle(
     "course"
   ) {
 
+    /*
+      Sadece gerçek deadline varsa
+      actionState=closed durumunu
+      kayıt süresi kapandı şeklinde yorumlayabiliriz.
+    */
+
     if (
+      facts.hasExplicitDeadline &&
       facts.actionState ===
       "closed"
     ) {
@@ -1239,11 +1306,24 @@ function chooseAngle(
 
 
     if (
-      facts.lifecycleStatus ===
-      "closing_soon"
-      ||
-      facts.actionState ===
-      "closing_today"
+      facts.timeState ===
+      "past"
+    ) {
+
+      return "past_course";
+
+    }
+
+
+    if (
+      facts.hasExplicitDeadline &&
+      (
+        facts.lifecycleStatus ===
+        "closing_soon"
+        ||
+        facts.actionState ===
+        "closing_today"
+      )
     ) {
 
       return "deadline";
@@ -1297,6 +1377,7 @@ function chooseAngle(
 
 
     if (
+      facts.hasExplicitDeadline &&
       facts.actionState ===
       "closed"
     ) {
@@ -1348,6 +1429,7 @@ function chooseAngle(
   ) {
 
     if (
+      facts.hasExplicitDeadline &&
       facts.actionState ===
       "closed"
     ) {
@@ -1534,8 +1616,12 @@ function buildHeadline(
      ========================================================= */
 
   if (
-    angle ===
-    "expired"
+    [
+      "expired",
+      "past_course"
+    ].includes(
+      angle
+    )
   ) {
 
     return shorten(
@@ -1573,11 +1659,8 @@ function buildHeadline(
   ) {
 
     return shorten(
-
       `${facts.sportEmoji} ${original}`,
-
       120
-
     );
 
   }
@@ -1746,7 +1829,9 @@ function buildNewsHeadline(
     !title
   ) {
 
-    return `${facts.sportEmoji} ${facts.sport} Haber`;
+    return (
+      `${facts.sportEmoji} ${facts.sport} Haber`
+    );
 
   }
 
@@ -1926,10 +2011,6 @@ function buildNewsText(
   }
 
 
-  /* -------------------------------------------------------
-     Haber türü
-     ------------------------------------------------------- */
-
   if (
     angle ===
     "result"
@@ -1940,7 +2021,6 @@ function buildNewsText(
     );
 
   }
-
 
   else if (
     angle ===
@@ -1953,7 +2033,6 @@ function buildNewsText(
 
   }
 
-
   else if (
     angle ===
     "assignment"
@@ -1964,7 +2043,6 @@ function buildNewsText(
     );
 
   }
-
 
   else if (
     angle ===
@@ -1977,7 +2055,6 @@ function buildNewsText(
 
   }
 
-
   else if (
     angle ===
     "announcement"
@@ -1989,10 +2066,6 @@ function buildNewsText(
 
   }
 
-
-  /* -------------------------------------------------------
-     Kaynaktaki gerçek açıklama
-     ------------------------------------------------------- */
 
   if (
     facts.originalText
@@ -2047,41 +2120,137 @@ function buildCourseText(
     );
 
 
-  /* -------------------------------------------------------
-     ZAMAN
-     ------------------------------------------------------- */
+  const dateText =
+    formatDateRange(
+      facts.startDate,
+      facts.endDate
+    );
+
+
+  const sourceLabel =
+    facts.sourceShortName ||
+    facts.sourceName;
+
+
+  /* =======================================================
+     GEÇMİŞ KURS
+     ========================================================= */
 
   if (
-    facts.actionState ===
-    "closed"
+    angle ===
+    "past_course"
+    ||
+    facts.timeState ===
+    "past"
+  ) {
+
+    if (
+      dateText
+    ) {
+
+      sentences.push(
+        `Bu kurs ${dateText} tarihleri arasında gerçekleştirildi.`
+      );
+
+    }
+
+    else {
+
+      sentences.push(
+        "Bu kurs için belirtilen dönem geçmiş durumda."
+      );
+
+    }
+
+  }
+
+
+  /* =======================================================
+     GERÇEK DEADLINE KAPANMIŞ
+     ========================================================= */
+
+  else if (
+    angle ===
+    "expired"
+    &&
+    facts.hasExplicitDeadline
   ) {
 
     sentences.push(
-      "Bu kurs için belirtilen kayıt veya başvuru süresi sona ermiş görünüyor."
+      `Bu kurs için belirtilen kayıt veya başvuru süresi sona ermiş görünüyor.`
     );
 
   }
 
+
+  /* =======================================================
+     GELECEK KURS
+     ========================================================= */
 
   else if (
     facts.timeState ===
     "future"
   ) {
 
-    sentences.push(
+    let sentence =
+      "";
 
+
+    if (
+      sourceLabel
+    ) {
+
+      sentence +=
+        `${sourceLabel} tarafından duyurulan bu ${facts.sport.toLocaleLowerCase(
+          "tr-TR"
+        )} kursu`;
+
+    }
+
+    else {
+
+      sentence +=
+        `Bu ${facts.sport.toLocaleLowerCase(
+          "tr-TR"
+        )} kursu`;
+
+    }
+
+
+    if (
+      dateText
+    ) {
+
+      sentence +=
+        ` ${dateText}'da`;
+
+    }
+
+
+    if (
       location
+    ) {
 
-        ? `${location} tarafında yaklaşan bir ${facts.sport.toLocaleLowerCase(
-            "tr-TR"
-          )} kursu var.`
+      sentence +=
+        ` ${location}'da`;
 
-        : `${facts.sport} tarafında yaklaşan bir kurs var.`
+    }
 
+
+    sentence +=
+      " gerçekleştirilecek.";
+
+
+    sentences.push(
+      sentence
     );
 
   }
 
+
+  /* =======================================================
+     DEVAM EDEN KURS
+     ========================================================= */
 
   else if (
     facts.timeState ===
@@ -2092,7 +2261,7 @@ function buildCourseText(
 
       location
 
-        ? `${location} tarafındaki bu ${facts.sport.toLocaleLowerCase(
+        ? `${location}'daki bu ${facts.sport.toLocaleLowerCase(
             "tr-TR"
           )} programı şu anda devam ediyor.`
 
@@ -2105,17 +2274,9 @@ function buildCourseText(
   }
 
 
-  else if (
-    facts.timeState ===
-    "past"
-  ) {
-
-    sentences.push(
-      "Kaynakta belirtilen kurs dönemi geçmiş durumda."
-    );
-
-  }
-
+  /* =======================================================
+     TARİH BİLİNMİYOR
+     ========================================================= */
 
   else {
 
@@ -2142,33 +2303,18 @@ function buildCourseText(
 
         ? `${location} tarafında ${facts.sport.toLocaleLowerCase(
             "tr-TR"
-          )} kursu arayanların inceleyebileceği bir seçenek.`
+          )} kursu arayanların inceleyebileceği bir seçenek var.`
 
-        : `${facts.sport} kursu arayanların inceleyebileceği bir seçenek.`
+        : `${facts.sport} kursu arayanların inceleyebileceği bir seçenek var.`
 
     );
 
   }
 
 
-  /* -------------------------------------------------------
-     Başlangıç
-     ------------------------------------------------------- */
-
-  if (
-    facts.startDate
-  ) {
-
-    sentences.push(
-      `Başlangıç tarihi ${facts.startDate}.`
-    );
-
-  }
-
-
-  /* -------------------------------------------------------
-     Program
-     ------------------------------------------------------- */
+  /* =======================================================
+     SAAT / GÜNLER
+     ========================================================= */
 
   const schedule =
     buildScheduleSentence(
@@ -2187,9 +2333,9 @@ function buildCourseText(
   }
 
 
-  /* -------------------------------------------------------
-     Yaş
-     ------------------------------------------------------- */
+  /* =======================================================
+     YAŞ
+     ========================================================= */
 
   const age =
     buildAgeSentence(
@@ -2208,9 +2354,9 @@ function buildCourseText(
   }
 
 
-  /* -------------------------------------------------------
-     Fiyat
-     ------------------------------------------------------- */
+  /* =======================================================
+     FİYAT
+     ========================================================= */
 
   const price =
     buildPriceSentence(
@@ -2229,9 +2375,9 @@ function buildCourseText(
   }
 
 
-  /* -------------------------------------------------------
-     Kontenjan
-     ------------------------------------------------------- */
+  /* =======================================================
+     KONTENJAN
+     ========================================================= */
 
   if (
     facts.capacity !==
@@ -2247,28 +2393,29 @@ function buildCourseText(
   }
 
 
-  /* -------------------------------------------------------
-     Deadline
-     ------------------------------------------------------- */
+  /* =======================================================
+     DEADLINE
+
+     SADECE AÇIK / DOĞRULANMIŞ DEADLINE.
+     ========================================================= */
 
   if (
-    facts.deadline
+    facts.hasExplicitDeadline
   ) {
 
     sentences.push(
-      `Belirtilen son kayıt / başvuru tarihi ${facts.deadline}.`
+      `Belirtilen son kayıt / başvuru tarihi ${formatDateForUser(
+        facts.deadline
+      )}.`
     );
 
   }
 
 
-  /* -------------------------------------------------------
-     Bitiş
-     ------------------------------------------------------- */
-
   if (
-    facts.actionState ===
-    "closed"
+    angle ===
+    "expired" &&
+    facts.hasExplicitDeadline
   ) {
 
     return finalizeText(
@@ -2306,6 +2453,13 @@ function buildEventText(
     );
 
 
+  const dateText =
+    formatDateRange(
+      facts.startDate,
+      facts.endDate
+    );
+
+
   /* -------------------------------------------------------
      Geçmiş
      ------------------------------------------------------- */
@@ -2318,9 +2472,23 @@ function buildEventText(
     "past"
   ) {
 
-    sentences.push(
-      "Bu etkinlik için belirtilen tarih geçmiş durumda."
-    );
+    if (
+      dateText
+    ) {
+
+      sentences.push(
+        `Bu etkinlik ${dateText} tarihleri arasında gerçekleştirildi.`
+      );
+
+    }
+
+    else {
+
+      sentences.push(
+        "Bu etkinlik için belirtilen tarih geçmiş durumda."
+      );
+
+    }
 
   }
 
@@ -2338,7 +2506,7 @@ function buildEventText(
 
       location
 
-        ? `${location} tarafındaki etkinlik şu anda devam ediyor.`
+        ? `${location}'daki etkinlik şu anda devam ediyor.`
 
         : "Etkinlik şu anda devam ediyor."
 
@@ -2356,14 +2524,36 @@ function buildEventText(
     "future"
   ) {
 
-    sentences.push(
+    let sentence =
+      `${facts.sport} tarafında yaklaşan bir etkinlik var`;
 
+
+    if (
+      dateText
+    ) {
+
+      sentence +=
+        `; ${dateText}`;
+
+    }
+
+
+    if (
       location
+    ) {
 
-        ? `${location} tarafında yaklaşan bir spor etkinliği var.`
+      sentence +=
+        `, ${location}`;
 
-        : `${facts.sport} tarafında yaklaşan bir etkinlik var.`
+    }
 
+
+    sentence +=
+      ".";
+
+
+    sentences.push(
+      sentence
     );
 
   }
@@ -2399,36 +2589,6 @@ function buildEventText(
   }
 
 
-  /* -------------------------------------------------------
-     Tarihler
-     ------------------------------------------------------- */
-
-  if (
-    facts.startDate
-  ) {
-
-    sentences.push(
-      `Başlangıç: ${facts.startDate}.`
-    );
-
-  }
-
-
-  if (
-    facts.endDate
-  ) {
-
-    sentences.push(
-      `Bitiş: ${facts.endDate}.`
-    );
-
-  }
-
-
-  /* -------------------------------------------------------
-     Saat
-     ------------------------------------------------------- */
-
   const time =
     buildTimeText(
       facts
@@ -2445,10 +2605,6 @@ function buildEventText(
 
   }
 
-
-  /* -------------------------------------------------------
-     Fiyat
-     ------------------------------------------------------- */
 
   const price =
     buildPriceSentence(
@@ -2467,28 +2623,18 @@ function buildEventText(
   }
 
 
-  /* -------------------------------------------------------
-     Kayıt son tarihi
-     ------------------------------------------------------- */
+  /*
+    Yalnızca gerçek deadline.
+  */
 
   if (
-    facts.deadline
+    facts.hasExplicitDeadline
   ) {
 
     sentences.push(
-      `Belirtilen kayıt / başvuru son tarihi ${facts.deadline}.`
-    );
-
-  }
-
-
-  if (
-    facts.actionState ===
-    "closed"
-  ) {
-
-    sentences.push(
-      "Katılım tarihi ileride olsa bile belirtilen başvuru süresi sona ermiş olabilir."
+      `Belirtilen kayıt / başvuru son tarihi ${formatDateForUser(
+        facts.deadline
+      )}.`
     );
 
   }
@@ -2532,7 +2678,6 @@ function buildCampaignText(
 
   }
 
-
   else if (
     facts.timeState ===
     "future"
@@ -2544,7 +2689,6 @@ function buildCampaignText(
 
   }
 
-
   else if (
     facts.timeState ===
     "present"
@@ -2555,7 +2699,6 @@ function buildCampaignText(
     );
 
   }
-
 
   else {
 
@@ -2636,7 +2779,9 @@ function buildCampaignText(
   ) {
 
     sentences.push(
-      `Belirtilen bitiş tarihi ${facts.endDate}.`
+      `Belirtilen bitiş tarihi ${formatDateForUser(
+        facts.endDate
+      )}.`
     );
 
   }
@@ -2672,9 +2817,8 @@ function buildJobText(
   if (
     angle ===
     "expired"
-    ||
-    facts.actionState ===
-    "closed"
+    &&
+    facts.hasExplicitDeadline
   ) {
 
     sentences.push(
@@ -2779,11 +2923,13 @@ function buildJobText(
 
 
   if (
-    facts.deadline
+    facts.hasExplicitDeadline
   ) {
 
     sentences.push(
-      `Son başvuru tarihi ${facts.deadline}.`
+      `Son başvuru tarihi ${formatDateForUser(
+        facts.deadline
+      )}.`
     );
 
   }
@@ -2933,25 +3079,11 @@ function buildGenericText(
 
 /* =========================================================
    YAYIN GÜNCELLİĞİ DİLİ
-
-   Burada yayın tarihi olay tarihi yapılmaz.
    ========================================================= */
 
 function buildPublishFreshnessSentence(
   facts
 ) {
-
-  if (
-    facts.temporalBasis !==
-    "published_at"
-    &&
-    !facts.publishedAt
-  ) {
-
-    return "";
-
-  }
-
 
   switch (
     facts.languageMode
@@ -2960,21 +3092,27 @@ function buildPublishFreshnessSentence(
     case "published_today":
 
       return facts.sourceName
+
         ? `${facts.sourceName} bu içeriği bugün yayımladı.`
+
         : "Bu içerik bugün yayımlandı.";
 
 
     case "published_recent":
 
       return facts.sourceName
+
         ? `${facts.sourceName} bu içeriği kısa süre önce yayımladı.`
+
         : "Bu içerik kısa süre önce yayımlandı.";
 
 
     case "published_current":
 
       return facts.sourceName
+
         ? `${facts.sourceName} bu içeriği yakın zamanda yayımladı.`
+
         : "Bu içerik yakın zamanda yayımlandı.";
 
 
@@ -3020,11 +3158,22 @@ function buildSporNRDNote(
 
 
   if (
+    angle ===
+    "past_course"
+  ) {
+
+    return "Kursun gerçek tarihleri geçmiş durumda; aktif kurs dili kullanılmamalı.";
+
+  }
+
+
+  if (
+    facts.hasExplicitDeadline &&
     facts.actionState ===
     "closed"
   ) {
 
-    return "Belirtilen işlem süresi geçmiş; kullanıcıya aktif başvuru veya kayıt çağrısı yapılmamalı.";
+    return "Kaynakta açık bir son başvuru/kayıt tarihi bulunuyor ve süre geçmiş; aktif başvuru çağrısı yapılmamalı.";
 
   }
 
@@ -3347,6 +3496,324 @@ function buildSalaryText(
 
 
 /* =========================================================
+   TARİH ARALIĞINI KULLANICI DİLİNE ÇEVİR
+
+   Örnek:
+
+   2026-10-26 + 2026-10-30
+   → 26–30 Ekim 2026
+
+   2026-10-30 + 2026-11-02
+   → 30 Ekim–2 Kasım 2026
+   ========================================================= */
+
+function formatDateRange(
+  startValue,
+  endValue
+) {
+
+  const start =
+    parseIsoDateParts(
+      startValue
+    );
+
+
+  const end =
+    parseIsoDateParts(
+      endValue
+    );
+
+
+  if (
+    !start &&
+    !end
+  ) {
+
+    return "";
+
+  }
+
+
+  if (
+    start &&
+    !end
+  ) {
+
+    return formatDateParts(
+      start
+    );
+
+  }
+
+
+  if (
+    !start &&
+    end
+  ) {
+
+    return formatDateParts(
+      end
+    );
+
+  }
+
+
+  if (
+    start.year ===
+    end.year &&
+    start.month ===
+    end.month &&
+    start.day ===
+    end.day
+  ) {
+
+    return formatDateParts(
+      start
+    );
+
+  }
+
+
+  if (
+    start.year ===
+    end.year &&
+    start.month ===
+    end.month
+  ) {
+
+    return (
+      `${start.day}–${end.day} ` +
+      `${monthName(end.month)} ` +
+      `${end.year}`
+    );
+
+  }
+
+
+  if (
+    start.year ===
+    end.year
+  ) {
+
+    return (
+      `${start.day} ${monthName(start.month)}` +
+      `–${end.day} ${monthName(end.month)} ` +
+      `${end.year}`
+    );
+
+  }
+
+
+  return (
+    `${formatDateParts(start)}` +
+    `–${formatDateParts(end)}`
+  );
+
+}
+
+
+/* =========================================================
+   TEK TARİHİ KULLANICI DİLİNE ÇEVİR
+   ========================================================= */
+
+function formatDateForUser(
+  value
+) {
+
+  const parts =
+    parseIsoDateParts(
+      value
+    );
+
+
+  if (
+    parts
+  ) {
+
+    return formatDateParts(
+      parts
+    );
+
+  }
+
+
+  return cleanString(
+    value
+  );
+
+}
+
+
+/* =========================================================
+   ISO TARİH AYRIŞTIR
+   ========================================================= */
+
+function parseIsoDateParts(
+  value
+) {
+
+  const text =
+    cleanString(
+      value
+    );
+
+
+  if (
+    !text
+  ) {
+
+    return null;
+
+  }
+
+
+  const match =
+    text.match(
+      /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/
+    );
+
+
+  if (
+    !match
+  ) {
+
+    return null;
+
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  const day =
+    Number(
+      match[3]
+    );
+
+
+  if (
+    !Number.isFinite(
+      year
+    )
+    ||
+    month < 1
+    ||
+    month > 12
+    ||
+    day < 1
+    ||
+    day > 31
+  ) {
+
+    return null;
+
+  }
+
+
+  return {
+
+    year:
+      year,
+
+    month:
+      month,
+
+    day:
+      day
+
+  };
+
+}
+
+
+/* =========================================================
+   TARİH PARÇALARI
+   ========================================================= */
+
+function formatDateParts(
+  parts
+) {
+
+  if (
+    !parts
+  ) {
+
+    return "";
+
+  }
+
+
+  return (
+    `${parts.day} ` +
+    `${monthName(parts.month)} ` +
+    `${parts.year}`
+  );
+
+}
+
+
+/* =========================================================
+   AY ADI
+   ========================================================= */
+
+function monthName(
+  month
+) {
+
+  const months = [
+
+    "",
+
+    "Ocak",
+
+    "Şubat",
+
+    "Mart",
+
+    "Nisan",
+
+    "Mayıs",
+
+    "Haziran",
+
+    "Temmuz",
+
+    "Ağustos",
+
+    "Eylül",
+
+    "Ekim",
+
+    "Kasım",
+
+    "Aralık"
+
+  ];
+
+
+  return (
+    months[
+      Number(
+        month
+      )
+    ]
+    ||
+    ""
+  );
+
+}
+
+
+/* =========================================================
    FİYAT FORMAT
    ========================================================= */
 
@@ -3553,23 +4020,24 @@ function readableLocation(
   facts
 ) {
 
-  const parts =
-    [
+  const parts = [
 
-      facts.district,
+    facts.district,
 
-      facts.city
+    facts.city
 
-    ]
-      .filter(
-        Boolean
-      );
+  ]
+    .filter(
+      Boolean
+    );
 
 
   return [
+
     ...new Set(
       parts
     )
+
   ].join(
     " / "
   );
@@ -3757,6 +4225,41 @@ function formatNumber(
 
 
 /* =========================================================
+   FIRST STRING
+   ========================================================= */
+
+function firstString(
+  ...values
+) {
+
+  for (
+    const value
+    of values
+  ) {
+
+    const text =
+      cleanString(
+        value
+      );
+
+
+    if (
+      text
+    ) {
+
+      return text;
+
+    }
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
    FIRST NUMBER
    ========================================================= */
 
@@ -3794,9 +4297,6 @@ function firstNumber(
 
 /* =========================================================
    NULLABLE NUMBER
-
-   DİKKAT:
-   0 geçerli değerdir.
    ========================================================= */
 
 function nullableNumber(
@@ -3945,7 +4445,7 @@ function cleanString(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
     .replace(
