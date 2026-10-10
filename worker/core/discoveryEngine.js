@@ -4,36 +4,89 @@
 
    SporNRD Keşif / Sınıflandırma Motoru
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.1
 
-   Amaç:
+   ANA GÖREV
    ---------------------------------------------------------
-   - İçeriğin branşını belirlemek
-   - 5 ana kategoriden uygun olanı seçmek
-   - Alt kategoriyi belirlemek
-   - Provider / kaynak türünü belirlemek
-   - İçerik türünü belirlemek
-   - Kategori için gerekli bilgi alanlarını belirlemek
-   - Eksik kritik bilgileri tespit etmek
+   Bir içeriğin:
 
-   ANA KATEGORİLER
-   ---------------------------------------------------------
-   courses
-   events
-   campaigns
+   - Branşını
+   - Bölümünü
+   - Ana kategorisini
+   - Alt kategorisini
+   - Provider türünü
+   - İçerik türünü
+   - Filtre alanlarını
+   - Eksik kritik bilgilerini
+
+   belirlemek.
+
+   =========================================================
+   SPORNRD ANA KATEGORİLERİ
+   =========================================================
+
+   news
+   course
+   event
+   campaign
    jobs
    stores
 
-   TEMEL PRENSİP
-   ---------------------------------------------------------
-   Aynı kelime farklı kaynaklarda farklı anlama gelebilir.
+   Kullanıcı ekranında:
+
+   Yüzme Haber
+   Yüzme Kurs
+   Yüzme Etkinlik
+   Yüzme Kampanya
+   Yüzme İş İlanı
+   Yüzme Mağaza
+
+   =========================================================
+   SPORNRD BÖLÜMLERİ
+   =========================================================
+
+   individual_athlete
+   trainer_coach
+   business_institution
+
+   NOT:
+   Bölüm kart üzerinde gösterilmek zorunda değildir.
+
+   Bölümün temel anlamı:
+
+   "Bu içeriği kim sunuyor / yayımlıyor?"
 
    Örnek:
-   Federasyon + Antrenör Kursu
-   → Spor Etkinlikleri > Eğitim & Seminerler
 
-   Akademi + Çocuk Yüzme Kursu
-   → Spor Kursları > Yüzme
+   Türkiye Yüzme Federasyonu
+   → business_institution
+
+   Bir antrenörün kendi hesabı
+   → trainer_coach
+
+   Bir sporcunun kendi hesabı
+   → individual_athlete
+
+   =========================================================
+   ÇOK ÖNEMLİ KURAL
+   =========================================================
+
+   HABER ile ETKİNLİK aynı şey değildir.
+
+   "Fenerbahçe kupayı kazandı"
+   → news
+
+   "Murat Ciner A Klasmanına yükseldi"
+   → news
+
+   "20 Ekim'de basketbol turnuvası yapılacak"
+   → event
+
+   "2. Kademe yüzme antrenörlük kursu"
+   → course
+
+   Federasyonun yayımlaması kursu etkinliğe çevirmez.
+
    ========================================================= */
 
 
@@ -61,7 +114,41 @@ import {
    ========================================================= */
 
 export const DISCOVERY_VERSION =
-  "1.0";
+  "1.1";
+
+
+/* =========================================================
+   SABİT KATEGORİLER
+   ========================================================= */
+
+const CANONICAL_CATEGORIES = [
+
+  "news",
+  "course",
+  "event",
+  "campaign",
+  "jobs",
+  "stores"
+
+];
+
+
+/* =========================================================
+   BÖLÜMLER
+   ========================================================= */
+
+const SECTIONS = {
+
+  individual_athlete:
+    "individual_athlete",
+
+  trainer_coach:
+    "trainer_coach",
+
+  business_institution:
+    "business_institution"
+
+};
 
 
 /* =========================================================
@@ -72,6 +159,9 @@ export function discoverPost(
   post,
   options = {}
 ) {
+
+  void options;
+
 
   if (
     !post ||
@@ -84,11 +174,19 @@ export function discoverPost(
   }
 
 
+  /* =======================================================
+     GENEL İÇERİK METNİ
+     ========================================================= */
+
   const text =
     buildSearchText(
       post
     );
 
+
+  /* =======================================================
+     KAYNAK
+     ========================================================= */
 
   const source =
     resolveSource(
@@ -96,13 +194,59 @@ export function discoverPost(
     );
 
 
+  /*
+    Provider belirlerken haber metninin tamamını
+    kullanmak tehlikelidir.
+
+    Örnek:
+    TBF haberi içinde "antrenör" kelimesi geçmesi
+    TBF'yi antrenöre dönüştürmemeli.
+
+    Bu nedenle provider için kaynak odaklı metin
+    ayrıca oluşturulur.
+  */
+
+  const providerText =
+    buildProviderText(
+      post,
+      source
+    );
+
+
+  /* =======================================================
+     PROVIDER
+     ========================================================= */
+
   const providerType =
     resolveProviderType(
       post,
       source,
-      text
+      providerText
     );
 
+
+  /* =======================================================
+     BÖLÜM
+     ========================================================= */
+
+  const section =
+    resolveSection({
+
+      providerType:
+        providerType,
+
+      source:
+        source,
+
+      providerText:
+        providerText
+
+    });
+
+
+  /* =======================================================
+     BRANŞ
+     ========================================================= */
 
   const sport =
     resolveSport(
@@ -111,6 +255,10 @@ export function discoverPost(
       text
     );
 
+
+  /* =======================================================
+     ANA KATEGORİ
+     ========================================================= */
 
   const category =
     resolveCategory({
@@ -127,11 +275,18 @@ export function discoverPost(
       providerType:
         providerType,
 
+      section:
+        section,
+
       sport:
         sport
 
     });
 
+
+  /* =======================================================
+     ALT KATEGORİ
+     ========================================================= */
 
   const subCategory =
     resolveSubCategory({
@@ -148,11 +303,18 @@ export function discoverPost(
       providerType:
         providerType,
 
+      section:
+        section,
+
       sport:
         sport
 
     });
 
+
+  /* =======================================================
+     CONTENT TYPE
+     ========================================================= */
 
   const contentType =
     resolveContentType({
@@ -172,6 +334,10 @@ export function discoverPost(
     });
 
 
+  /* =======================================================
+     KATEGORİ FİLTRE ALANLARI
+     ========================================================= */
+
   const requiredFields =
     getCategoryFilterFields(
       category
@@ -185,11 +351,18 @@ export function discoverPost(
     );
 
 
+  /* =======================================================
+     GÜVEN
+     ========================================================= */
+
   const confidenceScore =
     calculateDiscoveryConfidence({
 
       sport:
         sport,
+
+      section:
+        section,
 
       category:
         category,
@@ -209,11 +382,21 @@ export function discoverPost(
     });
 
 
+  /* =======================================================
+     SİNYALLER
+     ========================================================= */
+
   const signals =
     collectSignals({
 
+      post:
+        post,
+
       text:
         text,
+
+      section:
+        section,
 
       category:
         category,
@@ -236,37 +419,79 @@ export function discoverPost(
       DISCOVERY_VERSION,
 
 
+    /* -----------------------------------------------------
+       Branş
+       ----------------------------------------------------- */
+
     sport:
       sport,
 
+
+    /* -----------------------------------------------------
+       Bölüm
+
+       Şimdilik arka planda.
+       İleride profil tipiyle bağlanabilir.
+       ----------------------------------------------------- */
+
+    section:
+      section,
+
+
+    /* -----------------------------------------------------
+       Ana kategori
+       ----------------------------------------------------- */
 
     category:
       category,
 
 
+    /* -----------------------------------------------------
+       Alt kategori
+       ----------------------------------------------------- */
+
     subCategory:
       subCategory,
 
+
+    /* -----------------------------------------------------
+       Provider
+       ----------------------------------------------------- */
 
     providerType:
       providerType,
 
 
+    /* -----------------------------------------------------
+       İçerik türü
+       ----------------------------------------------------- */
+
     contentType:
       contentType,
 
 
+    /* -----------------------------------------------------
+       Filtre sistemi
+       ----------------------------------------------------- */
+
     requiredFields:
       requiredFields,
-
 
     missingFields:
       missingFields,
 
 
+    /* -----------------------------------------------------
+       Güven
+       ----------------------------------------------------- */
+
     confidenceScore:
       confidenceScore,
 
+
+    /* -----------------------------------------------------
+       Debug
+       ----------------------------------------------------- */
 
     signals:
       signals,
@@ -283,9 +508,6 @@ export function discoverPost(
 
 /* =========================================================
    KEŞFİ POSTA UYGULA
-
-   Orijinal post değişmez.
-   Yeni nesne döndürür.
    ========================================================= */
 
 export function applyDiscovery(
@@ -316,25 +538,57 @@ export function applyDiscovery(
     ...post,
 
 
+    /* -----------------------------------------------------
+       Branş
+       ----------------------------------------------------- */
+
     sport:
       discovery.sport,
 
+
+    /* -----------------------------------------------------
+       Bölüm
+       ----------------------------------------------------- */
+
+    section:
+      discovery.section,
+
+
+    /* -----------------------------------------------------
+       Ana kategori
+       ----------------------------------------------------- */
 
     category:
       discovery.category,
 
 
+    /* -----------------------------------------------------
+       Alt kategori
+       ----------------------------------------------------- */
+
     subCategory:
       discovery.subCategory,
 
+
+    /* -----------------------------------------------------
+       Provider
+       ----------------------------------------------------- */
 
     providerType:
       discovery.providerType,
 
 
+    /* -----------------------------------------------------
+       İçerik tipi
+       ----------------------------------------------------- */
+
     contentType:
       discovery.contentType,
 
+
+    /* -----------------------------------------------------
+       Discovery meta
+       ----------------------------------------------------- */
 
     discoveryMeta: {
 
@@ -343,6 +597,9 @@ export function applyDiscovery(
 
       confidenceScore:
         discovery.confidenceScore,
+
+      section:
+        discovery.section,
 
       requiredFields:
         discovery.requiredFields,
@@ -418,6 +675,9 @@ export function classifyDiscovery(
 
     sport:
       result.sport,
+
+    section:
+      result.section,
 
     category:
       result.category,
@@ -496,17 +756,60 @@ function resolveSource(
 
 
 /* =========================================================
+   PROVIDER İÇİN KAYNAK METNİ
+
+   İçeriğin konusuyla kaynağın kimliğini
+   birbirine karıştırmıyoruz.
+   ========================================================= */
+
+function buildProviderText(
+  post,
+  source
+) {
+
+  return normalizeText(
+
+    [
+
+      source?.name,
+
+      source?.shortName,
+
+      source?.sourceType,
+
+      source?.providerType,
+
+      post?.sourceName,
+
+      post?.sourceShortName,
+
+      post?.sourceType
+
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        " "
+      )
+
+  );
+
+}
+
+
+/* =========================================================
    PROVIDER TYPE
    ========================================================= */
 
 function resolveProviderType(
   post,
   source,
-  text
+  providerText
 ) {
 
   /* -------------------------------------------------------
-     Postta geçerli providerType varsa koru.
+     Posttaki geçerli providerType
      ------------------------------------------------------- */
 
   const existing =
@@ -548,7 +851,7 @@ function resolveProviderType(
 
 
   /* -------------------------------------------------------
-     Kaynak tipinden
+     Source Type
      ------------------------------------------------------- */
 
   const sourceType =
@@ -562,16 +865,17 @@ function resolveProviderType(
 
 
   if (
-    sourceType.includes(
-      "federasyon"
-    )
-    ||
-    sourceType.includes(
-      "bakanlik"
-    )
-    ||
-    sourceType.includes(
-      "mudurluk"
+    containsAny(
+      sourceType,
+      [
+
+        "federasyon",
+        "bakanlik",
+        "mudurluk",
+        "belediye",
+        "kamu"
+
+      ]
     )
   ) {
 
@@ -581,34 +885,20 @@ function resolveProviderType(
 
 
   /* -------------------------------------------------------
-     Metinden tahmin
+     Kulüp
      ------------------------------------------------------- */
 
   if (
     containsAny(
-      text,
+      providerText,
       [
-        "spor akademisi",
-        "yuzme akademisi",
-        "basketbol akademisi",
-        "voleybol akademisi"
-      ]
-    )
-  ) {
 
-    return "academy";
-
-  }
-
-
-  if (
-    containsAny(
-      text,
-      [
         "spor kulubu",
         "basketbol kulubu",
         "yuzme kulubu",
-        "voleybol kulubu"
+        "voleybol kulubu",
+        "futbol kulubu"
+
       ]
     )
   ) {
@@ -618,13 +908,44 @@ function resolveProviderType(
   }
 
 
+  /* -------------------------------------------------------
+     Akademi
+     ------------------------------------------------------- */
+
   if (
     containsAny(
-      text,
+      providerText,
       [
+
+        "spor akademisi",
+        "yuzme akademisi",
+        "basketbol akademisi",
+        "voleybol akademisi",
+        "akademi"
+
+      ]
+    )
+  ) {
+
+    return "academy";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Spor salonu
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      providerText,
+      [
+
         "spor salonu",
         "fitness salonu",
+        "fitness center",
         "gym"
+
       ]
     )
   ) {
@@ -634,13 +955,19 @@ function resolveProviderType(
   }
 
 
+  /* -------------------------------------------------------
+     Tesis
+     ------------------------------------------------------- */
+
   if (
     containsAny(
-      text,
+      providerText,
       [
+
         "spor tesisi",
         "yuzme havuzu",
         "tesis"
+
       ]
     )
   ) {
@@ -650,13 +977,19 @@ function resolveProviderType(
   }
 
 
+  /* -------------------------------------------------------
+     Mağaza
+     ------------------------------------------------------- */
+
   if (
     containsAny(
-      text,
+      providerText,
       [
-        "magaza",
+
         "spor magazasi",
+        "magaza",
         "sports store"
+
       ]
     )
   ) {
@@ -666,12 +999,18 @@ function resolveProviderType(
   }
 
 
+  /* -------------------------------------------------------
+     Organizatör
+     ------------------------------------------------------- */
+
   if (
     containsAny(
-      text,
+      providerText,
       [
+
         "organizator",
         "organizasyon"
+
       ]
     )
   ) {
@@ -681,13 +1020,47 @@ function resolveProviderType(
   }
 
 
+  /* -------------------------------------------------------
+     Medya
+     ------------------------------------------------------- */
+
   if (
     containsAny(
-      text,
+      providerText,
       [
+
+        "gazete",
+        "haber",
+        "medya",
+        "tv",
+        "televizyon"
+
+      ]
+    )
+  ) {
+
+    return "media";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Antrenör / eğitmen
+
+     Burada yalnızca provider kaynak metnine bakılır.
+     Haber içindeki "antrenör" kelimesine değil.
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      providerText,
+      [
+
         "antrenor",
+        "egitmen",
         "trainer",
         "coach"
+
       ]
     )
   ) {
@@ -697,7 +1070,150 @@ function resolveProviderType(
   }
 
 
+  /* -------------------------------------------------------
+     Gelecekte taxonomy'ye eklendiğinde
+     athlete / individual da desteklenebilir.
+     ------------------------------------------------------- */
+
+  if (
+    [
+      "athlete",
+      "individual"
+    ].includes(
+      existing
+    )
+  ) {
+
+    return existing;
+
+  }
+
+
   return "other";
+
+}
+
+
+/* =========================================================
+   BÖLÜM
+
+   Bölüm = içeriği yayımlayan / sunan taraf.
+   ========================================================= */
+
+function resolveSection({
+
+  providerType,
+  source,
+  providerText
+
+}) {
+
+  const type =
+    normalizeId(
+      providerType
+    );
+
+
+  /* -------------------------------------------------------
+     Eğitmen / Antrenör
+     ------------------------------------------------------- */
+
+  if (
+    [
+      "coach",
+      "trainer",
+      "instructor"
+    ].includes(
+      type
+    )
+  ) {
+
+    return SECTIONS.trainer_coach;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Bireysel / Sporcu
+     ------------------------------------------------------- */
+
+  if (
+    [
+      "athlete",
+      "individual",
+      "player"
+    ].includes(
+      type
+    )
+  ) {
+
+    return SECTIONS.individual_athlete;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Kaynak adı açıkça antrenör/eğitmen hesabıysa
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      providerText,
+      [
+
+        "antrenor",
+        "egitmen",
+        "coach",
+        "trainer"
+
+      ]
+    )
+  ) {
+
+    return SECTIONS.trainer_coach;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Federasyon, kulüp, akademi, tesis, mağaza,
+     medya, organizatör vb.
+     ------------------------------------------------------- */
+
+  if (
+    [
+
+      "federation",
+      "club",
+      "academy",
+      "gym",
+      "facility",
+      "store",
+      "organizer",
+      "media"
+
+    ].includes(
+      type
+    )
+  ) {
+
+    return SECTIONS.business_institution;
+
+  }
+
+
+  /*
+    Şu an taranan kaynakların büyük bölümü
+    kurum/işletme niteliğinde olduğu için güvenli fallback.
+
+    Profil sistemi geldiğinde kimliği doğrulanmış
+    kişi hesaplarında bu değer doğrudan profilden gelecektir.
+  */
+
+  void source;
+
+
+  return SECTIONS.business_institution;
 
 }
 
@@ -713,7 +1229,7 @@ function resolveSport(
 ) {
 
   /* -------------------------------------------------------
-     Yeni modeldeki geçerli sport
+     Yeni modelde geçerli sport
      ------------------------------------------------------- */
 
   const existing =
@@ -813,18 +1329,20 @@ function resolveSport(
 
 
   /* -------------------------------------------------------
-     İçerik metni
+     İçerik
      ------------------------------------------------------- */
 
   if (
     containsAny(
       text,
       [
+
         "basketbol",
         "basketball",
         "fiba",
         "euroleague",
         "eurocup"
+
       ]
     )
   ) {
@@ -838,10 +1356,12 @@ function resolveSport(
     containsAny(
       text,
       [
+
         "yuzme",
         "yuzucu",
         "swimming",
         "havuz"
+
       ]
     )
   ) {
@@ -855,8 +1375,10 @@ function resolveSport(
     containsAny(
       text,
       [
+
         "voleybol",
         "volleyball"
+
       ]
     )
   ) {
@@ -870,9 +1392,11 @@ function resolveSport(
     containsAny(
       text,
       [
+
         "cimnastik",
         "jimnastik",
         "gymnastics"
+
       ]
     )
   ) {
@@ -889,6 +1413,15 @@ function resolveSport(
 
 /* =========================================================
    ANA KATEGORİ
+
+   KESİN 6 KATEGORİ:
+
+   news
+   course
+   event
+   campaign
+   jobs
+   stores
    ========================================================= */
 
 function resolveCategory({
@@ -897,34 +1430,33 @@ function resolveCategory({
   text,
   source,
   providerType,
+  section,
   sport
 
 }) {
 
-  /* -------------------------------------------------------
-     Post zaten yeni taxonomy kullanıyorsa koru.
-     ------------------------------------------------------- */
+  void source;
+  void section;
+  void sport;
 
-  const existing =
+
+  const intent =
     normalizeId(
-      post.category
+      post.contentIntent
     );
 
 
-  if (
-    getCategory(
-      existing
-    )
-  ) {
-
-    return existing;
-
-  }
+  const eventStatus =
+    normalizeId(
+      post.eventStatus
+    );
 
 
   /* =======================================================
      1. İŞ İLANLARI
-     ======================================================= */
+
+     En güçlü işlem türlerinden biri.
+     ========================================================= */
 
   if (
     isJobContent(
@@ -938,8 +1470,8 @@ function resolveCategory({
 
 
   /* =======================================================
-     2. KAMPANYALAR
-     ======================================================= */
+     2. KAMPANYA
+     ========================================================= */
 
   if (
     isCampaignContent(
@@ -947,19 +1479,20 @@ function resolveCategory({
     )
   ) {
 
-    return "campaigns";
+    return "campaign";
 
   }
 
 
   /* =======================================================
      3. MAĞAZA / ÜRÜN
-     ======================================================= */
+     ========================================================= */
 
   if (
     isStoreContent(
       text,
-      providerType
+      providerType,
+      intent
     )
   ) {
 
@@ -971,106 +1504,153 @@ function resolveCategory({
   /* =======================================================
      4. KURS
 
-     Federasyon tarafından yayımlanan antrenörlük,
-     hakemlik, gelişim, sertifika vb. kursları
-     tüketici spor kursu değildir.
+     ÇOK ÖNEMLİ:
 
-     Bunlar etkinlik/eğitim olarak tutulur.
-     ======================================================= */
+     Federasyon tarafından yayımlanan
+
+     "2. Kademe Yüzme Antrenörlük Kursu"
+
+     artık Etkinlik DEĞİL.
+
+     → Yüzme Kurs
+
+     Provider yalnızca bölümün
+     İşletme & Kurum olmasını sağlar.
+     ========================================================= */
 
   if (
     isCourseContent(
-      text
+      text,
+      intent
     )
   ) {
 
-    if (
-      providerType ===
-      "federation"
-      &&
-      isProfessionalEducation(
-        text
-      )
-    ) {
-
-      return "events";
-
-    }
-
-
-    if (
-      [
-        "academy",
-        "club",
-        "coach",
-        "gym",
-        "facility",
-        "other"
-      ].includes(
-        providerType
-      )
-    ) {
-
-      return "courses";
-
-    }
+    return "course";
 
   }
 
 
   /* =======================================================
-     5. ETKİNLİK
-     ======================================================= */
+     5. TAMAMLANMIŞ OLAY / SONUÇ
+
+     Tamamlanmış müsabaka artık yaklaşan etkinlik değildir.
+
+     Örnek:
+
+     Fenerbahçe şampiyon oldu
+     → Haber
+
+     Maç sonucu açıklandı
+     → Haber
+
+     Murat Ciner A Klasmanına yükseldi
+     → Haber
+     ========================================================= */
+
+  if (
+    intent ===
+    "result"
+    ||
+    eventStatus ===
+    "completed"
+    ||
+    isCompletedNewsContent(
+      text
+    )
+  ) {
+
+    return "news";
+
+  }
+
+
+  /* =======================================================
+     6. GERÇEK GELECEK / DEVAM EDEN ETKİNLİK
+
+     Etkinlik olması için yalnızca "FIBA" veya "kupa"
+     kelimesi yeterli değildir.
+
+     Gerçek etkinlik sinyali aranır.
+     ========================================================= */
 
   if (
     isEventContent(
-      text
+      text,
+      post
     )
   ) {
 
-    return "events";
+    return "event";
 
   }
 
 
   /* =======================================================
-     LEGACY CATEGORY
-     ======================================================= */
+     7. CONTENT INTENT NEWS / ANNOUNCEMENT
+     ========================================================= */
 
-  const legacyCategory =
-    normalizeId(
-      post.category ||
-      post.contentType
+  if (
+    [
+      "news",
+      "announcement"
+    ].includes(
+      intent
+    )
+  ) {
+
+    return "news";
+
+  }
+
+
+  /* =======================================================
+     8. ESKİ KATEGORİ SADECE ZAYIF SİNYAL
+
+     Eski sistemde events çok geniş kullanıldığı için
+     doğrudan korunmaz.
+     ========================================================= */
+
+  const existing =
+    normalizeCategoryAlias(
+      post.category
     );
 
 
   if (
-    [
-      "coach",
-      "athlete",
-      "event",
-      "education",
-      "announcement",
-      "competition"
-    ].includes(
-      legacyCategory
+    CANONICAL_CATEGORIES.includes(
+      existing
     )
   ) {
 
-    return "events";
+    /*
+      Eski event değeri, güçlü event kanıtı yoksa
+      korunmaz.
+
+      Böylece eski yanlış sınıflandırmalar
+      yeni sistemi kirletmez.
+    */
+
+    if (
+      existing !==
+      "event"
+    ) {
+
+      return existing;
+
+    }
 
   }
 
 
-  /*
-    Şu an TYF / TBF haberleri için en güvenli
-    varsayılan kategori etkinliklerdir.
+  /* =======================================================
+     VARSAYILAN
 
-    İleride general/news alanını ayrıca
-    değerlendirebiliriz.
-  */
+     Bir içerik kurs/etkinlik/kampanya/iş/ürün
+     olduğuna dair güçlü kanıt taşımıyorsa
+     en güvenli sınıf HABER'dir.
+     ========================================================= */
 
-  return "events";
+  return "news";
 
 }
 
@@ -1085,39 +1665,59 @@ function resolveSubCategory({
   text,
   category,
   providerType,
+  section,
   sport
 
 }) {
 
-  /* -------------------------------------------------------
-     Mevcut geçerli alt kategori
-     ------------------------------------------------------- */
+  void providerType;
+  void section;
 
-  const existing =
-    normalizeId(
-      post.subCategory
-    );
 
+  /* =======================================================
+     HABER
+
+     Kullanıcı kartında alt kategori göstermek zorunda değiliz.
+
+     Arka planda karar motoru için tutulur.
+     ========================================================= */
 
   if (
-    getSubCategory(
-      category,
-      existing
-    )
+    category ===
+    "news"
   ) {
 
-    return existing;
+    return resolveNewsSubCategory(
+      post,
+      text
+    );
 
   }
 
 
   /* =======================================================
-     KURSLAR
-     ======================================================= */
+     KURS
+
+     Kullanıcının daha önce belirlediği yapı:
+
+     Basketbol
+     Yüzme
+     Voleybol
+     Cimnastik
+
+     Bu nedenle course subCategory branştır.
+
+     Kartta:
+
+     Yüzme Kurs
+     Basketbol Kurs
+
+     gibi görünür.
+     ========================================================= */
 
   if (
     category ===
-    "courses"
+    "course"
   ) {
 
     if (
@@ -1142,23 +1742,30 @@ function resolveSubCategory({
 
 
   /* =======================================================
-     ETKİNLİKLER
-     ======================================================= */
+     ETKİNLİK
+     ========================================================= */
 
   if (
     category ===
-    "events"
+    "event"
   ) {
+
+    /* -----------------------------------------------------
+       Kamp / Sağlıklı Yaşam
+       ----------------------------------------------------- */
 
     if (
       containsAny(
         text,
         [
-          "kamp",
+
           "spor kampi",
           "hazirlik kampi",
+          "yaz kampi",
+          "kamp programi",
           "saglikli yasam",
           "wellness"
+
         ]
       )
     ) {
@@ -1168,15 +1775,22 @@ function resolveSubCategory({
     }
 
 
+    /* -----------------------------------------------------
+       Festival / Tanıtım
+       ----------------------------------------------------- */
+
     if (
       containsAny(
         text,
         [
-          "festival",
+
           "spor festivali",
-          "tanitim",
+          "festival",
           "spor senligi",
-          "senlik"
+          "senlik",
+          "tanitim gunu",
+          "tanitim etkinligi"
+
         ]
       )
     ) {
@@ -1186,18 +1800,26 @@ function resolveSubCategory({
     }
 
 
+    /* -----------------------------------------------------
+       Eğitim / Seminer
+
+       Kurs kelimesi burada kullanılmaz.
+       Kurs artık kendi ana kategorisidir.
+       ----------------------------------------------------- */
+
     if (
       containsAny(
         text,
         [
-          "egitim",
+
           "seminer",
-          "kurs",
-          "sertifika",
-          "antrenor gelisim",
-          "antrenorluk",
-          "hakem kursu",
-          "vize"
+          "panel",
+          "konferans",
+          "workshop",
+          "atolye",
+          "egitim etkinligi",
+          "bilgilendirme toplantisi"
+
         ]
       )
     ) {
@@ -1207,35 +1829,9 @@ function resolveSubCategory({
     }
 
 
-    if (
-      containsAny(
-        text,
-        [
-          "turnuva",
-          "yarisma",
-          "sampiyona",
-          "musabaka",
-          "mac",
-          "lig",
-          "kupa",
-          "final",
-          "fiba",
-          "euroleague",
-          "eurocup"
-        ]
-      )
-    ) {
-
-      return "competition";
-
-    }
-
-
-    /*
-      Federasyon içeriklerinde bilinmeyen genel duyuruyu
-      yanlışlıkla tüketici kursuna çevirmemek için
-      güvenli varsayılan.
-    */
+    /* -----------------------------------------------------
+       Turnuva / Spor Yarışması
+       ----------------------------------------------------- */
 
     return "competition";
 
@@ -1243,23 +1839,26 @@ function resolveSubCategory({
 
 
   /* =======================================================
-     KAMPANYALAR
-     ======================================================= */
+     KAMPANYA
+     ========================================================= */
 
   if (
     category ===
-    "campaigns"
+    "campaign"
   ) {
 
     if (
       containsAny(
         text,
         [
-          "kurs indirimi",
+
           "kurs kampanyasi",
-          "egitim kampanyasi",
-          "ilk ders",
-          "deneme dersi"
+          "kurs indirimi",
+          "egitim indirimi",
+          "erken kayit indirimi",
+          "ilk ders ucretsiz",
+          "deneme dersi ucretsiz"
+
         ]
       )
     ) {
@@ -1273,11 +1872,13 @@ function resolveSubCategory({
       containsAny(
         text,
         [
+
           "uyelik",
           "abonelik",
           "spor salonu uyeligi",
           "yillik uyelik",
           "aylik uyelik"
+
         ]
       )
     ) {
@@ -1293,8 +1894,8 @@ function resolveSubCategory({
 
 
   /* =======================================================
-     İŞ
-     ======================================================= */
+     İŞ İLANLARI
+     ========================================================= */
 
   if (
     category ===
@@ -1319,7 +1920,7 @@ function resolveSubCategory({
 
   /* =======================================================
      MAĞAZALAR
-     ======================================================= */
+     ========================================================= */
 
   if (
     category ===
@@ -1330,12 +1931,16 @@ function resolveSubCategory({
       containsAny(
         text,
         [
+
           "protein",
           "takviye",
           "supplement",
           "beslenme",
           "vitamin",
-          "mineral"
+          "mineral",
+          "enerji jeli",
+          "sporcu icecegi"
+
         ]
       )
     ) {
@@ -1349,6 +1954,7 @@ function resolveSubCategory({
       containsAny(
         text,
         [
+
           "ayakkabi",
           "forma",
           "sort",
@@ -1356,7 +1962,9 @@ function resolveSubCategory({
           "tisort",
           "giyim",
           "esofman",
-          "ceket"
+          "ceket",
+          "mayo"
+
         ]
       )
     ) {
@@ -1370,15 +1978,18 @@ function resolveSubCategory({
       containsAny(
         text,
         [
+
           "top",
           "raket",
-          "mayo",
-          "gozluk",
           "palet",
           "mat",
           "agirlik",
           "ekipman",
-          "malzeme"
+          "malzeme",
+          "pota",
+          "kale",
+          "file"
+
         ]
       )
     ) {
@@ -1399,6 +2010,175 @@ function resolveSubCategory({
 
 
 /* =========================================================
+   HABER ALT KATEGORİSİ
+
+   Bunlar kullanıcıya gösterilmek zorunda değildir.
+
+   Sistem karar mekanizması için tutulur.
+   ========================================================= */
+
+function resolveNewsSubCategory(
+  post,
+  text
+) {
+
+  const intent =
+    normalizeId(
+      post.contentIntent
+    );
+
+
+  /* -------------------------------------------------------
+     Görevlendirme / Atama
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      text,
+      [
+
+        "gorevlendirildi",
+        "gorev aldi",
+        "gorevine getirildi",
+        "goreve getirildi",
+        "atandi",
+        "hakem olarak gorevlendirildi",
+        "basantrenor oldu",
+        "teknik direktor oldu"
+
+      ]
+    )
+  ) {
+
+    return "assignment";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Transfer
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      text,
+      [
+
+        "transfer oldu",
+        "transfer edildi",
+        "transferini acikladi",
+        "kadroya katildi",
+        "sozlesme imzaladi",
+        "yeni transfer"
+
+      ]
+    )
+  ) {
+
+    return "transfer";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Başarı
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      text,
+      [
+
+        "sampiyon oldu",
+        "sampiyonluga ulasti",
+        "sampiyon",
+        "kupayi kazandi",
+        "kupayi kaldirdi",
+        "madalya kazandi",
+        "altin madalya",
+        "gumus madalya",
+        "bronz madalya",
+        "rekor kirdi",
+        "derece elde etti",
+        "klasmanina yukseldi",
+        "klasmana yukseldi",
+        "bir ust klasmana",
+        "odul kazandi",
+        "odulun sahibi"
+
+      ]
+    )
+  ) {
+
+    return "achievement";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Müsabaka sonucu
+     ------------------------------------------------------- */
+
+  if (
+    intent ===
+    "result"
+    ||
+    containsAny(
+      text,
+      [
+
+        "mac sonucu",
+        "musabaka sonucu",
+        "karsilasma sonucu",
+        "galip geldi",
+        "maglup etti",
+        "kazandi",
+        "berabere",
+        "sonuclandi"
+
+      ]
+    )
+  ) {
+
+    return "result";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Duyuru / Açıklama
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      text,
+      [
+
+        "duyuru",
+        "aciklama yapti",
+        "aciklama yayinladi",
+        "bilgilendirme",
+        "kamuoyu duyurusu"
+
+      ]
+    )
+  ) {
+
+    return "announcement";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Genel gelişme
+     ------------------------------------------------------- */
+
+  return "development";
+
+}
+
+
+/* =========================================================
    CONTENT TYPE
    ========================================================= */
 
@@ -1411,32 +2191,23 @@ function resolveContentType({
 
 }) {
 
-  const existing =
-    normalizeId(
-      post.contentType
-    );
-
-
-  if (
-    getContentType(
-      existing
-    )
-  ) {
-
-    return existing;
-
-  }
-
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
 
   if (
     category ===
-    "campaigns"
+    "campaign"
   ) {
 
     return "campaign";
 
   }
 
+
+  /* =======================================================
+     İŞ
+     ========================================================= */
 
   if (
     category ===
@@ -1448,6 +2219,10 @@ function resolveContentType({
   }
 
 
+  /* =======================================================
+     MAĞAZA
+     ========================================================= */
+
   if (
     category ===
     "stores"
@@ -1458,9 +2233,27 @@ function resolveContentType({
   }
 
 
+  /* =======================================================
+     KURS
+     ========================================================= */
+
   if (
     category ===
-    "events"
+    "course"
+  ) {
+
+    return "education";
+
+  }
+
+
+  /* =======================================================
+     ETKİNLİK
+     ========================================================= */
+
+  if (
+    category ===
+    "event"
   ) {
 
     if (
@@ -1482,35 +2275,102 @@ function resolveContentType({
 
     }
 
-  }
 
-
-  if (
-    containsAny(
-      text,
-      [
-        "antrenor"
-      ]
-    )
-  ) {
-
-    return "coach";
+    return "general";
 
   }
 
 
+  /* =======================================================
+     HABER
+     ========================================================= */
+
   if (
-    containsAny(
-      text,
-      [
-        "sporcu",
-        "oyuncu",
-        "milli takim"
-      ]
+    category ===
+    "news"
+  ) {
+
+    if (
+      subCategory ===
+      "result"
+    ) {
+
+      return "competition";
+
+    }
+
+
+    if (
+      subCategory ===
+      "announcement"
+    ) {
+
+      return "announcement";
+
+    }
+
+
+    if (
+      containsAny(
+        text,
+        [
+
+          "antrenor",
+          "basantrenor",
+          "teknik direktor"
+
+        ]
+      )
+    ) {
+
+      return "coach";
+
+    }
+
+
+    if (
+      containsAny(
+        text,
+        [
+
+          "sporcu",
+          "oyuncu",
+          "yuzucu",
+          "basketbolcu",
+          "voleybolcu",
+          "milli sporcu"
+
+        ]
+      )
+    ) {
+
+      return "athlete";
+
+    }
+
+
+    return "general";
+
+  }
+
+
+  /* -------------------------------------------------------
+     Eski content type yalnızca son fallback.
+     ------------------------------------------------------- */
+
+  const existing =
+    normalizeId(
+      post.contentType
+    );
+
+
+  if (
+    getContentType(
+      existing
     )
   ) {
 
-    return "athlete";
+    return existing;
 
   }
 
@@ -1522,47 +2382,96 @@ function resolveContentType({
 
 /* =========================================================
    İŞ İLANI MI?
+
+   "Başvuru yap" tek başına iş ilanı sayılmaz.
+
+   İş bağlamı gerekir.
    ========================================================= */
 
 function isJobContent(
   text
 ) {
 
-  return containsAny(
-    text,
-    [
+  const strongSignals = [
 
-      "is ilani",
+    "is ilani",
 
-      "personel araniyor",
+    "personel araniyor",
 
-      "antrenor araniyor",
+    "antrenor araniyor",
 
-      "egitmen araniyor",
+    "egitmen araniyor",
 
-      "calisma arkadasi",
+    "calisma arkadasi araniyor",
 
-      "takim arkadasi ariyoruz",
+    "ise alim",
 
-      "ise alim",
+    "eleman araniyor",
 
-      "basvuru yap",
+    "cv gonder",
 
-      "cv gonder",
+    "ozgecmis gonder",
 
-      "ozgecmis gonder",
+    "kariyer firsati",
 
-      "pozisyon",
+    "acik pozisyon",
 
-      "tam zamanli",
+    "tam zamanli",
 
-      "yari zamanli",
+    "yari zamanli",
 
-      "part time",
+    "part time",
 
-      "full time"
+    "full time"
 
-    ]
+  ];
+
+
+  if (
+    containsAny(
+      text,
+      strongSignals
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  const positionContext =
+    containsAny(
+      text,
+      [
+
+        "pozisyon",
+        "maas",
+        "ucret araligi",
+        "calisma sekli",
+        "deneyim",
+        "is deneyimi"
+
+      ]
+    );
+
+
+  const applicationContext =
+    containsAny(
+      text,
+      [
+
+        "basvuru",
+        "aday",
+        "cv",
+        "ise"
+
+      ]
+    );
+
+
+  return (
+    positionContext &&
+    applicationContext
   );
 
 }
@@ -1590,7 +2499,9 @@ function isJobSeekerContent(
 
       "calisabilecegim",
 
-      "is talebi"
+      "is talebi",
+
+      "is arayisim"
 
     ]
   );
@@ -1614,23 +2525,23 @@ function isCampaignContent(
 
       "indirim",
 
-      "firsat",
-
       "ozel fiyat",
 
       "erken kayit indirimi",
 
       "uyelik indirimi",
 
-      "ilk ay",
+      "ilk ay ucretsiz",
 
       "ilk ders ucretsiz",
 
       "deneme dersi ucretsiz",
 
-      "kupon",
+      "kupon kodu",
 
       "promosyon",
+
+      "% indirim",
 
       "yuzde indirim"
 
@@ -1646,12 +2557,36 @@ function isCampaignContent(
 
 function isStoreContent(
   text,
-  providerType
+  providerType,
+  intent
 ) {
+
+  if (
+    intent ===
+    "product"
+  ) {
+
+    return true;
+
+  }
+
 
   if (
     providerType ===
     "store"
+    &&
+    containsAny(
+      text,
+      [
+
+        "urun",
+        "fiyat",
+        "stok",
+        "satin al",
+        "sepete ekle"
+
+      ]
+    )
   ) {
 
     return true;
@@ -1667,21 +2602,19 @@ function isStoreContent(
 
       "satin al",
 
-      "urun",
-
-      "stokta",
-
-      "stok",
-
-      "kargo",
-
-      "beden",
-
-      "numara",
+      "urun fiyati",
 
       "magaza fiyati",
 
-      "urun fiyati"
+      "stokta",
+
+      "stok durumu",
+
+      "kargo",
+
+      "beden sec",
+
+      "numara sec"
 
     ]
   );
@@ -1691,57 +2624,116 @@ function isStoreContent(
 
 /* =========================================================
    KURS MU?
+
+   Federasyon kursları dahil.
    ========================================================= */
 
 function isCourseContent(
-  text
+  text,
+  intent
 ) {
 
-  return containsAny(
-    text,
-    [
+  if (
+    containsAny(
+      text,
+      [
 
-      "spor kursu",
+        "spor kursu",
 
-      "yuzme kursu",
+        "yuzme kursu",
 
-      "basketbol kursu",
+        "basketbol kursu",
 
-      "voleybol kursu",
+        "voleybol kursu",
 
-      "cimnastik kursu",
+        "cimnastik kursu",
 
-      "jimnastik kursu",
+        "jimnastik kursu",
 
-      "ozel ders",
+        "antrenorluk kursu",
 
-      "grup dersi",
+        "antrenor kursu",
 
-      "spor okulu",
+        "hakemlik kursu",
 
-      "yaz okulu",
+        "hakem kursu",
 
-      "kis okulu",
+        "kademe kursu",
 
-      "kayitlar basladi",
+        "1 kademe",
 
-      "kurs kaydi",
+        "2 kademe",
 
-      "ders kaydi",
+        "3 kademe",
 
-      "kursumuz"
+        "4 kademe",
 
-    ]
-  );
+        "5 kademe",
+
+        "ozel ders",
+
+        "grup dersi",
+
+        "spor okulu",
+
+        "yaz okulu",
+
+        "kis okulu",
+
+        "kurs kaydi",
+
+        "kursumuz"
+
+      ]
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  /*
+    Registration intent tek başına kurs değildir.
+
+    Kurs/eğitim sinyaliyle birlikte olmalıdır.
+  */
+
+  if (
+    intent ===
+    "registration"
+    &&
+    containsAny(
+      text,
+      [
+
+        "kurs",
+        "ders",
+        "spor okulu",
+        "egitim programi"
+
+      ]
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  return false;
 
 }
 
 
 /* =========================================================
-   PROFESYONEL EĞİTİM Mİ?
+   TAMAMLANMIŞ HABER SİNYALİ
+
+   Tarih bulunmasa bile dil geçmişte tamamlanmış
+   bir gelişmeyi açıkça anlatabilir.
    ========================================================= */
 
-function isProfessionalEducation(
+function isCompletedNewsContent(
   text
 ) {
 
@@ -1749,25 +2741,45 @@ function isProfessionalEducation(
     text,
     [
 
-      "antrenor",
+      "sampiyon oldu",
 
-      "antrenorluk",
+      "sampiyonluga ulasti",
 
-      "hakem",
+      "kupayi kazandi",
 
-      "kademe",
+      "kupayi kaldirdi",
 
-      "sertifika",
+      "madalya kazandi",
 
-      "vize",
+      "rekor kirdi",
 
-      "seminer",
+      "derece elde etti",
 
-      "gelisim egitimi",
+      "klasmana yukseldi",
 
-      "hizmet ici",
+      "klasmanina yukseldi",
 
-      "e-devlet basvuru"
+      "gorevlendirildi",
+
+      "gorev aldi",
+
+      "atandi",
+
+      "transfer oldu",
+
+      "transfer edildi",
+
+      "galip geldi",
+
+      "maglup etti",
+
+      "mac sona erdi",
+
+      "musabaka sona erdi",
+
+      "sonuclandi",
+
+      "tamamlandi"
 
     ]
   );
@@ -1777,9 +2789,184 @@ function isProfessionalEducation(
 
 /* =========================================================
    ETKİNLİK Mİ?
+
+   "FIBA" kelimesi tek başına event değildir.
+
+   Gerçek organizasyon / takvim / katılım
+   sinyali gerekir.
    ========================================================= */
 
 function isEventContent(
+  text,
+  post
+) {
+
+  const intent =
+    normalizeId(
+      post.contentIntent
+    );
+
+
+  const eventStatus =
+    normalizeId(
+      post.eventStatus
+    );
+
+
+  /* -------------------------------------------------------
+     Sonuç / tamamlanmış olay artık HABER.
+     ------------------------------------------------------- */
+
+  if (
+    intent ===
+    "result"
+    ||
+    eventStatus ===
+    "completed"
+    ||
+    isCompletedNewsContent(
+      text
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Açık etkinlik türleri
+     ------------------------------------------------------- */
+
+  const eventObject =
+    containsAny(
+      text,
+      [
+
+        "turnuva",
+
+        "spor yarismasi",
+
+        "yarisma",
+
+        "sampiyona",
+
+        "musabaka",
+
+        "karsilasma",
+
+        "mac",
+
+        "festival",
+
+        "spor senligi",
+
+        "seminer",
+
+        "panel",
+
+        "konferans",
+
+        "workshop",
+
+        "spor kampi",
+
+        "hazirlik kampi",
+
+        "organizasyon",
+
+        "etkinlik"
+
+      ]
+    );
+
+
+  if (
+    !eventObject
+  ) {
+
+    return false;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Yaklaşan / devam eden kararı Content Intent'ten geldiyse
+     güçlü event sinyalidir.
+     ------------------------------------------------------- */
+
+  if (
+    [
+      "upcoming",
+      "ongoing"
+    ].includes(
+      eventStatus
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Gelecek zaman dili
+     ------------------------------------------------------- */
+
+  if (
+    hasFutureEventLanguage(
+      text
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Katılım / program sinyali
+     ------------------------------------------------------- */
+
+  if (
+    containsAny(
+      text,
+      [
+
+        "katilim",
+        "kayit",
+        "program",
+        "takvim",
+        "baslayacak",
+        "duzenlenecek",
+        "gerceklestirilecek"
+
+      ]
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  /*
+    Açıkça etkinlik nesnesi var ama zaman bilinmiyorsa
+    event olarak tutulabilir.
+
+    Ancak tamamlanmış sonuç dili yukarıda zaten elendi.
+  */
+
+  return eventObject;
+
+}
+
+
+/* =========================================================
+   GELECEK ETKİNLİK DİLİ
+   ========================================================= */
+
+function hasFutureEventLanguage(
   text
 ) {
 
@@ -1787,41 +2974,31 @@ function isEventContent(
     text,
     [
 
-      "turnuva",
+      "duzenlenecek",
 
-      "yarisma",
+      "gerceklestirilecek",
 
-      "sampiyona",
+      "yapilacak",
 
-      "musabaka",
+      "baslayacak",
 
-      "mac",
+      "basliyor",
 
-      "lig",
+      "duzenliyor",
 
-      "kupa",
+      "gerceklestiriyor",
 
-      "final",
+      "katilim saglanacak",
 
-      "festival",
+      "kayitlar devam ediyor",
 
-      "senlik",
+      "kayitlar basladi",
 
-      "kamp",
+      "programi aciklandi",
 
-      "seminer",
+      "takvimi aciklandi",
 
-      "egitim",
-
-      "organizasyon",
-
-      "etkinlik",
-
-      "fiba",
-
-      "euroleague",
-
-      "eurocup"
+      "gerceklesecek"
 
     ]
   );
@@ -1831,6 +3008,12 @@ function isEventContent(
 
 /* =========================================================
    ARAMA METNİ
+
+   Burada kaynağın orijinal metni önemlidir.
+
+   Persona'nın önceki yanlış yorumunun sisteme
+   geri beslenmesini azaltmak için orijinal alanlara
+   daha çok güveniyoruz.
    ========================================================= */
 
 function buildSearchText(
@@ -1840,21 +3023,17 @@ function buildSearchText(
   const values =
     [
 
-      post?.editorial?.headline,
-
       post?.editorial?.originalTitle,
 
-      post?.editorial?.influencerText,
-
       post?.editorial?.originalText,
-
-      post?.title,
-
-      post?.summary,
 
       post?.originalTitle,
 
       post?.originalText,
+
+      post?.title,
+
+      post?.summary,
 
       post?.source?.name,
 
@@ -1862,13 +3041,11 @@ function buildSearchText(
 
       post?.sourceName,
 
-      post?.source,
-
       post?.sport,
 
-      post?.category,
+      post?.contentIntent,
 
-      post?.subCategory,
+      post?.eventStatus,
 
       post?.contentType,
 
@@ -1892,6 +3069,21 @@ function buildSearchText(
 
   if (
     isPlainObject(
+      post?.facts
+    )
+  ) {
+
+    values.push(
+      ...flattenObjectValues(
+        post.facts
+      )
+    );
+
+  }
+
+
+  if (
+    isPlainObject(
       post?.details
     )
   ) {
@@ -1908,7 +3100,11 @@ function buildSearchText(
   return normalizeText(
     values
       .filter(
-        Boolean
+        value =>
+          value !==
+          undefined &&
+          value !==
+          null
       )
       .join(
         " "
@@ -1921,11 +3117,13 @@ function buildSearchText(
 /* =========================================================
    EKSİK ALANLAR
 
-   Burada "eksik" demek zorunlu hata değildir.
+   Eksik alan hata değildir.
 
-   Sistem daha sonra tarayıcılara:
-   "Bu kategoride özellikle bunları ara"
-   diyebilir.
+   İleride crawler / extraction motoruna:
+
+   "Bu tür içerikte özellikle bu bilgileri ara"
+
+   demek için kullanılır.
    ========================================================= */
 
 function findMissingFields(
@@ -1984,7 +3182,7 @@ function hasFieldValue(
 ) {
 
   /* -------------------------------------------------------
-     Konum alanları
+     Konum
      ------------------------------------------------------- */
 
   if (
@@ -2002,6 +3200,62 @@ function hasFieldValue(
       post?.location?.[
         field
       ]
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Yayın tarihi
+     ------------------------------------------------------- */
+
+  if (
+    field ===
+    "publishedAt"
+  ) {
+
+    return hasUsefulValue(
+
+      post?.source?.publishedAt ||
+
+      post?.lifecycle?.publishedAt
+
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     Başlangıç / bitiş
+     ------------------------------------------------------- */
+
+  if (
+    field ===
+    "startDate"
+  ) {
+
+    return hasUsefulValue(
+
+      post?.details?.startDate ||
+
+      post?.lifecycle?.startsAt
+
+    );
+
+  }
+
+
+  if (
+    field ===
+    "endDate"
+  ) {
+
+    return hasUsefulValue(
+
+      post?.details?.endDate ||
+
+      post?.lifecycle?.endsAt
+
     );
 
   }
@@ -2076,6 +3330,7 @@ function hasUsefulValue(
 function calculateDiscoveryConfidence({
 
   sport,
+  section,
   category,
   subCategory,
   providerType,
@@ -2085,8 +3340,12 @@ function calculateDiscoveryConfidence({
 }) {
 
   let score =
-    20;
+    15;
 
+
+  /* -------------------------------------------------------
+     Branş
+     ------------------------------------------------------- */
 
   if (
     sport &&
@@ -2100,8 +3359,39 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* -------------------------------------------------------
+     Bölüm
+     ------------------------------------------------------- */
+
+  if (
+    Object.values(
+      SECTIONS
+    ).includes(
+      section
+    )
+  ) {
+
+    score +=
+      10;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Ana kategori
+
+     Taxonomy güncellendiğinde getCategory()
+     doğrudan doğrulayacaktır.
+
+     Geçiş döneminde canonical ID de kabul edilir.
+     ------------------------------------------------------- */
+
   if (
     getCategory(
+      category
+    )
+    ||
+    CANONICAL_CATEGORIES.includes(
       category
     )
   ) {
@@ -2112,18 +3402,45 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* -------------------------------------------------------
+     Alt kategori
+     ------------------------------------------------------- */
+
   if (
-    getSubCategory(
-      category,
-      subCategory
-    )
+    subCategory
   ) {
 
-    score +=
-      15;
+    if (
+      getSubCategory(
+        category,
+        subCategory
+      )
+    ) {
+
+      score +=
+        15;
+
+    }
+
+    else {
+
+      /*
+        Taxonomy güncellemesi tamamlanana kadar
+        yeni news subcategory'lerini tamamen
+        güvensiz saymıyoruz.
+      */
+
+      score +=
+        8;
+
+    }
 
   }
 
+
+  /* -------------------------------------------------------
+     Provider
+     ------------------------------------------------------- */
 
   if (
     providerType &&
@@ -2137,6 +3454,10 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* -------------------------------------------------------
+     Doğrulanmış kaynak
+     ------------------------------------------------------- */
+
   if (
     source?.verified ===
     true
@@ -2147,6 +3468,10 @@ function calculateDiscoveryConfidence({
 
   }
 
+
+  /* -------------------------------------------------------
+     İçerik zenginliği
+     ------------------------------------------------------- */
 
   if (
     text.length >
@@ -2159,12 +3484,10 @@ function calculateDiscoveryConfidence({
   }
 
 
-  return Math.max(
+  return clamp(
+    score,
     0,
-    Math.min(
-      score,
-      100
-    )
+    100
   );
 
 }
@@ -2176,7 +3499,9 @@ function calculateDiscoveryConfidence({
 
 function collectSignals({
 
+  post,
   text,
+  section,
   category,
   subCategory,
   providerType,
@@ -2194,18 +3519,49 @@ function collectSignals({
 
 
   signals.push(
+    `section:${section}`
+  );
+
+
+  signals.push(
     `category:${category}`
   );
 
 
   signals.push(
-    `subcategory:${subCategory}`
+    `subcategory:${subCategory || "none"}`
   );
 
 
   signals.push(
     `provider:${providerType}`
   );
+
+
+  if (
+    post?.contentIntent
+  ) {
+
+    signals.push(
+      `intent:${normalizeId(
+        post.contentIntent
+      )}`
+    );
+
+  }
+
+
+  if (
+    post?.eventStatus
+  ) {
+
+    signals.push(
+      `event-status:${normalizeId(
+        post.eventStatus
+      )}`
+    );
+
+  }
 
 
   if (
@@ -2229,9 +3585,12 @@ function collectSignals({
     containsAny(
       text,
       [
+
         "son basvuru",
         "son gun",
-        "sona erecek"
+        "sona erecek",
+        "son kayit"
+
       ]
     )
   ) {
@@ -2276,11 +3635,136 @@ function collectSignals({
   }
 
 
+  if (
+    isCompletedNewsContent(
+      text
+    )
+  ) {
+
+    signals.push(
+      "temporal-language:completed"
+    );
+
+  }
+
+
+  if (
+    hasFutureEventLanguage(
+      text
+    )
+  ) {
+
+    signals.push(
+      "temporal-language:future"
+    );
+
+  }
+
+
   return [
     ...new Set(
-      signals
+      signals.filter(
+        Boolean
+      )
     )
   ];
+
+}
+
+
+/* =========================================================
+   CATEGORY ALIAS
+
+   Eski taxonomy'den gelen:
+
+   courses
+   events
+   campaigns
+
+   yeni tekil ID'lere çevrilir.
+   ========================================================= */
+
+function normalizeCategoryAlias(
+  value
+) {
+
+  const id =
+    normalizeId(
+      value
+    );
+
+
+  const aliases = {
+
+    news:
+      "news",
+
+    haber:
+      "news",
+
+
+    course:
+      "course",
+
+    courses:
+      "course",
+
+    kurs:
+      "course",
+
+
+    event:
+      "event",
+
+    events:
+      "event",
+
+    etkinlik:
+      "event",
+
+
+    campaign:
+      "campaign",
+
+    campaigns:
+      "campaign",
+
+    kampanya:
+      "campaign",
+
+
+    jobs:
+      "jobs",
+
+    job:
+      "jobs",
+
+    is_ilanlari:
+      "jobs",
+
+
+    stores:
+      "stores",
+
+    store:
+      "stores",
+
+    magazalar:
+      "stores",
+
+    magaza:
+      "stores"
+
+  };
+
+
+  return (
+    aliases[
+      id
+    ]
+    ||
+    ""
+  );
 
 }
 
@@ -2291,6 +3775,10 @@ function collectSignals({
 
 function createFallbackDiscovery() {
 
+  const category =
+    "news";
+
+
   return {
 
     version:
@@ -2299,11 +3787,14 @@ function createFallbackDiscovery() {
     sport:
       "other",
 
+    section:
+      SECTIONS.business_institution,
+
     category:
-      "events",
+      category,
 
     subCategory:
-      "competition",
+      "development",
 
     providerType:
       "other",
@@ -2313,12 +3804,12 @@ function createFallbackDiscovery() {
 
     requiredFields:
       getCategoryFilterFields(
-        "events"
+        category
       ),
 
     missingFields:
       getCategoryFilterFields(
-        "events"
+        category
       ),
 
     confidenceScore:
@@ -2367,6 +3858,18 @@ function flattenObjectValues(
   ) {
 
     if (
+      item ===
+      null ||
+      item ===
+      undefined
+    ) {
+
+      continue;
+
+    }
+
+
+    if (
       Array.isArray(
         item
       )
@@ -2375,6 +3878,7 @@ function flattenObjectValues(
       output.push(
         ...item
       );
+
 
       continue;
 
@@ -2393,23 +3897,15 @@ function flattenObjectValues(
         )
       );
 
+
       continue;
 
     }
 
 
-    if (
-      item !==
-      null &&
-      item !==
-      undefined
-    ) {
-
-      output.push(
-        item
-      );
-
-    }
+    output.push(
+      item
+    );
 
   }
 
@@ -2428,13 +3924,44 @@ function containsAny(
   values
 ) {
 
+  const normalizedText =
+    normalizeText(
+      text
+    );
+
+
+  if (
+    !normalizedText ||
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
+
   return values.some(
-    value =>
-      text.includes(
+    value => {
+
+      const normalizedValue =
         normalizeText(
           value
+        );
+
+
+      return Boolean(
+
+        normalizedValue &&
+
+        normalizedText.includes(
+          normalizedValue
         )
-      )
+
+      );
+
+    }
   );
 
 }
@@ -2606,4 +4133,31 @@ function isPlainObject(
 
   );
 
-      }
+}
+
+
+/* =========================================================
+   CLAMP
+   ========================================================= */
+
+function clamp(
+  value,
+  min,
+  max
+) {
+
+  return Math.max(
+
+    min,
+
+    Math.min(
+      max,
+      Number(
+        value
+      ) ||
+      0
+    )
+
+  );
+
+   }
