@@ -4,7 +4,9 @@
 
    Üretim Sürümü: 6.0.4
    Core Preview: 6.1.0
-   Mimari: Multi Source Modular + Core Preview
+
+   Mimari:
+   Multi Source Modular + v6.1 Preview Pipeline
 
    AKTİF KAYNAKLAR
    ---------------------------------------------------------
@@ -16,6 +18,7 @@
    /
    /api/health
    /api/core-test
+   /api/feed-preview
    /api/sources
    /api/feed
    /api/tyf
@@ -23,10 +26,15 @@
    /api/feedback
    /api/learning
 
-   NOT
+   ÖNEMLİ
    ---------------------------------------------------------
-   /api/core-test yeni v6.1 çekirdeğini test eder.
-   Canlı TYF + TBF akışı hâlâ güvenli v6.0.4 yapısındadır.
+   /api/feed
+   halen çalışan güvenli 6.0.4 akışıdır.
+
+   /api/feed-preview
+   gerçek TYF + TBF verisini yeni v6.1 çekirdeğinden geçirir.
+
+   Telefon uygulaması henüz preview endpointine bağlı değildir.
    ========================================================= */
 
 
@@ -53,6 +61,11 @@ import {
 import {
   runCoreTest
 } from "./core/coreTest.js";
+
+
+import {
+  buildFeedPreview
+} from "./core/feedPreview.js";
 
 
 import {
@@ -88,11 +101,10 @@ const MAX_LIMIT =
 /* =========================================================
    KAYNAK KAYIT MERKEZİ
 
-   NOT:
-   v6.1 sourceRegistry.js hazırlandı.
+   Geçiş döneminde mevcut çalışan registry korunuyor.
 
-   Ancak çalışan üretim akışını bir anda değiştirmemek için
-   mevcut provider registry bu geçiş aşamasında korunuyor.
+   v6.1 sourceRegistry.js ayrıca hazır ve
+   preview/test sistemi tarafından kullanılıyor.
    ========================================================= */
 
 const SOURCE_PROVIDERS = {
@@ -275,6 +287,12 @@ export default {
           feed:
             "/api/feed?limit=20",
 
+          feedPreview:
+            "/api/feed-preview?limit=20",
+
+          coreTest:
+            "/api/core-test",
+
           sources:
             "/api/sources",
 
@@ -291,10 +309,7 @@ export default {
             "/api/learning",
 
           health:
-            "/api/health",
-
-          coreTest:
-            "/api/core-test"
+            "/api/health"
 
         }
 
@@ -332,6 +347,9 @@ export default {
         architecture:
           "multi-source-modular",
 
+        previewPipeline:
+          true,
+
         timestamp:
           new Date()
             .toISOString(),
@@ -354,18 +372,6 @@ export default {
 
     /* =====================================================
        v6.1 CORE TEST
-
-       Bu endpoint gerçek TYF/TBF akışını değiştirmez.
-
-       taxonomy
-       postSchema
-       sourceRegistry
-       normalizer
-       lifecycle
-       discoveryEngine
-       personaEngine
-
-       zincirini test eder.
        ===================================================== */
 
     if (
@@ -443,6 +449,129 @@ export default {
 
 
     /* =====================================================
+       v6.1 GERÇEK FEED PREVIEW
+
+       Gerçek TYF + TBF
+              ↓
+       Normalizer
+              ↓
+       Discovery
+              ↓
+       Lifecycle
+              ↓
+       Persona
+              ↓
+       v6.1 Preview Posts
+
+       Örnek:
+       /api/feed-preview?limit=10
+
+       Belirli kaynak:
+       /api/feed-preview?sources=tyf
+
+       Birden fazla:
+       /api/feed-preview?sources=tyf,tbf&limit=20
+       ===================================================== */
+
+    if (
+      pathname === "/api/feed-preview" &&
+      request.method === "GET"
+    ) {
+
+      try {
+
+        const limit =
+          getLimit(
+            url
+          );
+
+
+        const requestedSources =
+          parseRequestedSources(
+            url
+          );
+
+
+        const result =
+          await buildFeedPreview({
+
+            providers:
+              getActiveProviders(),
+
+            env:
+              env,
+
+            limit:
+              limit,
+
+            requestedSources:
+              requestedSources
+
+          });
+
+
+        return json(
+          {
+
+            ...result,
+
+            productionVersion:
+              VERSION,
+
+            targetVersion:
+              CORE_PREVIEW_VERSION
+
+          },
+
+          200
+
+        );
+
+      }
+
+      catch (
+        error
+      ) {
+
+        return json(
+          {
+
+            ok:
+              false,
+
+            type:
+              "SPORNRD_FEED_PREVIEW",
+
+            productionVersion:
+              VERSION,
+
+            targetVersion:
+              CORE_PREVIEW_VERSION,
+
+            error:
+              "SporNRD v6.1 preview akışı oluşturulamadı.",
+
+            detail:
+              errorMessage(
+                error
+              ),
+
+            fetchedAt:
+              new Date()
+                .toISOString()
+
+          },
+
+          500
+
+        );
+
+      }
+
+    }
+
+
+    /* =====================================================
        KAYNAKLAR
        ===================================================== */
 
@@ -490,7 +619,9 @@ export default {
 
 
     /* =====================================================
-       BİRLEŞİK SPORNRD AKIŞI
+       BİRLEŞİK SPORNRD ÜRETİM AKIŞI
+
+       BU ENDPOINT HÂLÂ 6.0.4
        ===================================================== */
 
     if (
@@ -875,6 +1006,8 @@ export default {
 
           "/api/core-test",
 
+          "/api/feed-preview?limit=20",
+
           "/api/sources",
 
           "/api/feed?limit=20",
@@ -1039,7 +1172,7 @@ async function handleProviderFeed({
 
 
 /* =========================================================
-   BİRLEŞİK AKIŞ
+   BİRLEŞİK ÜRETİM AKIŞI
    ========================================================= */
 
 async function buildUnifiedFeed({
@@ -1056,9 +1189,6 @@ async function buildUnifiedFeed({
 
   /* -------------------------------------------------------
      Belirli kaynaklar istenmişse filtrele
-
-     Örnek:
-     /api/feed?sources=tyf,tbf
      ------------------------------------------------------- */
 
   if (
@@ -1124,10 +1254,7 @@ async function buildUnifiedFeed({
 
 
   /* -------------------------------------------------------
-     Kaynakları paralel oku.
-
-     Bir federasyon hata verirse
-     diğer federasyonlar çalışmaya devam eder.
+     Kaynakları paralel oku
      ------------------------------------------------------- */
 
   const results =
@@ -1837,16 +1964,6 @@ async function readJsonBody(
 
 /* =========================================================
    FEEDBACK KONTROLÜ
-
-   Not:
-   Eski anlık tepki isimlerini geçiş döneminde
-   uyumluluk için şimdilik koruyoruz.
-
-   Yeni v6.1 arayüzünde ana kullanıcı etkileşimleri:
-   Woow
-   Kaydet
-   Paylaş
-   Çöp
    ========================================================= */
 
 function validateFeedback(
@@ -1979,6 +2096,9 @@ function isKnownPath(
 
     pathname ===
     "/api/feed" ||
+
+    pathname ===
+    "/api/feed-preview" ||
 
     pathname ===
     "/api/sources" ||
@@ -2247,4 +2367,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-       }
+   }
