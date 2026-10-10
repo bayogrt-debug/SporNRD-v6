@@ -4,11 +4,13 @@
 
    SporNRD Zaman / Temporal Motoru
 
-   Sürüm: 6.1.1
+   Sürüm: 6.1.2
+   Temporal Engine: 1.2
 
    AMAÇ
    ---------------------------------------------------------
-   İçerikteki gerçek tarihleri BUGÜN ile karşılaştırarak:
+   İçerikteki GERÇEK tarihleri bugünün tarihiyle
+   karşılaştırarak:
 
    - past
    - present
@@ -17,25 +19,73 @@
 
    kararını üretmek.
 
-   KRİTİK 6.1.1 DÜZELTMESİ
+   AYRICA:
    ---------------------------------------------------------
-   Structured ISO alanları her zaman metinsel tarihten önce
-   değerlendirilir:
+   - Etkinlik başladı mı?
+   - Etkinlik devam ediyor mu?
+   - Etkinlik tamamlandı mı?
+   - Başvuru / kayıt süresi açık mı?
+   - Son başvuru bugün mü?
+   - Başvuru süresi geçti mi?
+   - İçerik ne kadar güncel?
+   - Persona hangi zaman dilini kullanmalı?
+
+   sorularını cevaplar.
+
+   =========================================================
+   KRİTİK GÜVEN KURALLARI
+   ---------------------------------------------------------
+
+   1. Yayın tarihi olay tarihi DEĞİLDİR.
+
+   source.publishedAt:
+   → yalnızca içeriğin ne zaman yayımlandığını gösterir.
+
+   2. Deadline olay tarihi DEĞİLDİR.
+
+   registrationDeadline / applicationDeadline:
+   → kullanıcının işlem yapabileceği son tarihi gösterir.
+
+   Fakat etkinliğin ne zaman gerçekleşeceğini
+   tek başına göstermez.
+
+   3. lifecycle.expiresAt gerçek başvuru tarihi değildir.
+
+   Bu alan SporNRD post yaşam döngüsü tarafından
+   kullanılabilir.
+
+   Bu nedenle Temporal Engine bunu doğrudan
+   başvuru/kayıt son tarihi kabul etmez.
+
+   4. Structured ISO tarihleri en yüksek önceliktedir.
 
    details.startDateIso
    details.endDateIso
    details.deadlineIso
 
-   Ayrıca tarih aralıkları tek tarih gibi okunmaz.
+   5. Tarih aralıkları tek tarih gibi okunmaz.
 
    Örnek:
+
    26-30 Ekim 2026
 
-   → startDate = 2026-10-26
-   → endDate   = 2026-10-30
+   →
 
-   Yayın tarihi olay tarihi değildir.
+   startDate = 2026-10-26
+   endDate   = 2026-10-30
 
+   6. Olay tarihi bilinmiyorsa uydurulmaz.
+
+   Yayın tarihi varsa yalnızca:
+
+   - bugün yayımlandı
+   - kısa süre önce yayımlandı
+   - yakın zamanda yayımlandı
+   - daha önce yayımlandı
+
+   dili kullanılabilir.
+
+   =========================================================
    TÜRKİYE SAATİ
    ---------------------------------------------------------
    Europe/Istanbul
@@ -47,7 +97,7 @@
    ========================================================= */
 
 export const TEMPORAL_VERSION =
-  "1.1";
+  "1.2";
 
 
 /* =========================================================
@@ -147,11 +197,19 @@ export function analyzeTemporal(
   }
 
 
+  /* =======================================================
+     BUGÜN
+     ========================================================= */
+
   const today =
     resolveToday(
       options.now
     );
 
+
+  /* =======================================================
+     ALT NESNELER
+     ========================================================= */
 
   const details =
     isPlainObject(
@@ -222,39 +280,35 @@ export function analyzeTemporal(
 
 
   /* =======================================================
-     DEADLINE
+     GERÇEK ACTION DEADLINE
+
+     lifecycle.expiresAt burada kullanılmaz.
      ========================================================= */
 
+  const deadlineResult =
+    resolveActionDeadline({
+
+      details:
+        details,
+
+      facts:
+        facts
+
+    });
+
+
   const deadlineAt =
-    firstDate(
+    deadlineResult.date;
 
-      details.deadlineIso,
 
-      facts.deadlineIso,
-
-      details.registrationDeadline,
-
-      details.applicationDeadline,
-
-      details.deadline,
-
-      lifecycle.expiresAt,
-
-      facts.registrationDeadline,
-
-      facts.applicationDeadline,
-
-      facts.deadline,
-
-      facts.deadlineText
-
-    );
+  const deadlineSource =
+    deadlineResult.source;
 
 
   /* =======================================================
      YAYIN TARİHİ
 
-     Olay tarihi değildir.
+     OLAY TARİHİ DEĞİLDİR.
      ========================================================= */
 
   const publishedAt =
@@ -302,6 +356,8 @@ export function analyzeTemporal(
 
   /* =======================================================
      1. BAŞLANGIÇ + BİTİŞ TARİHİ
+
+     En güvenilir olay zamanı.
      ========================================================= */
 
   if (
@@ -332,6 +388,10 @@ export function analyzeTemporal(
       endDiff !== null
     ) {
 
+      /* ---------------------------------------------------
+         Henüz başlamadı
+         --------------------------------------------------- */
+
       if (
         startDiff > 0
       ) {
@@ -350,6 +410,10 @@ export function analyzeTemporal(
 
       }
 
+      /* ---------------------------------------------------
+         Bitti
+         --------------------------------------------------- */
+
       else if (
         endDiff < 0
       ) {
@@ -367,6 +431,10 @@ export function analyzeTemporal(
         );
 
       }
+
+      /* ---------------------------------------------------
+         Devam ediyor
+         --------------------------------------------------- */
 
       else {
 
@@ -481,6 +549,11 @@ export function analyzeTemporal(
 
   /* =======================================================
      3. SADECE BAŞLANGIÇ TARİHİ
+
+     Başlangıç geçmişse otomatik olarak
+     "etkinlik bitti" denmez.
+
+     Çünkü bitiş tarihi bilinmeyebilir.
      ========================================================= */
 
   else if (
@@ -501,6 +574,10 @@ export function analyzeTemporal(
     if (
       difference !== null
     ) {
+
+      /* ---------------------------------------------------
+         Gelecek
+         --------------------------------------------------- */
 
       if (
         difference > 0
@@ -523,6 +600,10 @@ export function analyzeTemporal(
           95;
 
       }
+
+      /* ---------------------------------------------------
+         Bugün başlıyor
+         --------------------------------------------------- */
 
       else if (
         difference === 0
@@ -553,6 +634,10 @@ export function analyzeTemporal(
 
       }
 
+      /* ---------------------------------------------------
+         Başlangıç geçmiş + sonuç sinyali var
+         --------------------------------------------------- */
+
       else if (
         normalizeId(
           post.contentIntent
@@ -581,6 +666,10 @@ export function analyzeTemporal(
 
       }
 
+      /* ---------------------------------------------------
+         Başlangıç geçmiş ama bitiş bilinmiyor
+         --------------------------------------------------- */
+
       else {
 
         state =
@@ -604,6 +693,16 @@ export function analyzeTemporal(
 
   /* =======================================================
      4. CONTENT INTENT / SEMANTİK SONUÇ
+
+     Tarih bulunmasa bile:
+
+     - şampiyon oldu
+     - kazandı
+     - tamamlandı
+     - sonuçlandı
+
+     gibi güçlü semantic sonuç sinyalleri
+     geçmiş olayı gösterebilir.
      ========================================================= */
 
   else if (
@@ -641,14 +740,43 @@ export function analyzeTemporal(
 
   /* =======================================================
      5. SADECE DEADLINE VAR
+
+     KRİTİK:
+
+     Deadline OLAY TARİHİ DEĞİLDİR.
+
+     Örnek:
+
+     Son başvuru:
+     20 Ekim 2026
+
+     Etkinlik tarihi:
+     bilinmiyor
+
+     →
+
+     state       = unknown
+     eventStatus = unknown
+
+     Ama actionState:
+
+     open
+     closing_today
+     closed
+
+     olabilir.
      ========================================================= */
 
   else if (
     deadlineAt
   ) {
 
+    state =
+      TIME_STATES.unknown;
+
+
     basis =
-      "deadline";
+      "deadline_only";
 
 
     const difference =
@@ -666,12 +794,8 @@ export function analyzeTemporal(
         difference > 0
       ) {
 
-        state =
-          TIME_STATES.future;
-
-
         reasons.push(
-          "Son başvuru/kayıt tarihi bugünden ileride."
+          "Gerçek başvuru/kayıt son tarihi ileride; olayın tarihi bilinmiyor."
         );
 
 
@@ -684,12 +808,8 @@ export function analyzeTemporal(
         difference === 0
       ) {
 
-        state =
-          TIME_STATES.present;
-
-
         reasons.push(
-          "Son başvuru/kayıt tarihi bugün."
+          "Gerçek başvuru/kayıt son tarihi bugün; olayın tarihi bilinmiyor."
         );
 
 
@@ -700,12 +820,8 @@ export function analyzeTemporal(
 
       else {
 
-        state =
-          TIME_STATES.past;
-
-
         reasons.push(
-          "Son başvuru/kayıt tarihi geçmiş."
+          "Gerçek başvuru/kayıt son tarihi geçmiş; olayın tarihi bilinmiyor."
         );
 
 
@@ -721,6 +837,10 @@ export function analyzeTemporal(
 
   /* =======================================================
      6. SADECE YAYIN TARİHİ VAR
+
+     Olay zamanı bilinmez.
+
+     Yayın tarihi yalnızca güncellik içindir.
      ========================================================= */
 
   else if (
@@ -873,17 +993,27 @@ export function analyzeTemporal(
     });
 
 
+  /* =======================================================
+     SONUÇ
+     ========================================================= */
+
   return {
 
     version:
       TEMPORAL_VERSION,
 
+
     timezone:
       TEMPORAL_TIMEZONE,
+
 
     today:
       today,
 
+
+    /* -----------------------------------------------------
+       ANA ZAMAN KARARI
+       ----------------------------------------------------- */
 
     state:
       state,
@@ -898,6 +1028,10 @@ export function analyzeTemporal(
       languageMode,
 
 
+    /* -----------------------------------------------------
+       GERÇEK OLAY TARİHLERİ
+       ----------------------------------------------------- */
+
     startDate:
       startDate,
 
@@ -907,12 +1041,29 @@ export function analyzeTemporal(
     eventDate:
       eventDate,
 
+
+    /* -----------------------------------------------------
+       ACTION DEADLINE
+       ----------------------------------------------------- */
+
     deadlineAt:
       deadlineAt,
+
+    deadlineSource:
+      deadlineSource,
+
+
+    /* -----------------------------------------------------
+       YAYIN TARİHİ
+       ----------------------------------------------------- */
 
     publishedAt:
       publishedAt,
 
+
+    /* -----------------------------------------------------
+       SAYISAL FARKLAR
+       ----------------------------------------------------- */
 
     daysUntilStart:
       daysUntilStart,
@@ -927,13 +1078,25 @@ export function analyzeTemporal(
       daysSincePublished,
 
 
+    /* -----------------------------------------------------
+       GÜNCELLİK
+       ----------------------------------------------------- */
+
     freshness:
       freshness,
 
 
+    /* -----------------------------------------------------
+       KULLANICI AKSİYONU
+       ----------------------------------------------------- */
+
     actionState:
       actionState,
 
+
+    /* -----------------------------------------------------
+       GÜVEN
+       ----------------------------------------------------- */
 
     confidenceScore:
       clamp(
@@ -942,11 +1105,13 @@ export function analyzeTemporal(
         100
       ),
 
+
     reasons: [
       ...new Set(
         reasons
       )
     ],
+
 
     analyzedAt:
       new Date()
@@ -974,9 +1139,9 @@ function resolveEventDates({
     [];
 
 
-  /* -------------------------------------------------------
-     Structured ISO başlangıç/bitiş
-     ------------------------------------------------------- */
+  /* =======================================================
+     STRUCTURED ISO BAŞLANGIÇ
+     ========================================================= */
 
   const structuredStart =
     firstDate(
@@ -987,6 +1152,10 @@ function resolveEventDates({
 
     );
 
+
+  /* =======================================================
+     STRUCTURED ISO BİTİŞ
+     ========================================================= */
 
   const structuredEnd =
     firstDate(
@@ -1008,8 +1177,13 @@ function resolveEventDates({
 
   const structured =
     Boolean(
-      structuredStart ||
+
+      structuredStart
+
+      ||
+
       structuredEnd
+
     );
 
 
@@ -1035,12 +1209,15 @@ function resolveEventDates({
   }
 
 
-  /* -------------------------------------------------------
-     Metinsel tarih aralığı
+  /* =======================================================
+     METİNSEL TARİH ARALIĞI
 
      Örnek:
+
      26-30 Ekim 2026
-     ------------------------------------------------------- */
+     26 Ekim - 30 Ekim 2026
+     25 Ekim - 1 Kasım 2026
+     ========================================================= */
 
   const range =
     firstDateRange(
@@ -1051,11 +1228,15 @@ function resolveEventDates({
 
       details.startDate,
 
+      details.endDate,
+
       facts.eventDate,
 
       facts.dateRange,
 
       facts.startDate,
+
+      facts.endDate,
 
       post.eventDate
 
@@ -1093,9 +1274,9 @@ function resolveEventDates({
   }
 
 
-  /* -------------------------------------------------------
-     Tekil başlangıç
-     ------------------------------------------------------- */
+  /* =======================================================
+     TEKİL BAŞLANGIÇ TARİHİ
+     ========================================================= */
 
   if (
     !startDate
@@ -1115,9 +1296,9 @@ function resolveEventDates({
   }
 
 
-  /* -------------------------------------------------------
-     Tekil bitiş
-     ------------------------------------------------------- */
+  /* =======================================================
+     TEKİL BİTİŞ TARİHİ
+     ========================================================= */
 
   if (
     !endDate
@@ -1137,11 +1318,11 @@ function resolveEventDates({
   }
 
 
-  /* -------------------------------------------------------
-     Tek eventDate
+  /* =======================================================
+     TEK EVENT DATE
 
-     Range bulunduysa eventDate boş kalır.
-     ------------------------------------------------------- */
+     Eğer range bulunduysa eventDate ayrıca kullanılmaz.
+     ========================================================= */
 
   let eventDate =
     "";
@@ -1165,9 +1346,9 @@ function resolveEventDates({
   }
 
 
-  /* -------------------------------------------------------
-     Tarih sırası güvenliği
-     ------------------------------------------------------- */
+  /* =======================================================
+     TARİH SIRASI GÜVENLİĞİ
+     ========================================================= */
 
   if (
     startDate &&
@@ -1185,6 +1366,11 @@ function resolveEventDates({
       order > 0
     ) {
 
+      /*
+        Metinsel range güvenilir durumdaysa
+        onu kullan.
+      */
+
       if (
         range &&
         compareIsoDates(
@@ -1196,6 +1382,7 @@ function resolveEventDates({
         startDate =
           range.startDate;
 
+
         endDate =
           range.endDate;
 
@@ -1205,6 +1392,11 @@ function resolveEventDates({
         );
 
       }
+
+      /*
+        Güvenilir düzeltme yoksa yanlış bitiş
+        tarihini kullanma.
+      */
 
       else {
 
@@ -1246,6 +1438,175 @@ function resolveEventDates({
 
 
 /* =========================================================
+   GERÇEK ACTION DEADLINE ÇÖZ
+
+   Yalnızca açıkça:
+
+   - kayıt son tarihi
+   - başvuru son tarihi
+   - deadline
+
+   anlamına gelen structured alanlar kullanılır.
+
+   KRİTİK:
+
+   lifecycle.expiresAt burada kullanılmaz.
+   ========================================================= */
+
+function resolveActionDeadline({
+
+  details,
+  facts
+
+}) {
+
+  const candidates = [
+
+    {
+
+      source:
+        "details.deadlineIso",
+
+      value:
+        details?.deadlineIso
+
+    },
+
+
+    {
+
+      source:
+        "facts.deadlineIso",
+
+      value:
+        facts?.deadlineIso
+
+    },
+
+
+    {
+
+      source:
+        "details.registrationDeadline",
+
+      value:
+        details?.registrationDeadline
+
+    },
+
+
+    {
+
+      source:
+        "details.applicationDeadline",
+
+      value:
+        details?.applicationDeadline
+
+    },
+
+
+    {
+
+      source:
+        "details.deadline",
+
+      value:
+        details?.deadline
+
+    },
+
+
+    {
+
+      source:
+        "facts.registrationDeadline",
+
+      value:
+        facts?.registrationDeadline
+
+    },
+
+
+    {
+
+      source:
+        "facts.applicationDeadline",
+
+      value:
+        facts?.applicationDeadline
+
+    },
+
+
+    {
+
+      source:
+        "facts.deadline",
+
+      value:
+        facts?.deadline
+
+    },
+
+
+    {
+
+      source:
+        "facts.deadlineText",
+
+      value:
+        facts?.deadlineText
+
+    }
+
+  ];
+
+
+  for (
+    const candidate
+    of candidates
+  ) {
+
+    const date =
+      parseDateOnly(
+        candidate.value
+      );
+
+
+    if (
+      date
+    ) {
+
+      return {
+
+        date:
+          date,
+
+        source:
+          candidate.source
+
+      };
+
+    }
+
+  }
+
+
+  return {
+
+    date:
+      "",
+
+    source:
+      "none"
+
+  };
+
+}
+
+
+/* =========================================================
    POSTA UYGULA
    ========================================================= */
 
@@ -1273,8 +1634,13 @@ export function applyTemporal(
 
 
   let actionable =
-    post.actionable === true;
+    post.actionable ===
+    true;
 
+
+  /* -------------------------------------------------------
+     Başvuru kapalıysa aksiyon kapat.
+     ------------------------------------------------------- */
 
   if (
     temporal.actionState ===
@@ -1294,11 +1660,25 @@ export function applyTemporal(
 
     ...post,
 
+
     temporal:
       temporal,
 
+
+    /*
+      Eski sistemle uyumluluk.
+
+      Artık doğrulanmış eventStatus
+      temporal motorundan gelir.
+    */
+
     eventStatus:
       temporal.eventStatus,
+
+
+    /*
+      Kullanıcının işlem yapabilirliği.
+    */
 
     actionable:
       actionable
@@ -1321,6 +1701,10 @@ function determineActionState({
   eventStatus
 
 }) {
+
+  /* =======================================================
+     GERÇEK DEADLINE VAR
+     ========================================================= */
 
   if (
     deadlineAt
@@ -1362,14 +1746,24 @@ function determineActionState({
   }
 
 
+  /* =======================================================
+     TAMAMLANMIŞ OLAY
+
+     Katılım / kayıt eylemi artık uygulanmaz.
+     ========================================================= */
+
   if (
     eventStatus ===
     EVENT_STATES.completed
+
     ||
+
     (
       state ===
       TIME_STATES.past
+
       &&
+
       normalizeId(
         post.contentIntent
       ) ===
@@ -1382,8 +1776,15 @@ function determineActionState({
   }
 
 
+  /* =======================================================
+     Sistem actionable demiş fakat deadline kanıtı yok.
+
+     Kesin "open" diyemeyiz.
+     ========================================================= */
+
   if (
-    post.actionable === true
+    post.actionable ===
+    true
   ) {
 
     return ACTION_STATES.possible_unverified;
@@ -1398,6 +1799,8 @@ function determineActionState({
 
 /* =========================================================
    PERSONA LANGUAGE MODE
+
+   Olay zamanı ve yayın güncelliği birbirinden ayrıdır.
    ========================================================= */
 
 function determineLanguageMode({
@@ -1409,10 +1812,24 @@ function determineLanguageMode({
 
 }) {
 
+  /*
+    Şu an doğrudan kullanılmasa da
+    karar modelinin parçasıdır.
+  */
+
+  void basis;
+
+
+  /* =======================================================
+     GEÇMİŞ OLAY
+     ========================================================= */
+
   if (
     state ===
     TIME_STATES.past
+
     ||
+
     eventStatus ===
     EVENT_STATES.completed
   ) {
@@ -1421,6 +1838,10 @@ function determineLanguageMode({
 
   }
 
+
+  /* =======================================================
+     ŞU AN / BUGÜN
+     ========================================================= */
 
   if (
     state ===
@@ -1432,6 +1853,10 @@ function determineLanguageMode({
   }
 
 
+  /* =======================================================
+     GELECEK
+     ========================================================= */
+
   if (
     state ===
     TIME_STATES.future
@@ -1442,43 +1867,57 @@ function determineLanguageMode({
   }
 
 
+  /* =======================================================
+     OLAY ZAMANI BİLİNMİYOR
+
+     Buradan sonra yalnızca yayın güncelliği
+     dili kullanılır.
+     ========================================================= */
+
   if (
-    basis ===
-    "published_at"
+    freshness ===
+    "today"
   ) {
 
-    if (
-      freshness ===
-      "today"
-    ) {
+    return "published_today";
 
-      return "published_today";
-
-    }
+  }
 
 
-    if (
-      freshness ===
-      "yesterday"
-      ||
-      freshness ===
-      "recent"
-    ) {
+  if (
+    freshness ===
+    "yesterday"
 
-      return "published_recent";
+    ||
 
-    }
+    freshness ===
+    "recent"
+  ) {
+
+    return "published_recent";
+
+  }
 
 
-    if (
-      freshness ===
-      "current"
-    ) {
+  if (
+    freshness ===
+    "current"
+  ) {
 
-      return "published_current";
+    return "published_current";
 
-    }
+  }
 
+
+  if (
+    freshness ===
+    "older"
+
+    ||
+
+    freshness ===
+    "old"
+  ) {
 
     return "published_old";
 
@@ -1516,13 +1955,18 @@ function calculateFreshness(
 
 
   if (
-    difference === null
+    difference ===
+    null
   ) {
 
     return "unknown";
 
   }
 
+
+  /* -------------------------------------------------------
+     Gelecek tarihli yayın normal değildir.
+     ------------------------------------------------------- */
 
   if (
     difference > 0
@@ -1591,6 +2035,12 @@ function calculateFreshness(
 
 /* =========================================================
    BUGÜNÜ ÇÖZ
+
+   options.now:
+   Test sırasında Date veya ISO string gönderilebilir.
+
+   Normal kullanım:
+   İstanbul yerel tarihi.
    ========================================================= */
 
 function resolveToday(
@@ -1677,9 +2127,13 @@ function resolveToday(
     ) {
 
       return (
+
         `${map.year}-` +
+
         `${map.month}-` +
+
         `${map.day}`
+
       );
 
     }
@@ -1688,7 +2142,7 @@ function resolveToday(
 
   catch {
 
-    /* fallback */
+    /* fallback aşağıda */
 
   }
 
@@ -1731,9 +2185,13 @@ function dayDifference(
 
 
   if (
-    targetKey === null
+    targetKey ===
+    null
+
     ||
-    todayKey === null
+
+    todayKey ===
+    null
   ) {
 
     return null;
@@ -2021,8 +2479,19 @@ function firstDateRange(
 /* =========================================================
    TARİH PARSE
 
+   DESTEK:
+   ---------------------------------------------------------
+   2026-10-18
+   2026-10-18T12:00:00Z
+
+   18.10.2026
+   18/10/2026
+   18-10-2026
+
+   18 Ekim 2026
+
    DİKKAT:
-   Tarih aralığını tek tarih gibi yorumlamaz.
+   Tarih aralığı tek tarih olarak değerlendirilmez.
    ========================================================= */
 
 export function parseDateOnly(
@@ -2044,10 +2513,14 @@ export function parseDateOnly(
   }
 
 
-  /*
-    26-30 Ekim 2026 gibi bir değer
-    "30 Ekim" olarak okunmamalı.
-  */
+  /* =======================================================
+     RANGE GÜVENLİĞİ
+
+     Örnek:
+     26-30 Ekim 2026
+
+     yanlışlıkla 30 Ekim olarak okunamaz.
+     ========================================================= */
 
   if (
     parseDateRange(
@@ -2060,9 +2533,9 @@ export function parseDateOnly(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      ISO
-     ------------------------------------------------------- */
+     ========================================================= */
 
   let match =
     text.match(
@@ -2093,11 +2566,11 @@ export function parseDateOnly(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      dd.mm.yyyy
      dd/mm/yyyy
      dd-mm-yyyy
-     ------------------------------------------------------- */
+     ========================================================= */
 
   match =
     text.match(
@@ -2128,9 +2601,11 @@ export function parseDateOnly(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     TÜRKÇE TARİH
+
      18 Ekim 2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   match =
     text.match(
@@ -2181,14 +2656,20 @@ export function parseDateOnly(
 /* =========================================================
    TARİH ARALIĞI
 
-   Destek:
+   DESTEK:
    ---------------------------------------------------------
    2026-10-26 - 2026-10-30
+
    26.10.2026 - 30.10.2026
+
    25 Ekim - 1 Kasım 2026
+
    26 Ekim - 30 Ekim 2026
+
    26-30 Ekim 2026
+
    26 – 30 Ekim 2026
+
    26-30.10.2026
    ========================================================= */
 
@@ -2215,13 +2696,15 @@ export function parseDateRange(
     "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık";
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      2026-10-26 - 2026-10-30
-     ------------------------------------------------------- */
+     ========================================================= */
 
   let match =
     text.match(
+
       /\b(20\d{2})-(\d{1,2})-(\d{1,2})\s*[-–—]\s*(20\d{2})-(\d{1,2})-(\d{1,2})\b/
+
     );
 
 
@@ -2232,15 +2715,35 @@ export function parseDateRange(
     return buildDateRangeResult(
 
       buildIsoDate(
-        Number(match[1]),
-        Number(match[2]),
-        Number(match[3])
+
+        Number(
+          match[1]
+        ),
+
+        Number(
+          match[2]
+        ),
+
+        Number(
+          match[3]
+        )
+
       ),
 
       buildIsoDate(
-        Number(match[4]),
-        Number(match[5]),
-        Number(match[6])
+
+        Number(
+          match[4]
+        ),
+
+        Number(
+          match[5]
+        ),
+
+        Number(
+          match[6]
+        )
+
       )
 
     );
@@ -2248,13 +2751,15 @@ export function parseDateRange(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      26.10.2026 - 30.10.2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   match =
     text.match(
+
       /\b(\d{1,2})[.\/](\d{1,2})[.\/](20\d{2})\s*[-–—]\s*(\d{1,2})[.\/](\d{1,2})[.\/](20\d{2})\b/
+
     );
 
 
@@ -2265,15 +2770,35 @@ export function parseDateRange(
     return buildDateRangeResult(
 
       buildIsoDate(
-        Number(match[3]),
-        Number(match[2]),
-        Number(match[1])
+
+        Number(
+          match[3]
+        ),
+
+        Number(
+          match[2]
+        ),
+
+        Number(
+          match[1]
+        )
+
       ),
 
       buildIsoDate(
-        Number(match[6]),
-        Number(match[5]),
-        Number(match[4])
+
+        Number(
+          match[6]
+        ),
+
+        Number(
+          match[5]
+        ),
+
+        Number(
+          match[4]
+        )
+
       )
 
     );
@@ -2281,9 +2806,9 @@ export function parseDateRange(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      25 Ekim - 1 Kasım 2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   match =
     text.match(
@@ -2291,6 +2816,7 @@ export function parseDateRange(
       new RegExp(
 
         `(\\d{1,2})\\s+(${months})\\s*[-–—]\\s*` +
+
         `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
 
         "i"
@@ -2326,6 +2852,14 @@ export function parseDateRange(
       startMonth &&
       endMonth
     ) {
+
+      /*
+        Örnek:
+
+        30 Aralık - 2 Ocak 2027
+
+        başlangıç yılı 2026 olmalı.
+      */
 
       const startYear =
         startMonth > endMonth
@@ -2368,9 +2902,9 @@ export function parseDateRange(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      26-30 Ekim 2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   match =
     text.match(
@@ -2378,6 +2912,7 @@ export function parseDateRange(
       new RegExp(
 
         `(\\d{1,2})\\s*[-–—]\\s*` +
+
         `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
 
         "i"
@@ -2438,13 +2973,15 @@ export function parseDateRange(
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      26-30.10.2026
-     ------------------------------------------------------- */
+     ========================================================= */
 
   match =
     text.match(
+
       /\b(\d{1,2})\s*[-–—]\s*(\d{1,2})[.\/](\d{1,2})[.\/](20\d{2})\b/
+
     );
 
 
@@ -2456,21 +2993,33 @@ export function parseDateRange(
 
       buildIsoDate(
 
-        Number(match[4]),
+        Number(
+          match[4]
+        ),
 
-        Number(match[3]),
+        Number(
+          match[3]
+        ),
 
-        Number(match[1])
+        Number(
+          match[1]
+        )
 
       ),
 
       buildIsoDate(
 
-        Number(match[4]),
+        Number(
+          match[4]
+        ),
 
-        Number(match[3]),
+        Number(
+          match[3]
+        ),
 
-        Number(match[2])
+        Number(
+          match[2]
+        )
 
       )
 
@@ -2538,21 +3087,25 @@ function compareIsoDates(
 ) {
 
   const keyA =
-    dateToDayKey(
+    isoDateToDayKey(
       a
     );
 
 
   const keyB =
-    dateToDayKey(
+    isoDateToDayKey(
       b
     );
 
 
   if (
-    keyA === null
+    keyA ===
+    null
+
     ||
-    keyB === null
+
+    keyB ===
+    null
   ) {
 
     return 0;
@@ -2563,6 +3116,88 @@ function compareIsoDates(
   return (
     keyA -
     keyB
+  );
+
+}
+
+
+/* =========================================================
+   ISO DATE → DAY KEY
+
+   Burada parseDateOnly tekrar çağrılmaz.
+
+   Böylece range parser içinde gereksiz
+   recursive parse zinciri oluşmaz.
+   ========================================================= */
+
+function isoDateToDayKey(
+  value
+) {
+
+  const text =
+    cleanString(
+      value
+    );
+
+
+  const match =
+    text.match(
+      /^(20\d{2})-(\d{2})-(\d{2})$/
+    );
+
+
+  if (
+    !match
+  ) {
+
+    return null;
+
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  const day =
+    Number(
+      match[3]
+    );
+
+
+  if (
+    !isValidCalendarDate(
+      year,
+      month,
+      day
+    )
+  ) {
+
+    return null;
+
+  }
+
+
+  return Math.floor(
+
+    Date.UTC(
+      year,
+      month - 1,
+      day
+    )
+
+    /
+
+    86400000
+
   );
 
 }
@@ -2618,13 +3253,17 @@ function getTurkishMonthNumber(
 
 
   return (
+
     map[
       normalizeText(
         value
       )
     ]
+
     ||
+
     null
+
   );
 
 }
@@ -2654,24 +3293,32 @@ function buildIsoDate(
 
 
   return (
+
     `${String(
       year
     ).padStart(
       4,
       "0"
-    )}-` +
+    )}-`
+
+    +
+
     `${String(
       month
     ).padStart(
       2,
       "0"
-    )}-` +
+    )}-`
+
+    +
+
     `${String(
       day
     ).padStart(
       2,
       "0"
     )}`
+
   );
 
 }
@@ -2691,11 +3338,15 @@ function isValidCalendarDate(
     !Number.isInteger(
       year
     )
+
     ||
+
     !Number.isInteger(
       month
     )
+
     ||
+
     !Number.isInteger(
       day
     )
@@ -2708,15 +3359,25 @@ function isValidCalendarDate(
 
   if (
     year < 2000
+
     ||
+
     year > 2100
+
     ||
+
     month < 1
+
     ||
+
     month > 12
+
     ||
+
     day < 1
+
     ||
+
     day > 31
   ) {
 
@@ -2727,17 +3388,20 @@ function isValidCalendarDate(
 
   const date =
     new Date(
+
       Date.UTC(
         year,
         month - 1,
         day
       )
+
     );
 
 
   return (
 
-    date.getUTCFullYear() === year
+    date.getUTCFullYear() ===
+    year
 
     &&
 
@@ -2746,7 +3410,8 @@ function isValidCalendarDate(
 
     &&
 
-    date.getUTCDate() === day
+    date.getUTCDate() ===
+    day
 
   );
 
@@ -2813,62 +3478,86 @@ function createFallbackTemporal() {
     version:
       TEMPORAL_VERSION,
 
+
     timezone:
       TEMPORAL_TIMEZONE,
+
 
     today:
       resolveToday(),
 
+
     state:
       TIME_STATES.unknown,
+
 
     basis:
       "none",
 
+
     eventStatus:
       EVENT_STATES.unknown,
+
 
     languageMode:
       "neutral",
 
+
     startDate:
       "",
+
 
     endDate:
       "",
 
+
     eventDate:
       "",
+
 
     deadlineAt:
       "",
 
+
+    deadlineSource:
+      "none",
+
+
     publishedAt:
       "",
+
 
     daysUntilStart:
       null,
 
+
     daysUntilEnd:
       null,
+
 
     daysUntilDeadline:
       null,
 
+
     daysSincePublished:
       null,
+
 
     freshness:
       "unknown",
 
+
     actionState:
       ACTION_STATES.unknown,
+
 
     confidenceScore:
       0,
 
+
     reasons:
       [],
+
 
     analyzedAt:
       new Date()
@@ -2890,10 +3579,12 @@ function normalizeId(
   return normalizeText(
     value
   )
+
     .replace(
       /[^a-z0-9]+/g,
       "_"
     )
+
     .replace(
       /^_+|_+$/g,
       ""
@@ -2963,10 +3654,12 @@ function cleanString(
     value ??
     ""
   )
+
     .replace(
       /\s+/g,
       " "
     )
+
     .trim();
 
 }
@@ -2982,10 +3675,14 @@ function isPlainObject(
 
   return Boolean(
 
-    value &&
+    value
+
+    &&
 
     typeof value ===
-    "object" &&
+    "object"
+
+    &&
 
     !Array.isArray(
       value
@@ -3031,4 +3728,4 @@ function clamp(
 
   );
 
-}
+   }
