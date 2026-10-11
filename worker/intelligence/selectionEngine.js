@@ -4,7 +4,7 @@
 
    SporNRD İçerik Seçim / Değer Motoru
 
-   Sürüm: 6.1.0
+   Sürüm: 6.1.1
 
    AMAÇ
    ---------------------------------------------------------
@@ -29,6 +29,26 @@
    jobs
    stores
 
+   6.1.1 ANA GELİŞTİRME
+   ---------------------------------------------------------
+   Resmî ve güvenilir olması tek başına bir içeriği kullanıcı
+   akışına sokmak için yeterli değildir.
+
+   Özellikle şu tür kurum içi / idari içerikler ayrıca
+   değerlendirilir:
+
+   - genel kurul / mali genel kurul
+   - delege işlemleri
+   - delege ulaşım / konaklama duyuruları
+   - yönetim / disiplin / tahkim kurulu iç işlemleri
+   - ihale / satın alma / teklif duyuruları
+   - rutin ziyaret / protokol dışı kurumsal içerik
+
+   Eğer bu içeriklerin doğrudan sporcu, antrenör, hakem,
+   katılımcı veya genel kullanıcı açısından anlamlı etkisi
+   yoksa kullanıcı değeri düşürülür; güçlü kurum içi içerikler
+   doğrudan rejected olabilir.
+
    TEMEL PRENSİP
    ---------------------------------------------------------
    Çok sayıda küçük sinyal
@@ -36,6 +56,8 @@
    6 ana ölçüt
         ↓
    Kategori / alt kategori ağırlıkları
+        ↓
+   Bağlam düzeltmeleri
         ↓
    Selection Score
         ↓
@@ -54,7 +76,7 @@
    ========================================================= */
 
 export const SELECTION_ENGINE_VERSION =
-  "1.0";
+  "1.1";
 
 
 /* =========================================================
@@ -307,6 +329,38 @@ export function analyzeSelection(
     );
 
 
+  /* =======================================================
+     BAĞLAM ANALİZİ
+
+     Selection skorundan önce içerik kurum içi bir işlem mi,
+     yoksa doğrudan SporNRD kullanıcısına değer üreten bir
+     içerik mi anlaşılmaya çalışılır.
+     ========================================================= */
+
+  const context =
+    analyzeSelectionContext({
+
+      post:
+        post,
+
+      category:
+        category,
+
+      subCategory:
+        subCategory,
+
+      section:
+        section,
+
+      contentIntent:
+        contentIntent,
+
+      text:
+        text
+
+    });
+
+
   const metrics = {
 
     usefulness:
@@ -328,7 +382,10 @@ export function analyzeSelection(
           contentIntent,
 
         text:
-          text
+          text,
+
+        context:
+          context
 
       }),
 
@@ -349,7 +406,10 @@ export function analyzeSelection(
           contentIntent,
 
         text:
-          text
+          text,
+
+        context:
+          context
 
       }),
 
@@ -367,7 +427,10 @@ export function analyzeSelection(
           contentIntent,
 
         text:
-          text
+          text,
+
+        context:
+          context
 
       }),
 
@@ -382,7 +445,10 @@ export function analyzeSelection(
           category,
 
         contentIntent:
-          contentIntent
+          contentIntent,
+
+        context:
+          context
 
       }),
 
@@ -412,7 +478,10 @@ export function analyzeSelection(
           contentIntent,
 
         text:
-          text
+          text,
+
+        context:
+          context
 
       })
 
@@ -463,7 +532,10 @@ export function analyzeSelection(
         text,
 
       metrics:
-        metrics
+        metrics,
+
+      context:
+        context
 
     });
 
@@ -497,7 +569,10 @@ export function analyzeSelection(
         contentIntent,
 
       text:
-        text
+        text,
+
+      context:
+        context
 
     });
 
@@ -524,6 +599,8 @@ export function analyzeSelection(
 
 
   const reasons = [
+
+    ...context.reasons,
 
     ...buildMetricReasons(
       metrics
@@ -586,6 +663,26 @@ export function analyzeSelection(
     contentIntent:
       contentIntent ||
       "unknown",
+
+
+    context: {
+
+      institutionalLevel:
+        context.institutionalLevel,
+
+      institutionalScore:
+        context.institutionalScore,
+
+      publicImpact:
+        context.publicImpact,
+
+      sportsValue:
+        context.sportsValue,
+
+      categoryValue:
+        context.categoryValue
+
+    },
 
 
     metrics:
@@ -683,6 +780,10 @@ export function applySelection(
 
       userValue:
         selection.userValue,
+
+
+      context:
+        selection.context,
 
 
       metrics:
@@ -839,6 +940,10 @@ export function createSelectionSummary(
     {};
 
 
+  const institutionalLevels =
+    {};
+
+
   let totalScore =
     0;
 
@@ -876,6 +981,14 @@ export function createSelectionSummary(
       "unknown";
 
 
+    const institutionalLevel =
+      normalizeId(
+        post?.selectionMeta?.context?.institutionalLevel
+      )
+      ||
+      "none";
+
+
     increment(
       decisions,
       decision
@@ -891,6 +1004,12 @@ export function createSelectionSummary(
     increment(
       categories,
       category
+    );
+
+
+    increment(
+      institutionalLevels,
+      institutionalLevel
     );
 
 
@@ -947,9 +1066,595 @@ export function createSelectionSummary(
 
 
     categories:
-      categories
+      categories,
+
+
+    institutionalLevels:
+      institutionalLevels
 
   };
+
+}
+
+
+/* =========================================================
+   SELECTION CONTEXT
+
+   İçeriğin kurum içi / idari karakterini ve bunun yanında
+   gerçek kullanıcı / spor değerini birlikte ölçer.
+   ========================================================= */
+
+function analyzeSelectionContext({
+
+  post,
+  category,
+  subCategory,
+  section,
+  contentIntent,
+  text
+
+}) {
+
+  let institutionalScore =
+    0;
+
+
+  const reasons =
+    [];
+
+
+  /* -------------------------------------------------------
+     GÜÇLÜ KURUM İÇİ / İDARİ SİNYALLER
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyFragment(
+      text,
+      [
+        "mali genel kurul",
+        "olagan genel kurul",
+        "olaganustu genel kurul",
+        "genel kurul deleg",
+        "delege ulasim",
+        "delegelerin ulasim",
+        "delegelerinin ulasim",
+        "delege konaklama",
+        "delege transfer",
+        "delege islemleri"
+      ]
+    )
+  ) {
+
+    institutionalScore +=
+      8;
+
+
+    reasons.push(
+      "Kurum içi genel kurul/delege işlemi sinyali bulundu."
+    );
+
+  }
+
+
+  if (
+    containsAnyFragment(
+      text,
+      [
+        "ihale",
+        "satin alma",
+        "teklif verme",
+        "teklif mektubu",
+        "mal alim",
+        "hizmet alim"
+      ]
+    )
+  ) {
+
+    institutionalScore +=
+      8;
+
+
+    reasons.push(
+      "İhale/satın alma türü kurumsal işlem sinyali bulundu."
+    );
+
+  }
+
+
+  if (
+    containsAnyFragment(
+      text,
+      [
+        "yonetim kurulu toplant",
+        "disiplin kurulu karar",
+        "tahkim kurulu karar",
+        "denetim kurulu",
+        "kurul toplantisi",
+        "kurul karari"
+      ]
+    )
+  ) {
+
+    institutionalScore +=
+      6;
+
+
+    reasons.push(
+      "Kurum içi kurul/karar süreci sinyali bulundu."
+    );
+
+  }
+
+
+  if (
+    containsAnyFragment(
+      text,
+      [
+        "baskan mesaji",
+        "nezaket ziyareti",
+        "makaminda ziyaret",
+        "ziyarette bulundu",
+        "hatira fotografi",
+        "tesekkur ziyareti"
+      ]
+    )
+  ) {
+
+    institutionalScore +=
+      4;
+
+  }
+
+
+  /* -------------------------------------------------------
+     GENEL KURUL + DELEGE / ULAŞIM BİRLİKTEYSE
+     çok güçlü kurum içi bağlamdır.
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyFragment(
+      text,
+      [
+        "genel kurul"
+      ]
+    )
+
+    &&
+
+    containsAnyFragment(
+      text,
+      [
+        "delege",
+        "ulasim islemleri",
+        "konaklama islemleri",
+        "transfer islemleri"
+      ]
+    )
+  ) {
+
+    institutionalScore +=
+      6;
+
+  }
+
+
+  /* -------------------------------------------------------
+     DOĞRUDAN KULLANICI ETKİSİ
+
+     Bir içerik kurumsal görünse bile sporcu/antrenör/hakem
+     veya kullanıcı için doğrudan işlem, hak, başvuru veya
+     kural değişikliği taşıyorsa otomatik elenmez.
+     ------------------------------------------------------- */
+
+  let publicImpactScore =
+    0;
+
+
+  if (
+    [
+      "course",
+      "campaign",
+      "jobs",
+      "stores"
+    ].includes(
+      category
+    )
+  ) {
+
+    publicImpactScore +=
+      5;
+
+  }
+
+
+  if (
+    [
+      "registration",
+      "job",
+      "campaign",
+      "product"
+    ].includes(
+      contentIntent
+    )
+  ) {
+
+    publicImpactScore +=
+      5;
+
+  }
+
+
+  if (
+    post?.actionable ===
+    true
+  ) {
+
+    publicImpactScore +=
+      3;
+
+  }
+
+
+  if (
+    containsAnyFragment(
+      text,
+      [
+        "son basvuru",
+        "basvurular basladi",
+        "kayitlar basladi",
+        "kayit yaptir",
+        "basvuru yap",
+        "kurs",
+        "seminer",
+        "egitim",
+        "sertifika",
+        "sinav",
+        "lisans",
+        "vize",
+        "sporcular icin",
+        "antrenorler icin",
+        "hakemler icin",
+        "katilimcilara",
+        "katilim sartlari",
+        "talimat degisikligi",
+        "yonetmelik degisikligi"
+      ]
+    )
+  ) {
+
+    publicImpactScore +=
+      4;
+
+  }
+
+
+  const publicImpact =
+    publicImpactScore >=
+    5;
+
+
+  /* -------------------------------------------------------
+     GERÇEK SPOR / HABER DEĞERİ
+     ------------------------------------------------------- */
+
+  const sportsValue =
+    category ===
+    "news"
+
+    &&
+
+    (
+      [
+        "result",
+        "achievement",
+        "assignment",
+        "transfer"
+      ].includes(
+        contentIntent
+      )
+
+      ||
+
+      containsAnyFragment(
+        text,
+        [
+          "sampiyon",
+          "rekor",
+          "madalya",
+          "final",
+          "kupayi kazandi",
+          "milli takim",
+          "transfer",
+          "galip geldi",
+          "maglup etti"
+        ]
+      )
+    );
+
+
+  /* -------------------------------------------------------
+     KATEGORİ ÖZEL DEĞER SİNYALİ
+     ------------------------------------------------------- */
+
+  const categoryValue =
+    detectCategoryValue({
+
+      category:
+        category,
+
+      subCategory:
+        subCategory,
+
+      section:
+        section,
+
+      contentIntent:
+        contentIntent,
+
+      text:
+        text
+
+    });
+
+
+  let institutionalLevel =
+    "none";
+
+
+  if (
+    institutionalScore >=
+    10
+  ) {
+
+    institutionalLevel =
+      "strong";
+
+  }
+
+  else if (
+    institutionalScore >=
+    6
+  ) {
+
+    institutionalLevel =
+      "medium";
+
+  }
+
+  else if (
+    institutionalScore >=
+    3
+  ) {
+
+    institutionalLevel =
+      "light";
+
+  }
+
+
+  if (
+    institutionalLevel !==
+    "none"
+
+    &&
+
+    publicImpact
+  ) {
+
+    reasons.push(
+      "Kurumsal bağlam var ancak doğrudan kullanıcı etkisi de bulundu."
+    );
+
+  }
+
+
+  if (
+    institutionalLevel ===
+    "strong"
+
+    &&
+
+    !publicImpact
+
+    &&
+
+    !sportsValue
+  ) {
+
+    reasons.push(
+      "İçerik ağırlıklı olarak kurum içi/idari işlem niteliğinde."
+    );
+
+  }
+
+
+  return {
+
+    institutionalScore:
+      institutionalScore,
+
+    institutionalLevel:
+      institutionalLevel,
+
+    publicImpact:
+      publicImpact,
+
+    publicImpactScore:
+      publicImpactScore,
+
+    sportsValue:
+      sportsValue,
+
+    categoryValue:
+      categoryValue,
+
+    reasons:
+      reasons
+
+  };
+
+}
+
+
+/* =========================================================
+   KATEGORİ ÖZEL DEĞER
+   ========================================================= */
+
+function detectCategoryValue({
+
+  category,
+  subCategory,
+  section,
+  contentIntent,
+  text
+
+}) {
+
+  switch (
+    category
+  ) {
+
+    case "course":
+
+      return (
+        containsAnyFragment(
+          text,
+          [
+            "antrenor",
+            "hakem",
+            "kurs",
+            "seminer",
+            "egitim",
+            "sertifika",
+            "kademe",
+            "vize"
+          ]
+        )
+
+        ||
+
+        [
+          "registration",
+          "opportunity"
+        ].includes(
+          contentIntent
+        )
+      );
+
+
+    case "event":
+
+      return containsAnyFragment(
+        text,
+        [
+          "sampiyona",
+          "turnuva",
+          "musabaka",
+          "final",
+          "kupa",
+          "festival",
+          "kamp",
+          "mac",
+          "yarisma"
+        ]
+      );
+
+
+    case "campaign":
+
+      return containsAnyFragment(
+        text,
+        [
+          "indirim",
+          "kampanya",
+          "firsat",
+          "ucretsiz",
+          "burs",
+          "destek",
+          "kupon",
+          "promosyon"
+        ]
+      );
+
+
+    case "jobs":
+
+      return containsAnyFragment(
+        text,
+        [
+          "antrenor araniyor",
+          "egitmen araniyor",
+          "personel araniyor",
+          "is ilani",
+          "ise alim",
+          "cv gonder",
+          "tam zamanli",
+          "yari zamanli",
+          "part time",
+          "full time"
+        ]
+      );
+
+
+    case "stores":
+
+      return containsAnyFragment(
+        text,
+        [
+          "satin al",
+          "stok",
+          "urun",
+          "fiyat",
+          "indirim",
+          "kargo",
+          "beden",
+          "numara"
+        ]
+      );
+
+
+    case "news":
+
+      return (
+        [
+          "result",
+          "achievement",
+          "assignment",
+          "transfer"
+        ].includes(
+          contentIntent
+        )
+
+        ||
+
+        containsAnyFragment(
+          text,
+          [
+            "sampiyon",
+            "rekor",
+            "madalya",
+            "milli takim",
+            "transfer",
+            "final",
+            "kupa"
+          ]
+        )
+      );
+
+
+    default:
+
+      return (
+        subCategory ===
+        "education"
+
+        ||
+
+        section ===
+        "trainer_coach"
+      );
+
+  }
 
 }
 
@@ -965,7 +1670,8 @@ function calculateUsefulness({
   subCategory,
   section,
   contentIntent,
-  text
+  text,
+  context
 
 }) {
 
@@ -1036,7 +1742,7 @@ function calculateUsefulness({
 
     &&
 
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "antrenor",
@@ -1094,6 +1800,50 @@ function calculateUsefulness({
   }
 
 
+  if (
+    context.categoryValue ===
+    true
+  ) {
+
+    score +=
+      5;
+
+  }
+
+
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    score -=
+      35;
+
+  }
+
+  else if (
+    context.institutionalLevel ===
+    "medium"
+
+    &&
+
+    !context.publicImpact
+  ) {
+
+    score -=
+      20;
+
+  }
+
+
   return clamp(
     score,
     0,
@@ -1112,7 +1862,8 @@ function calculateImportance({
   post,
   category,
   contentIntent,
-  text
+  text,
+  context
 
 }) {
 
@@ -1176,7 +1927,7 @@ function calculateImportance({
 
 
   if (
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "dunya sampiyon",
@@ -1214,6 +1965,50 @@ function calculateImportance({
   }
 
 
+  if (
+    context.categoryValue ===
+    true
+  ) {
+
+    score +=
+      4;
+
+  }
+
+
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    score -=
+      22;
+
+  }
+
+  else if (
+    context.institutionalLevel ===
+    "medium"
+
+    &&
+
+    !context.publicImpact
+  ) {
+
+    score -=
+      10;
+
+  }
+
+
   return clamp(
     score,
     0,
@@ -1232,7 +2027,8 @@ function calculateOpportunity({
   post,
   category,
   contentIntent,
-  text
+  text,
+  context
 
 }) {
 
@@ -1288,7 +2084,7 @@ function calculateOpportunity({
 
 
   if (
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "son basvuru",
@@ -1327,6 +2123,41 @@ function calculateOpportunity({
   }
 
 
+  /*
+    KRİTİK:
+    Kurum içi idari işlem yanlışlıkla "opportunity" olarak
+    sınıflandırılmış olsa bile kullanıcı fırsatı sayılmaz.
+  */
+
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+  ) {
+
+    score -=
+      55;
+
+  }
+
+  else if (
+    context.institutionalLevel ===
+    "medium"
+
+    &&
+
+    !context.publicImpact
+  ) {
+
+    score -=
+      30;
+
+  }
+
+
   return clamp(
     score,
     0,
@@ -1344,7 +2175,8 @@ function calculateTimeliness({
 
   post,
   category,
-  contentIntent
+  contentIntent,
+  context
 
 }) {
 
@@ -1554,6 +2386,21 @@ function calculateTimeliness({
   }
 
 
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+  ) {
+
+    score -=
+      12;
+
+  }
+
+
   return clamp(
     score,
     0,
@@ -1668,7 +2515,8 @@ function calculateInterest({
   post,
   category,
   contentIntent,
-  text
+  text,
+  context
 
 }) {
 
@@ -1694,7 +2542,7 @@ function calculateInterest({
 
 
   if (
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "sampiyon",
@@ -1722,7 +2570,7 @@ function calculateInterest({
 
     &&
 
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "1 kademe",
@@ -1736,6 +2584,17 @@ function calculateInterest({
 
     score +=
       10;
+
+  }
+
+
+  if (
+    context.categoryValue ===
+    true
+  ) {
+
+    score +=
+      5;
 
   }
 
@@ -1821,6 +2680,39 @@ function calculateInterest({
         10
 
       );
+
+  }
+
+
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    score -=
+      30;
+
+  }
+
+  else if (
+    context.institutionalLevel ===
+    "medium"
+
+    &&
+
+    !context.publicImpact
+  ) {
+
+    score -=
+      15;
 
   }
 
@@ -2015,9 +2907,12 @@ function calculateAdjustments({
 
   post,
   category,
+  subCategory,
+  section,
   contentIntent,
   text,
-  metrics
+  metrics,
+  context
 
 }) {
 
@@ -2112,6 +3007,24 @@ function calculateAdjustments({
 
 
   /* -------------------------------------------------------
+     KATEGORİ ÖZEL DEĞER
+     ------------------------------------------------------- */
+
+  if (
+    context.categoryValue ===
+    true
+  ) {
+
+    add(
+      3,
+      "category-value",
+      "Kategoriye özgü anlamlı kullanıcı değeri bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
      SONUÇ / BAŞARI HABERİ
      ------------------------------------------------------- */
 
@@ -2140,6 +3053,9 @@ function calculateAdjustments({
 
   /* -------------------------------------------------------
      AKTİF FIRSAT
+
+     Kurum içi idari içerik yanlışlıkla actionable olsa bile
+     bu bonusu alamaz.
      ------------------------------------------------------- */
 
   if (
@@ -2157,6 +3073,17 @@ function calculateAdjustments({
     ].includes(
       category
     )
+
+    &&
+
+    !(
+      context.institutionalLevel ===
+      "strong"
+
+      &&
+
+      !context.publicImpact
+    )
   ) {
 
     add(
@@ -2169,16 +3096,79 @@ function calculateAdjustments({
 
 
   /* -------------------------------------------------------
+     KURUM İÇİ / İDARİ İÇERİK
+     ------------------------------------------------------- */
+
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    add(
+      -30,
+      "institutional-administrative",
+      "İçerik esas olarak kurum içi/idari işleme yönelik; genel kullanıcı değeri düşük."
+    );
+
+  }
+
+  else if (
+    context.institutionalLevel ===
+    "medium"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    add(
+      -18,
+      "institutional-administrative-medium",
+      "Kurumsal/idari bağlam kullanıcı değerini düşürüyor."
+    );
+
+  }
+
+  else if (
+    context.institutionalLevel ===
+    "light"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    add(
+      -8,
+      "institutional-administrative-light",
+      "Kurumsal bağlam nedeniyle içerik değeri sınırlı."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
      RUTİN KURUMSAL GÜRÜLTÜ
      ------------------------------------------------------- */
 
   if (
-    category ===
-    "news"
-
-    &&
-
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "nezaket ziyareti",
@@ -2191,7 +3181,7 @@ function calculateAdjustments({
 
     &&
 
-    !containsAnyPhrase(
+    !containsAnyFragment(
       text,
       [
         "protokol imzalandi",
@@ -2217,7 +3207,7 @@ function calculateAdjustments({
      ------------------------------------------------------- */
 
   if (
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "web sitesi bakim",
@@ -2282,6 +3272,155 @@ function calculateAdjustments({
   }
 
 
+  /* -------------------------------------------------------
+     KATEGORİ / ALT KATEGORİ SPOR DEĞERİ
+     ------------------------------------------------------- */
+
+  if (
+    category ===
+    "course"
+
+    &&
+
+    containsAnyFragment(
+      text,
+      [
+        "antrenor",
+        "hakem",
+        "kademe",
+        "seminer",
+        "sertifika"
+      ]
+    )
+  ) {
+
+    add(
+      4,
+      "course-professional-value",
+      "Kurs/eğitim içeriği spor profesyonelleri için doğrudan değer taşıyor."
+    );
+
+  }
+
+
+  if (
+    category ===
+    "event"
+
+    &&
+
+    containsAnyFragment(
+      text,
+      [
+        "sampiyona",
+        "turnuva",
+        "musabaka",
+        "final",
+        "festival",
+        "kamp"
+      ]
+    )
+  ) {
+
+    add(
+      3,
+      "event-sport-value",
+      "Etkinlik doğrudan spor faaliyeti değeri taşıyor."
+    );
+
+  }
+
+
+  if (
+    category ===
+    "campaign"
+
+    &&
+
+    containsAnyFragment(
+      text,
+      [
+        "indirim",
+        "ucretsiz",
+        "burs",
+        "destek",
+        "firsat"
+      ]
+    )
+  ) {
+
+    add(
+      3,
+      "campaign-user-value",
+      "Kampanya kullanıcıya ölçülebilir avantaj sunuyor."
+    );
+
+  }
+
+
+  if (
+    category ===
+    "jobs"
+
+    &&
+
+    containsAnyFragment(
+      text,
+      [
+        "antrenor araniyor",
+        "egitmen araniyor",
+        "personel araniyor",
+        "is ilani",
+        "cv gonder"
+      ]
+    )
+  ) {
+
+    add(
+      4,
+      "job-user-value",
+      "İş ilanı doğrudan başvuru/istihdam değeri taşıyor."
+    );
+
+  }
+
+
+  if (
+    category ===
+    "stores"
+
+    &&
+
+    containsAnyFragment(
+      text,
+      [
+        "stok",
+        "fiyat",
+        "satin al",
+        "indirim"
+      ]
+    )
+  ) {
+
+    add(
+      2,
+      "store-user-value",
+      "Ürün içeriği satın alma kararına yardımcı olabilecek bilgi taşıyor."
+    );
+
+  }
+
+
+  /*
+    section/subCategory parametreleri şimdilik bu motorun
+    imzasında korunuyor. İleride daha ayrıntılı kategori
+    profillerine geçildiğinde doğrudan kullanılabilir.
+  */
+
+  void section;
+  void subCategory;
+
+
   return {
 
     total:
@@ -2307,7 +3446,8 @@ function determineHardDecision({
   post,
   category,
   contentIntent,
-  text
+  text,
+  context
 
 }) {
 
@@ -2323,7 +3463,7 @@ function determineHardDecision({
 
 
   if (
-    containsAnyPhrase(
+    containsAnyFragment(
       text,
       [
         "web sitesi bakim",
@@ -2339,10 +3479,39 @@ function determineHardDecision({
   }
 
 
-  /*
-    Güçlü spor haberleri sırf aksiyon içermediği için
-    zorla elenmez.
-  */
+  /* -------------------------------------------------------
+     GÜÇLÜ KURUM İÇİ / İDARİ ELEME
+
+     Örnek:
+     "Olağan Mali Genel Kurul Delegelerinin Ulaşım
+      İşlemlerine İlişkin Duyuru"
+
+     Resmî ve güncel olsa bile genel SporNRD kullanıcısı için
+     doğrudan spor/fırsat değeri taşımıyorsa seçilmez.
+     ------------------------------------------------------- */
+
+  if (
+    context.institutionalLevel ===
+    "strong"
+
+    &&
+
+    !context.publicImpact
+
+    &&
+
+    !context.sportsValue
+  ) {
+
+    return SELECTION_DECISIONS.rejected;
+
+  }
+
+
+  /* -------------------------------------------------------
+     Güçlü spor haberleri sırf aksiyon içermediği için
+     zorla elenmez.
+     ------------------------------------------------------- */
 
   if (
     category ===
@@ -2958,7 +4127,7 @@ function normalizeCategory(
 
 
 /* =========================================================
-   PHRASE MATCH
+   PHRASE / FRAGMENT MATCH
    ========================================================= */
 
 function containsPhrase(
@@ -3002,6 +4171,67 @@ function containsAnyPhrase(
   return values.some(
     value =>
       containsPhrase(
+        text,
+        value
+      )
+  );
+
+}
+
+
+/*
+  Türkçe ekler nedeniyle tam kelime eşleşmesinin kaçırdığı:
+
+  delege
+  delegeler
+  delegelerin
+  delegelerinin
+
+  gibi varyasyonlarda kontrollü parça eşleşmesi kullanılır.
+*/
+
+function containsFragment(
+  text,
+  value
+) {
+
+  const haystack =
+    normalizeText(
+      text
+    );
+
+
+  const needle =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !haystack ||
+    !needle
+  ) {
+
+    return false;
+
+  }
+
+
+  return haystack.includes(
+    needle
+  );
+
+}
+
+
+function containsAnyFragment(
+  text,
+  values
+) {
+
+  return values.some(
+    value =>
+      containsFragment(
         text,
         value
       )
@@ -3143,6 +4373,26 @@ function createFallbackSelection() {
 
     contentIntent:
       "unknown",
+
+
+    context: {
+
+      institutionalLevel:
+        "none",
+
+      institutionalScore:
+        0,
+
+      publicImpact:
+        false,
+
+      sportsValue:
+        false,
+
+      categoryValue:
+        false
+
+    },
 
 
     metrics: {
@@ -3618,4 +4868,4 @@ function isPlainObject(
 
   );
 
-    }
+   }
