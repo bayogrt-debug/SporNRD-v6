@@ -4,7 +4,7 @@
 
    SporNRD İçerik Seçim / Değer Motoru
 
-   Sürüm: 6.1.1
+   Sürüm: 6.1.2
 
    AMAÇ
    ---------------------------------------------------------
@@ -29,25 +29,36 @@
    jobs
    stores
 
-   6.1.1 ANA GELİŞTİRME
+   6.1.2 ANA GELİŞTİRME
    ---------------------------------------------------------
-   Resmî ve güvenilir olması tek başına bir içeriği kullanıcı
-   akışına sokmak için yeterli değildir.
+   "Kurumsal içerik" ile "mesleki kullanıcı bilgisi"
+   birbirinden ayrılır.
 
-   Özellikle şu tür kurum içi / idari içerikler ayrıca
-   değerlendirilir:
+   Örnek:
 
-   - genel kurul / mali genel kurul
-   - delege işlemleri
-   - delege ulaşım / konaklama duyuruları
-   - yönetim / disiplin / tahkim kurulu iç işlemleri
-   - ihale / satın alma / teklif duyuruları
-   - rutin ziyaret / protokol dışı kurumsal içerik
+   REDDEDİLEBİLİR
+   ---------------------------------------------------------
+   - Mali Genel Kurul
+   - Delege ulaşım işlemleri
+   - Kesin delege listeleri
+   - Kurum içi kurul kararları
+   - İhale / satın alma
+   - Rutin ziyaretler
 
-   Eğer bu içeriklerin doğrudan sporcu, antrenör, hakem,
-   katılımcı veya genel kullanıcı açısından anlamlı etkisi
-   yoksa kullanıcı değeri düşürülür; güçlü kurum içi içerikler
-   doğrudan rejected olabilir.
+   KULLANICI DEĞERİ TAŞIR
+   ---------------------------------------------------------
+   - Antrenör vize işlemleri
+   - Antrenör lisans işlemleri
+   - Hakem vize işlemleri
+   - Hakem semineri
+   - Antrenör kursu
+   - Kademe eğitimleri
+   - Sertifika / belge yenileme
+   - Sporcu lisans / tescil işlemleri
+   - Başvuru / kayıt / sınav duyuruları
+
+   Böylece bir içerik "duyuru" veya "kurumsal" olduğu için
+   otomatik olarak değersiz sayılmaz.
 
    TEMEL PRENSİP
    ---------------------------------------------------------
@@ -55,9 +66,11 @@
         ↓
    6 ana ölçüt
         ↓
-   Kategori / alt kategori ağırlıkları
+   Kurumsal bağlam
         ↓
-   Bağlam düzeltmeleri
+   Mesleki kullanıcı etkisi
+        ↓
+   Kategori / alt kategori ağırlıkları
         ↓
    Selection Score
         ↓
@@ -65,9 +78,15 @@
 
    NOT
    ---------------------------------------------------------
-   Bu motor internet arama hacmini zorunlu kabul etmez.
-   Eğer ileride gerçek trend / arama verisi sağlanırsa
-   interest metriğine ek sinyal olarak kullanılabilir.
+   İnternet arama hacmi zorunlu değildir.
+
+   İleride:
+   - gerçek kullanıcı davranışları
+   - arama trendleri
+   - kayıt / tıklama / paylaşım
+   - kişiselleştirme
+
+   interest / learning katmanlarına eklenebilir.
    ========================================================= */
 
 
@@ -76,7 +95,7 @@
    ========================================================= */
 
 export const SELECTION_ENGINE_VERSION =
-  "1.1";
+  "1.2";
 
 
 /* =========================================================
@@ -111,8 +130,6 @@ const BORDERLINE_THRESHOLD =
 
 /* =========================================================
    CATEGORY WEIGHTS
-
-   Toplam her profilde 1.00 olmalıdır.
    ========================================================= */
 
 const CATEGORY_WEIGHTS = {
@@ -331,10 +348,6 @@ export function analyzeSelection(
 
   /* =======================================================
      BAĞLAM ANALİZİ
-
-     Selection skorundan önce içerik kurum içi bir işlem mi,
-     yoksa doğrudan SporNRD kullanıcısına değer üreten bir
-     içerik mi anlaşılmaya çalışılır.
      ========================================================= */
 
   const context =
@@ -360,6 +373,10 @@ export function analyzeSelection(
 
     });
 
+
+  /* =======================================================
+     6 ANA METRİK
+     ========================================================= */
 
   const metrics = {
 
@@ -398,9 +415,6 @@ export function analyzeSelection(
 
         category:
           category,
-
-        subCategory:
-          subCategory,
 
         contentIntent:
           contentIntent,
@@ -471,9 +485,6 @@ export function analyzeSelection(
         category:
           category,
 
-        subCategory:
-          subCategory,
-
         contentIntent:
           contentIntent,
 
@@ -487,6 +498,10 @@ export function analyzeSelection(
 
   };
 
+
+  /* =======================================================
+     AĞIRLIKLAR
+     ========================================================= */
 
   const weights =
     resolveWeights({
@@ -509,6 +524,10 @@ export function analyzeSelection(
       weights
     );
 
+
+  /* =======================================================
+     BAĞLAM DÜZELTMELERİ
+     ========================================================= */
 
   const adjustments =
     calculateAdjustments({
@@ -555,6 +574,10 @@ export function analyzeSelection(
 
     );
 
+
+  /* =======================================================
+     HARD DECISION
+     ========================================================= */
 
   const hardDecision =
     determineHardDecision({
@@ -675,6 +698,18 @@ export function analyzeSelection(
 
       publicImpact:
         context.publicImpact,
+
+      publicImpactScore:
+        context.publicImpactScore,
+
+      professionalImpact:
+        context.professionalImpact,
+
+      professionalImpactScore:
+        context.professionalImpactScore,
+
+      professionalAudience:
+        context.professionalAudience,
 
       sportsValue:
         context.sportsValue,
@@ -944,11 +979,23 @@ export function createSelectionSummary(
     {};
 
 
+  const professionalAudiences =
+    {};
+
+
   let totalScore =
     0;
 
 
   let counted =
+    0;
+
+
+  let professionalImpactCount =
+    0;
+
+
+  let publicImpactCount =
     0;
 
 
@@ -989,6 +1036,14 @@ export function createSelectionSummary(
       "none";
 
 
+    const professionalAudience =
+      normalizeId(
+        post?.selectionMeta?.context?.professionalAudience
+      )
+      ||
+      "none";
+
+
     increment(
       decisions,
       decision
@@ -1011,6 +1066,32 @@ export function createSelectionSummary(
       institutionalLevels,
       institutionalLevel
     );
+
+
+    increment(
+      professionalAudiences,
+      professionalAudience
+    );
+
+
+    if (
+      post?.selectionMeta?.context?.professionalImpact ===
+      true
+    ) {
+
+      professionalImpactCount++;
+
+    }
+
+
+    if (
+      post?.selectionMeta?.context?.publicImpact ===
+      true
+    ) {
+
+      publicImpactCount++;
+
+    }
 
 
     const score =
@@ -1070,7 +1151,19 @@ export function createSelectionSummary(
 
 
     institutionalLevels:
-      institutionalLevels
+      institutionalLevels,
+
+
+    professionalImpactCount:
+      professionalImpactCount,
+
+
+    publicImpactCount:
+      publicImpactCount,
+
+
+    professionalAudiences:
+      professionalAudiences
 
   };
 
@@ -1079,9 +1172,6 @@ export function createSelectionSummary(
 
 /* =========================================================
    SELECTION CONTEXT
-
-   İçeriğin kurum içi / idari karakterini ve bunun yanında
-   gerçek kullanıcı / spor değerini birlikte ölçer.
    ========================================================= */
 
 function analyzeSelectionContext({
@@ -1103,9 +1193,9 @@ function analyzeSelectionContext({
     [];
 
 
-  /* -------------------------------------------------------
-     GÜÇLÜ KURUM İÇİ / İDARİ SİNYALLER
-     ------------------------------------------------------- */
+  /* =======================================================
+     1. KURUM İÇİ / İDARİ SİNYALLER
+     ========================================================= */
 
   if (
     containsAnyFragment(
@@ -1120,7 +1210,8 @@ function analyzeSelectionContext({
         "delegelerinin ulasim",
         "delege konaklama",
         "delege transfer",
-        "delege islemleri"
+        "delege islemleri",
+        "kesin delege listesi"
       ]
     )
   ) {
@@ -1206,17 +1297,10 @@ function analyzeSelectionContext({
   }
 
 
-  /* -------------------------------------------------------
-     GENEL KURUL + DELEGE / ULAŞIM BİRLİKTEYSE
-     çok güçlü kurum içi bağlamdır.
-     ------------------------------------------------------- */
-
   if (
-    containsAnyFragment(
+    containsFragment(
       text,
-      [
-        "genel kurul"
-      ]
+      "genel kurul"
     )
 
     &&
@@ -1238,13 +1322,38 @@ function analyzeSelectionContext({
   }
 
 
-  /* -------------------------------------------------------
-     DOĞRUDAN KULLANICI ETKİSİ
+  /* =======================================================
+     2. MESLEKİ KULLANICI DEĞERİ
 
-     Bir içerik kurumsal görünse bile sporcu/antrenör/hakem
-     veya kullanıcı için doğrudan işlem, hak, başvuru veya
-     kural değişikliği taşıyorsa otomatik elenmez.
-     ------------------------------------------------------- */
+     6.1.2'nin en önemli yeni katmanı.
+     ========================================================= */
+
+  const professional =
+    detectProfessionalImpact({
+
+      category:
+        category,
+
+      section:
+        section,
+
+      contentIntent:
+        contentIntent,
+
+      text:
+        text
+
+    });
+
+
+  reasons.push(
+    ...professional.reasons
+  );
+
+
+  /* =======================================================
+     3. DOĞRUDAN KULLANICI ETKİSİ
+     ========================================================= */
 
   let publicImpactScore =
     0;
@@ -1304,17 +1413,6 @@ function analyzeSelectionContext({
         "kayitlar basladi",
         "kayit yaptir",
         "basvuru yap",
-        "kurs",
-        "seminer",
-        "egitim",
-        "sertifika",
-        "sinav",
-        "lisans",
-        "vize",
-        "sporcular icin",
-        "antrenorler icin",
-        "hakemler icin",
-        "katilimcilara",
         "katilim sartlari",
         "talimat degisikligi",
         "yonetmelik degisikligi"
@@ -1328,14 +1426,29 @@ function analyzeSelectionContext({
   }
 
 
+  /*
+    Mesleki kullanıcı değeri bulunduysa bu doğrudan
+    SporNRD kullanıcı etkisidir.
+  */
+
+  if (
+    professional.impact
+  ) {
+
+    publicImpactScore +=
+      7;
+
+  }
+
+
   const publicImpact =
     publicImpactScore >=
     5;
 
 
-  /* -------------------------------------------------------
-     GERÇEK SPOR / HABER DEĞERİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     4. GERÇEK SPOR / HABER DEĞERİ
+     ========================================================= */
 
   const sportsValue =
     category ===
@@ -1372,9 +1485,9 @@ function analyzeSelectionContext({
     );
 
 
-  /* -------------------------------------------------------
-     KATEGORİ ÖZEL DEĞER SİNYALİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     5. KATEGORİ ÖZEL DEĞER
+     ========================================================= */
 
   const categoryValue =
     detectCategoryValue({
@@ -1396,6 +1509,10 @@ function analyzeSelectionContext({
 
     });
 
+
+  /* =======================================================
+     6. INSTITUTIONAL LEVEL
+     ========================================================= */
 
   let institutionalLevel =
     "none";
@@ -1459,6 +1576,10 @@ function analyzeSelectionContext({
     &&
 
     !sportsValue
+
+    &&
+
+    !professional.impact
   ) {
 
     reasons.push(
@@ -1482,11 +1603,369 @@ function analyzeSelectionContext({
     publicImpactScore:
       publicImpactScore,
 
+    professionalImpact:
+      professional.impact,
+
+    professionalImpactScore:
+      professional.score,
+
+    professionalAudience:
+      professional.audience,
+
     sportsValue:
       sportsValue,
 
     categoryValue:
       categoryValue,
+
+    reasons:
+      reasons
+
+  };
+
+}
+
+
+/* =========================================================
+   MESLEKİ KULLANICI DEĞERİ
+
+   Örnek:
+   ---------------------------------------------------------
+   ANTRENÖR VİZE İŞLEMLERİ
+   HAKEM VİZE SEMİNERİ
+   SPORCU LİSANS İŞLEMLERİ
+   ANTRENÖR BELGE YENİLEME
+   2. KADEME ANTRENÖR KURSU
+
+   Bunlar sıradan kurum içi duyuru değildir.
+   ========================================================= */
+
+function detectProfessionalImpact({
+
+  category,
+  section,
+  contentIntent,
+  text
+
+}) {
+
+  let score =
+    0;
+
+
+  const audiences =
+    new Set();
+
+
+  const reasons =
+    [];
+
+
+  const trainerSignal =
+    containsAnyToken(
+      text,
+      [
+        "antrenor",
+        "antrenorluk",
+        "egitmen"
+      ]
+    );
+
+
+  const refereeSignal =
+    containsAnyToken(
+      text,
+      [
+        "hakem"
+      ]
+    );
+
+
+  const athleteSignal =
+    containsAnyToken(
+      text,
+      [
+        "sporcu",
+        "oyuncu"
+      ]
+    );
+
+
+  const administrativeProcess =
+    containsAnyToken(
+      text,
+      [
+        "vize",
+        "lisans",
+        "tescil",
+        "sicil",
+        "yenileme",
+        "denklik",
+        "belge",
+        "sertifika",
+        "yetkilendirme"
+      ]
+    );
+
+
+  const educationProcess =
+    containsAnyToken(
+      text,
+      [
+        "kurs",
+        "seminer",
+        "egitim",
+        "sinav",
+        "kademe"
+      ]
+    );
+
+
+  const applicationProcess =
+    containsAnyToken(
+      text,
+      [
+        "basvuru",
+        "kayit"
+      ]
+    );
+
+
+  const processSignal =
+
+    administrativeProcess
+
+    ||
+
+    educationProcess
+
+    ||
+
+    applicationProcess;
+
+
+  /* -------------------------------------------------------
+     ANTRENÖR / EĞİTMEN
+     ------------------------------------------------------- */
+
+  if (
+    trainerSignal &&
+    processSignal
+  ) {
+
+    score +=
+      8;
+
+
+    audiences.add(
+      "trainer_coach"
+    );
+
+
+    reasons.push(
+      "Antrenör/eğitmenleri doğrudan ilgilendiren mesleki işlem veya eğitim sinyali bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     HAKEM
+     ------------------------------------------------------- */
+
+  if (
+    refereeSignal &&
+    processSignal
+  ) {
+
+    score +=
+      8;
+
+
+    audiences.add(
+      "referee"
+    );
+
+
+    reasons.push(
+      "Hakemleri doğrudan ilgilendiren mesleki işlem veya eğitim sinyali bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     SPORCU
+     ------------------------------------------------------- */
+
+  if (
+    athleteSignal
+
+    &&
+
+    (
+      administrativeProcess
+
+      ||
+
+      applicationProcess
+    )
+  ) {
+
+    score +=
+      7;
+
+
+    audiences.add(
+      "athlete"
+    );
+
+
+    reasons.push(
+      "Sporcuları doğrudan ilgilendiren lisans/kayıt/tescil türü işlem sinyali bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     GÜÇLÜ DOĞRUDAN İFADELER
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      text,
+      [
+        "antrenor vize",
+        "antrenor lisans",
+        "antrenor belge",
+        "antrenor sertifika",
+        "antrenor kursu",
+        "antrenor semineri",
+        "antrenor egitimi",
+        "hakem vize",
+        "hakem lisans",
+        "hakem semineri",
+        "hakem egitimi",
+        "hakem kursu",
+        "sporcu lisans",
+        "sporcu tescil",
+        "sporcu kayit"
+      ]
+    )
+  ) {
+
+    score +=
+      6;
+
+
+    reasons.push(
+      "Doğrudan mesleki kullanıcı işlemi ifadesi bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     TRAINER_COACH SECTION
+     ------------------------------------------------------- */
+
+  if (
+    section ===
+    "trainer_coach"
+
+    &&
+
+    processSignal
+  ) {
+
+    score +=
+      4;
+
+
+    audiences.add(
+      "trainer_coach"
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     KURS KATEGORİSİ
+     ------------------------------------------------------- */
+
+  if (
+    category ===
+    "course"
+
+    &&
+
+    (
+      trainerSignal ||
+      refereeSignal
+    )
+  ) {
+
+    score +=
+      3;
+
+  }
+
+
+  /* -------------------------------------------------------
+     KAYIT / FIRSAT INTENT
+     ------------------------------------------------------- */
+
+  if (
+    [
+      "registration",
+      "opportunity"
+    ].includes(
+      contentIntent
+    )
+
+    &&
+
+    (
+      trainerSignal ||
+      refereeSignal ||
+      athleteSignal
+    )
+  ) {
+
+    score +=
+      3;
+
+  }
+
+
+  const impact =
+    score >=
+    6;
+
+
+  return {
+
+    impact:
+      impact,
+
+    score:
+      clamp(
+        score,
+        0,
+        25
+      ),
+
+    audience:
+      audiences.size
+
+        ? [
+            ...audiences
+          ].join(
+            ","
+          )
+
+        : "none",
 
     reasons:
       reasons
@@ -1517,6 +1996,7 @@ function detectCategoryValue({
     case "course":
 
       return (
+
         containsAnyFragment(
           text,
           [
@@ -1539,6 +2019,7 @@ function detectCategoryValue({
         ].includes(
           contentIntent
         )
+
       );
 
 
@@ -1616,6 +2097,7 @@ function detectCategoryValue({
     case "news":
 
       return (
+
         [
           "result",
           "achievement",
@@ -1639,12 +2121,14 @@ function detectCategoryValue({
             "kupa"
           ]
         )
+
       );
 
 
     default:
 
       return (
+
         subCategory ===
         "education"
 
@@ -1652,6 +2136,7 @@ function detectCategoryValue({
 
         section ===
         "trainer_coach"
+
       );
 
   }
@@ -1792,6 +2277,10 @@ function calculateUsefulness({
     !hasUsefulStructuredData(
       post
     )
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -1811,6 +2300,22 @@ function calculateUsefulness({
   }
 
 
+  /* -------------------------------------------------------
+     6.1.2:
+     Mesleki kullanıcı bilgisinin ana gücü burada.
+     ------------------------------------------------------- */
+
+  if (
+    context.professionalImpact ===
+    true
+  ) {
+
+    score +=
+      18;
+
+  }
+
+
   if (
     context.institutionalLevel ===
     "strong"
@@ -1822,6 +2327,10 @@ function calculateUsefulness({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -1836,6 +2345,10 @@ function calculateUsefulness({
     &&
 
     !context.publicImpact
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -1977,6 +2490,17 @@ function calculateImportance({
 
 
   if (
+    context.professionalImpact ===
+    true
+  ) {
+
+    score +=
+      8;
+
+  }
+
+
+  if (
     context.institutionalLevel ===
     "strong"
 
@@ -1987,6 +2511,10 @@ function calculateImportance({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2001,6 +2529,10 @@ function calculateImportance({
     &&
 
     !context.publicImpact
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2124,10 +2656,39 @@ function calculateOpportunity({
 
 
   /*
-    KRİTİK:
-    Kurum içi idari işlem yanlışlıkla "opportunity" olarak
-    sınıflandırılmış olsa bile kullanıcı fırsatı sayılmaz.
+    Vize/lisans/kurs/seminer doğrudan profesyonel kullanıcıya
+    sonraki adım veya işlem bilgisi sağlayabilir.
   */
+
+  if (
+    context.professionalImpact ===
+    true
+
+    &&
+
+    containsAnyToken(
+      text,
+      [
+        "vize",
+        "lisans",
+        "tescil",
+        "yenileme",
+        "basvuru",
+        "kayit",
+        "kurs",
+        "seminer",
+        "egitim",
+        "sinav",
+        "sertifika"
+      ]
+    )
+  ) {
+
+    score +=
+      15;
+
+  }
+
 
   if (
     context.institutionalLevel ===
@@ -2136,6 +2697,10 @@ function calculateOpportunity({
     &&
 
     !context.publicImpact
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2150,6 +2715,10 @@ function calculateOpportunity({
     &&
 
     !context.publicImpact
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2386,6 +2955,38 @@ function calculateTimeliness({
   }
 
 
+  /*
+    Güncel bir mesleki duyuru, olay tarihi bulunmasa bile
+    kullanıcı için zaman değerine sahiptir.
+  */
+
+  if (
+    context.professionalImpact ===
+    true
+
+    &&
+
+    actionState !==
+    "closed"
+
+    &&
+
+    [
+      "today",
+      "yesterday",
+      "recent",
+      "current"
+    ].includes(
+      freshness
+    )
+  ) {
+
+    score +=
+      5;
+
+  }
+
+
   if (
     context.institutionalLevel ===
     "strong"
@@ -2393,6 +2994,10 @@ function calculateTimeliness({
     &&
 
     !context.publicImpact
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2599,10 +3204,20 @@ function calculateInterest({
   }
 
 
-  /*
-    İleride dış trend / arama verisi gelirse
-    burada kullanılabilir.
-  */
+  if (
+    context.professionalImpact ===
+    true
+  ) {
+
+    score +=
+      5;
+
+  }
+
+
+  /* -------------------------------------------------------
+     DIŞ TREND / ARAMA SİNYALİ
+     ------------------------------------------------------- */
 
   const externalInterest =
     firstNumber(
@@ -2633,6 +3248,10 @@ function calculateInterest({
   }
 
 
+  /* -------------------------------------------------------
+     ETKİLEŞİMLER
+     ------------------------------------------------------- */
+
   const interactions =
     isPlainObject(
       post?.interactions
@@ -2645,21 +3264,24 @@ function calculateInterest({
 
     safeNumber(
       interactions.wow
-    ) *
+    )
+    *
     2
 
     +
 
     safeNumber(
       interactions.save
-    ) *
+    )
+    *
     1.5
 
     +
 
     safeNumber(
       interactions.share
-    ) *
+    )
+    *
     2;
 
 
@@ -2676,7 +3298,8 @@ function calculateInterest({
         Math.log10(
           engagement +
           1
-        ) *
+        )
+        *
         10
 
       );
@@ -2695,6 +3318,10 @@ function calculateInterest({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2709,6 +3336,10 @@ function calculateInterest({
     &&
 
     !context.publicImpact
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     score -=
@@ -2959,9 +3590,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      DOĞRULANMIŞ KAYNAK
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     post?.source?.verified ===
@@ -2982,9 +3613,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
-     YÜKSEK VERİ KALİTESİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     YAPILANDIRILMIŞ VERİ
+     ========================================================= */
 
   if (
     metrics.trust >=
@@ -3006,9 +3637,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
-     KATEGORİ ÖZEL DEĞER
-     ------------------------------------------------------- */
+  /* =======================================================
+     KATEGORİ DEĞERİ
+     ========================================================= */
 
   if (
     context.categoryValue ===
@@ -3024,9 +3655,29 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     MESLEKİ KULLANICI DEĞERİ
+
+     6.1.2 kritik bonusu.
+     ========================================================= */
+
+  if (
+    context.professionalImpact ===
+    true
+  ) {
+
+    add(
+      12,
+      "professional-user-value",
+      "İçerik antrenör, hakem veya sporcu için doğrudan mesleki bilgi/işlem değeri taşıyor."
+    );
+
+  }
+
+
+  /* =======================================================
      SONUÇ / BAŞARI HABERİ
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     category ===
@@ -3051,12 +3702,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      AKTİF FIRSAT
-
-     Kurum içi idari içerik yanlışlıkla actionable olsa bile
-     bu bonusu alamaz.
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     post?.actionable ===
@@ -3083,6 +3731,10 @@ function calculateAdjustments({
       &&
 
       !context.publicImpact
+
+      &&
+
+      !context.professionalImpact
     )
   ) {
 
@@ -3095,9 +3747,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KURUM İÇİ / İDARİ İÇERİK
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     context.institutionalLevel ===
@@ -3110,6 +3762,10 @@ function calculateAdjustments({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     add(
@@ -3131,6 +3787,10 @@ function calculateAdjustments({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     add(
@@ -3152,6 +3812,10 @@ function calculateAdjustments({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     add(
@@ -3163,9 +3827,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      RUTİN KURUMSAL GÜRÜLTÜ
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     containsAnyFragment(
@@ -3202,9 +3866,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
-     TEKNİK / SİTE DUYURUSU
-     ------------------------------------------------------- */
+  /* =======================================================
+     TEKNİK DUYURU
+     ========================================================= */
 
   if (
     containsAnyFragment(
@@ -3228,9 +3892,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      EKSİK İÇERİK
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     !hasMeaningfulEditorialContent(
@@ -3247,9 +3911,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
+  /* =======================================================
      KAPANMIŞ FIRSAT
-     ------------------------------------------------------- */
+     ========================================================= */
 
   if (
     normalizeId(
@@ -3272,9 +3936,9 @@ function calculateAdjustments({
   }
 
 
-  /* -------------------------------------------------------
-     KATEGORİ / ALT KATEGORİ SPOR DEĞERİ
-     ------------------------------------------------------- */
+  /* =======================================================
+     KURS / MESLEKİ GELİŞİM
+     ========================================================= */
 
   if (
     category ===
@@ -3302,6 +3966,10 @@ function calculateAdjustments({
 
   }
 
+
+  /* =======================================================
+     ETKİNLİK
+     ========================================================= */
 
   if (
     category ===
@@ -3331,6 +3999,10 @@ function calculateAdjustments({
   }
 
 
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
+
   if (
     category ===
     "campaign"
@@ -3357,6 +4029,10 @@ function calculateAdjustments({
 
   }
 
+
+  /* =======================================================
+     İŞ
+     ========================================================= */
 
   if (
     category ===
@@ -3385,6 +4061,10 @@ function calculateAdjustments({
   }
 
 
+  /* =======================================================
+     MAĞAZA
+     ========================================================= */
+
   if (
     category ===
     "stores"
@@ -3412,9 +4092,8 @@ function calculateAdjustments({
 
 
   /*
-    section/subCategory parametreleri şimdilik bu motorun
-    imzasında korunuyor. İleride daha ayrıntılı kategori
-    profillerine geçildiğinde doğrudan kullanılabilir.
+    Gelecekte kategori/alt kategori mikro profillerinde
+    doğrudan kullanılabilir.
   */
 
   void section;
@@ -3451,6 +4130,10 @@ function determineHardDecision({
 
 }) {
 
+  /* -------------------------------------------------------
+     ANLAMSIZ / BOŞ
+     ------------------------------------------------------- */
+
   if (
     !hasMeaningfulEditorialContent(
       post
@@ -3461,6 +4144,10 @@ function determineHardDecision({
 
   }
 
+
+  /* -------------------------------------------------------
+     TEKNİK SİSTEM DUYURUSU
+     ------------------------------------------------------- */
 
   if (
     containsAnyFragment(
@@ -3482,12 +4169,7 @@ function determineHardDecision({
   /* -------------------------------------------------------
      GÜÇLÜ KURUM İÇİ / İDARİ ELEME
 
-     Örnek:
-     "Olağan Mali Genel Kurul Delegelerinin Ulaşım
-      İşlemlerine İlişkin Duyuru"
-
-     Resmî ve güncel olsa bile genel SporNRD kullanıcısı için
-     doğrudan spor/fırsat değeri taşımıyorsa seçilmez.
+     Mesleki kullanıcı etkisi varsa bu eleme uygulanmaz.
      ------------------------------------------------------- */
 
   if (
@@ -3501,6 +4183,10 @@ function determineHardDecision({
     &&
 
     !context.sportsValue
+
+    &&
+
+    !context.professionalImpact
   ) {
 
     return SELECTION_DECISIONS.rejected;
@@ -3509,8 +4195,7 @@ function determineHardDecision({
 
 
   /* -------------------------------------------------------
-     Güçlü spor haberleri sırf aksiyon içermediği için
-     zorla elenmez.
+     GÜÇLÜ SPOR HABERLERİ
      ------------------------------------------------------- */
 
   if (
@@ -3878,6 +4563,14 @@ function hasUsefulStructuredData(
       : {};
 
 
+  const facts =
+    isPlainObject(
+      post?.facts
+    )
+      ? post.facts
+      : {};
+
+
   const location =
     isPlainObject(
       post?.location
@@ -3915,6 +4608,26 @@ function hasUsefulStructuredData(
     details.ageMax,
 
     details.level,
+
+    facts.startDate,
+
+    facts.endDate,
+
+    facts.startDateIso,
+
+    facts.endDateIso,
+
+    facts.registrationDeadline,
+
+    facts.applicationDeadline,
+
+    facts.deadlineIso,
+
+    facts.grade,
+
+    facts.city,
+
+    facts.location,
 
     location.city,
 
@@ -4058,6 +4771,21 @@ function buildSearchText(
   }
 
 
+  if (
+    isPlainObject(
+      post?.facts
+    )
+  ) {
+
+    values.push(
+      ...flattenValues(
+        post.facts
+      )
+    );
+
+  }
+
+
   return normalizeText(
 
     values
@@ -4106,7 +4834,16 @@ function normalizeCategory(
       "event",
 
     campaigns:
-      "campaign"
+      "campaign",
+
+    job:
+      "jobs",
+
+    products:
+      "stores",
+
+    store:
+      "stores"
 
   };
 
@@ -4127,7 +4864,7 @@ function normalizeCategory(
 
 
 /* =========================================================
-   PHRASE / FRAGMENT MATCH
+   PHRASE MATCH
    ========================================================= */
 
 function containsPhrase(
@@ -4168,6 +4905,17 @@ function containsAnyPhrase(
   values
 ) {
 
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
+
   return values.some(
     value =>
       containsPhrase(
@@ -4179,16 +4927,64 @@ function containsAnyPhrase(
 }
 
 
-/*
-  Türkçe ekler nedeniyle tam kelime eşleşmesinin kaçırdığı:
+/* =========================================================
+   TOKEN MATCH
 
-  delege
-  delegeler
-  delegelerin
-  delegelerinin
+   "vize" kelimesinin "revize" içinde yanlışlıkla
+   yakalanmasını engellemek için kullanılır.
+   ========================================================= */
 
-  gibi varyasyonlarda kontrollü parça eşleşmesi kullanılır.
-*/
+function containsToken(
+  text,
+  value
+) {
+
+  return containsPhrase(
+    text,
+    value
+  );
+
+}
+
+
+function containsAnyToken(
+  text,
+  values
+) {
+
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  return values.some(
+    value =>
+      containsToken(
+        text,
+        value
+      )
+  );
+
+}
+
+
+/* =========================================================
+   FRAGMENT MATCH
+
+   Türkçe çekim ekleri için kullanılır.
+
+   Örnek:
+   delege
+   delegeler
+   delegelerin
+   delegelerinin
+   ========================================================= */
 
 function containsFragment(
   text,
@@ -4228,6 +5024,17 @@ function containsAnyFragment(
   text,
   values
 ) {
+
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
 
   return values.some(
     value =>
@@ -4291,9 +5098,42 @@ function flattenValues(
       )
     ) {
 
-      output.push(
-        ...item
-      );
+      for (
+        const child
+        of item
+      ) {
+
+        if (
+          isPlainObject(
+            child
+          )
+        ) {
+
+          output.push(
+            ...flattenValues(
+              child
+            )
+          );
+
+        }
+
+        else if (
+          child !==
+          null
+
+          &&
+
+          child !==
+          undefined
+        ) {
+
+          output.push(
+            child
+          );
+
+        }
+
+      }
 
 
       continue;
@@ -4385,6 +5225,18 @@ function createFallbackSelection() {
 
       publicImpact:
         false,
+
+      publicImpactScore:
+        0,
+
+      professionalImpact:
+        false,
+
+      professionalImpactScore:
+        0,
+
+      professionalAudience:
+        "none",
 
       sportsValue:
         false,
@@ -4868,4 +5720,4 @@ function isPlainObject(
 
   );
 
-   }
+     }
