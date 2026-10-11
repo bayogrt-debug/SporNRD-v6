@@ -4,8 +4,8 @@
 
    İçerik Niyet / Durum Anlama Motoru
 
-   Sürüm: 6.1.3
-   Engine Version: 1.2
+   Sürüm: 6.1.4
+   Engine Version: 1.3
 
    AMAÇ
    ---------------------------------------------------------
@@ -32,11 +32,61 @@
    stores
 
    =========================================================
-   1.2 ANA GELİŞTİRME
+   1.3 ANA GELİŞTİRME
    ---------------------------------------------------------
-   Gelecek zaman fiili artık tek başına upcoming üretmez.
+   Spor haberlerindeki tamamlanmış olay ve başarı dili
+   genişletildi.
 
    Örnek:
+
+   "Murat Ciner, FIBA 3X3 A Klasmanına Yükseldi"
+   ---------------------------------------------------------
+   contentIntent:
+   achievement
+
+   eventStatus:
+   completed
+
+
+   "FIBA Europe Cup'ta 1. Hafta Noktalandı"
+   ---------------------------------------------------------
+   gerçek spor organizasyonu + tamamlanma dili:
+
+   eventStatus:
+   completed
+
+
+   "Basketbol Şampiyonlar Ligi'nde
+    1. Hafta Heyecanı Yaşandı"
+   ---------------------------------------------------------
+   organizasyon bağlamı + geçmiş/tamamlanmış faaliyet dili:
+
+   eventStatus:
+   completed
+
+
+   KRİTİK:
+   ---------------------------------------------------------
+   "yaşandı"
+   "oynandı"
+   "geride kaldı"
+
+   gibi ifadeler tek başına completed üretmez.
+
+   Bunların yanında gerçek spor organizasyonu / müsabaka
+   bağlamı bulunmalıdır.
+
+   Böylece:
+
+   "Yoğun bir süreç yaşandı"
+
+   gibi genel veya idarî ifadeler yanlışlıkla spor sonucu
+   sayılmaz.
+
+   =========================================================
+   1.2 KURALI KORUNUYOR
+   ---------------------------------------------------------
+   Gelecek zaman fiili tek başına upcoming üretmez.
 
    "Antrenör vize işlemleri 1 Ekim'de başlayacak."
    ---------------------------------------------------------
@@ -46,32 +96,8 @@
    eventStatus:
    unknown
 
-   Çünkü burada başlayacak olan şey bir ETKİNLİK değil,
-   idarî / meslekî bir işlem dönemidir.
-
-   Buna karşılık:
-
-   "Yüzme Şampiyonası 20 Ekim'de başlayacak."
-   ---------------------------------------------------------
-   gerçek etkinlik nesnesi bulunduğu için:
-
-   eventStatus:
-   upcoming
-
-   olabilir.
-
-   Aynı ayrım:
-
-   - başvuru işlemleri
-   - kayıt işlemleri
-   - lisans işlemleri
-   - vize işlemleri
-   - ödeme işlemleri
-   - delege işlemleri
-   - genel kurul işlemleri
-   - belge / evrak işlemleri
-
-   için de uygulanır.
+   Çünkü başlayan şey spor etkinliği değil,
+   idarî / meslekî işlem dönemidir.
 
    =========================================================
    TEMEL KURAL
@@ -79,6 +105,7 @@
    Önce ANLA
    sonra SINIFLANDIR
    sonra ZAMANI ÇÖZ
+   sonra SEÇ
    sonra YAZ.
 
    Bu motor:
@@ -86,6 +113,7 @@
    - Yayın tarihini olay tarihi saymaz.
    - Temporal Engine'in görevini üstlenmez.
    - İşlem başlangıcını etkinlik başlangıcı saymaz.
+   - Genel geçmiş zaman fiilini tek başına spor sonucu saymaz.
    - Emin olmadığı durumda güvenli varsayım olarak
      news / unknown kullanır.
    ========================================================= */
@@ -96,7 +124,7 @@
    ========================================================= */
 
 export const CONTENT_INTENT_VERSION =
-  "1.2";
+  "1.3";
 
 
 /* =========================================================
@@ -144,11 +172,9 @@ export const CONTENT_INTENTS = {
 /* =========================================================
    EVENT STATUS
 
-   DİKKAT:
    Bu yalnızca içerik dilinden çıkan ilk semantik karardır.
 
-   Nihai zaman kararı Temporal Engine tarafından
-   doğrulanacaktır.
+   Nihai tarih karşılaştırmasını Temporal Engine yapar.
    ========================================================= */
 
 export const EVENT_STATUSES = {
@@ -169,17 +195,7 @@ export const EVENT_STATUSES = {
 
 
 /* =========================================================
-   GERÇEK ETKİNLİK NESNELERİ
-
-   Bir gelecek zaman fiilinin "upcoming" üretebilmesi için
-   bu tür gerçek faaliyet bağlamlarından en az biri aranır.
-
-   Çok genel:
-   - program
-   - süreç
-   - işlem
-
-   gibi kelimeler burada özellikle YOKTUR.
+   GERÇEK ETKİNLİK / SPOR ORGANİZASYONU NESNELERİ
    ========================================================= */
 
 const EVENT_OBJECT_SIGNALS = [
@@ -246,16 +262,36 @@ const EVENT_OBJECT_SIGNALS = [
 
   "egitim etkinligi",
 
-  "sertifika programi"
+  "sertifika programi",
+
+
+  /* -------------------------------------------------------
+     LİG / ULUSLARARASI ORGANİZASYONLAR
+     ------------------------------------------------------- */
+
+  "sampiyonlar ligi",
+
+  "basketbol ligi",
+
+  "super ligi",
+
+  "euroleague",
+
+  "eurocup",
+
+  "europe cup",
+
+  "fiba europe cup",
+
+  "basketball champions league",
+
+  "champions league"
 
 ];
 
 
 /* =========================================================
    İDARİ / İŞLEMSEL SÜREÇLER
-
-   Bunların "başlayacak" olması gerçek spor etkinliğinin
-   başlayacağı anlamına gelmez.
    ========================================================= */
 
 const ADMINISTRATIVE_PROCESS_SIGNALS = [
@@ -406,13 +442,20 @@ const ONGOING_LANGUAGE_SIGNALS = [
 
   "sampiyona devam ediyor",
 
-  "kamp devam ediyor"
+  "kamp devam ediyor",
+
+  "lig devam ediyor"
 
 ];
 
 
 /* =========================================================
-   TAMAMLANMIŞ FAALİYET SİNYALLERİ
+   GÜÇLÜ TAMAMLANMIŞ OLAY SİNYALLERİ
+
+   Bunlar kendi başına tamamlanmışlık anlamı taşır.
+
+   Yine de completedEvent olması için gerçek etkinlik
+   bağlamı ayrıca kontrol edilir.
    ========================================================= */
 
 const COMPLETED_LANGUAGE_SIGNALS = [
@@ -435,7 +478,108 @@ const COMPLETED_LANGUAGE_SIGNALS = [
 
   "galip geldi",
 
-  "sonuclandi"
+  "sonuclandi",
+
+  "noktalanmis oldu",
+
+  "noktalandı",
+
+  "noktalanarak sona erdi",
+
+  "bitti"
+
+];
+
+
+/* =========================================================
+   BAĞLAMA BAĞLI TAMAMLANMIŞLIK SİNYALLERİ
+
+   Bunlar tek başına kullanılmaz.
+
+   Gerçek spor etkinliği / organizasyonu bulunmalıdır.
+
+   Örnek:
+
+   "1. Hafta Heyecanı Yaşandı"
+   + Şampiyonlar Ligi
+   → completed
+
+   "Yoğun bir süreç yaşandı"
+   → completed DEĞİL
+   ========================================================= */
+
+const CONTEXTUAL_COMPLETED_SIGNALS = [
+
+  "hafta heyecani yasandi",
+
+  "heyecani yasandi",
+
+  "karsilasmalar oynandi",
+
+  "karsilasma oynandi",
+
+  "maclar oynandi",
+
+  "mac oynandi",
+
+  "musabakalar oynandi",
+
+  "musabaka oynandi",
+
+  "hafta geride kaldi",
+
+  "ilk hafta geride kaldi",
+
+  "birinci hafta geride kaldi",
+
+  "etap geride kaldi",
+
+  "tur geride kaldi"
+
+];
+
+
+/* =========================================================
+   BAŞARI / KARİYER GELİŞİMİ SİNYALLERİ
+   ========================================================= */
+
+const ACHIEVEMENT_SIGNALS = [
+
+  "rekor kirdi",
+
+  "turkiye rekoru",
+
+  "dunya rekoru",
+
+  "madalya kazandi",
+
+  "altin madalya",
+
+  "gumus madalya",
+
+  "bronz madalya",
+
+  "derece elde etti",
+
+  "basari elde etti",
+
+  "kota kazandi",
+
+  "rekor yeniledi",
+
+  "klasmana yukseldi",
+
+  "klasmanina yukseldi",
+
+  "bir ust klasmana yukseldi",
+
+  "a klasmanina yukseldi",
+
+  "b klasmanina yukseldi",
+
+  "ust klasmana yukseldi",
+
+  "terfi etti"
 
 ];
 
@@ -473,14 +617,6 @@ export function analyzeContentIntent(
 
   /* =======================================================
      SEMANTİK BAĞLAM
-
-     Daha skor üretmeden önce:
-
-     - gerçek etkinlik var mı?
-     - yalnız idarî süreç mi var?
-     - gelecek / devam / geçmiş dili var mı?
-
-     belirlenir.
      ========================================================= */
 
   const semanticContext =
@@ -660,7 +796,14 @@ export function analyzeContentIntent(
       ["tamamlandi", 11],
       ["sona erdi", 11],
       ["final sona erdi", 12],
-      ["sonuc belli oldu", 12]
+      ["sonuc belli oldu", 12],
+
+      /* ---------------------------------------------------
+         1.3
+         --------------------------------------------------- */
+
+      ["noktalandı", 14],
+      ["hafta noktalandı", 15]
 
     ],
 
@@ -700,7 +843,19 @@ export function analyzeContentIntent(
       ["derece elde etti", 11],
       ["basari elde etti", 9],
       ["kota kazandi", 11],
-      ["rekor yeniledi", 13]
+      ["rekor yeniledi", 13],
+
+      /* ---------------------------------------------------
+         KLASMAN / YÜKSELME
+         --------------------------------------------------- */
+
+      ["klasmana yukseldi", 16],
+      ["klasmanina yukseldi", 16],
+      ["bir ust klasmana yukseldi", 18],
+      ["a klasmanina yukseldi", 18],
+      ["b klasmanina yukseldi", 17],
+      ["ust klasmana yukseldi", 17],
+      ["terfi etti", 10]
 
     ],
 
@@ -792,12 +947,6 @@ export function analyzeContentIntent(
 
   /* =======================================================
      8. KAYIT / BAŞVURU
-
-     DİKKAT:
-     Kayıt süreci bir ETKİNLİK değildir.
-
-     Registration intent üretilebilir ancak eventStatus
-     bunun yüzünden upcoming olmaz.
      ========================================================= */
 
   scorePatterns({
@@ -846,22 +995,6 @@ export function analyzeContentIntent(
 
   /* =======================================================
      9. FIRSAT / GERÇEK FAALİYET
-
-     1.1'DEKİ KRİTİK HATA:
-     ---------------------------------------------------------
-     "başlayacak"
-     "yapılacak"
-     "gerçekleşecek"
-
-     gibi fiiller burada doğrudan opportunity puanı
-     üretiyordu.
-
-     1.2'DE:
-     Gelecek zaman fiilleri bu genel pattern listesinden
-     çıkarıldı.
-
-     Gerçek faaliyet kontrolü aşağıdaki
-     applySemanticContextRules() içinde yapılır.
      ========================================================= */
 
   scorePatterns({
@@ -997,8 +1130,6 @@ export function analyzeContentIntent(
 
   /* =======================================================
      13. SEMANTİK BAĞLAM KURALLARI
-
-     Gelecek zaman dili burada güvenli şekilde yorumlanır.
      ========================================================= */
 
   applySemanticContextRules({
@@ -1181,6 +1312,9 @@ export function analyzeContentIntent(
       eventObject:
         semanticContext.eventObject,
 
+      eventObjectInTitle:
+        semanticContext.eventObjectInTitle,
+
       administrativeProcess:
         semanticContext.administrativeProcess,
 
@@ -1199,8 +1333,17 @@ export function analyzeContentIntent(
       ongoingEvent:
         semanticContext.ongoingEvent,
 
+      completedLanguage:
+        semanticContext.completedLanguage,
+
+      contextualCompletedLanguage:
+        semanticContext.contextualCompletedLanguage,
+
       completedEvent:
-        semanticContext.completedEvent
+        semanticContext.completedEvent,
+
+      achievementLanguage:
+        semanticContext.achievementLanguage
 
     },
 
@@ -1377,14 +1520,6 @@ function createScoreMap() {
 
 /* =========================================================
    SEMANTİK BAĞLAM ANALİZİ
-
-   Bu fonksiyon içerik kategorisini seçmez.
-
-   Yalnızca:
-
-   "Gelecek zaman fiili neyin geleceğini anlatıyor?"
-
-   sorusunun yanıtını hazırlar.
    ========================================================= */
 
 function analyzeSemanticContext({
@@ -1440,7 +1575,7 @@ function analyzeSemanticContext({
     );
 
 
-  const completedLanguage =
+  const strongCompletedLanguage =
     containsAnyFragment(
       text,
       COMPLETED_LANGUAGE_SIGNALS
@@ -1448,34 +1583,65 @@ function analyzeSemanticContext({
 
 
   /*
-    Başlıkta gerçek faaliyet nesnesi bulunması
-    özellikle güçlü kabul edilir.
+    "yaşandı", "oynandı", "geride kaldı"
 
-    Örnek:
-    "3. Kademe Yüzme Antrenörlük Kursu..."
+    gibi ifadeler yalnız gerçek spor organizasyonu varsa
+    tamamlanmışlık sinyali kabul edilir.
   */
+
+  const contextualCompletedLanguage =
+    Boolean(
+
+      eventObject
+
+      &&
+
+      containsAnyFragment(
+        text,
+        CONTEXTUAL_COMPLETED_SIGNALS
+      )
+
+    );
+
+
+  const completedLanguage =
+    Boolean(
+
+      strongCompletedLanguage
+
+      ||
+
+      contextualCompletedLanguage
+
+    );
+
+
+  const achievementLanguage =
+    containsAnyFragment(
+      text,
+      ACHIEVEMENT_SIGNALS
+    );
+
+
+  /* -------------------------------------------------------
+     GÜÇLÜ GERÇEK ETKİNLİK BAĞLAMI
+     ------------------------------------------------------- */
 
   const strongEventContext =
     eventObjectInTitle
     ||
     (
       eventObject
+
       &&
+
       !administrativeProcessInTitle
     );
 
 
-  /*
-    Tamamen idarî süreç:
-
-    "Antrenör Vize İşlemleri Hakkında Duyuru"
-
-    gibi başlıklar.
-
-    Metnin başka bir yerinde "seminer" kelimesinin
-    geçmesi yanlışlıkla bunu etkinliğe çevirmesin diye
-    başlık idarî ise güçlü şekilde korunur.
-  */
+  /* -------------------------------------------------------
+     SAF İDARİ SÜREÇ
+     ------------------------------------------------------- */
 
   const pureAdministrativeProcess =
     Boolean(
@@ -1585,8 +1751,17 @@ function analyzeSemanticContext({
     ongoingLanguage:
       ongoingLanguage,
 
+    strongCompletedLanguage:
+      strongCompletedLanguage,
+
+    contextualCompletedLanguage:
+      contextualCompletedLanguage,
+
     completedLanguage:
       completedLanguage,
+
+    achievementLanguage:
+      achievementLanguage,
 
     futureAdministrativeProcess:
       futureAdministrativeProcess,
@@ -1646,11 +1821,6 @@ function applySemanticContextRules({
 
   /* -------------------------------------------------------
      İDARİ SÜREÇ + GELECEK ZAMAN
-
-     "Vize işlemleri başlayacak"
-     "Lisans işlemleri başlayacak"
-
-     upcoming etkinlik DEĞİLDİR.
      ------------------------------------------------------- */
 
   if (
@@ -1681,9 +1851,6 @@ function applySemanticContextRules({
 
   /* -------------------------------------------------------
      İDARİ BAĞLAM
-
-     Gelecek zaman olmasa bile duyuru olasılığını
-     destekler.
      ------------------------------------------------------- */
 
   if (
@@ -1692,6 +1859,75 @@ function applySemanticContextRules({
 
     scores.announcement +=
       4;
+
+  }
+
+
+  /* -------------------------------------------------------
+     TAMAMLANMIŞ GERÇEK SPOR OLAYI
+
+     Özellikle:
+
+     - hafta noktalandı
+     - hafta heyecanı yaşandı
+     - karşılaşmalar oynandı
+     - hafta geride kaldı
+
+     gibi başlıkları güçlendirir.
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.completedEvent
+  ) {
+
+    scores.result +=
+      8;
+
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        8
+
+      );
+
+
+    reasons.push(
+      "Gerçek spor faaliyeti tamamlanmış/geçmiş olay diliyle birlikte bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     BAŞARI DİLİ
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.achievementLanguage
+  ) {
+
+    scores.achievement +=
+      6;
+
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        4
+
+      );
+
+
+    reasons.push(
+      "Sporcu/hakem kariyer başarısı veya klasman yükselişi sinyali bulundu."
+    );
 
   }
 
@@ -2058,7 +2294,8 @@ function applySpecialRules({
         "kupayi kazandi",
         "kupayi kaldirdi",
         "maglup etti",
-        "galip geldi"
+        "galip geldi",
+        "noktalandı"
       ]
     )
   ) {
@@ -2068,7 +2305,7 @@ function applySpecialRules({
 
 
     reasons.push(
-      "Başlık doğrudan sonuç bildiriyor."
+      "Başlık doğrudan tamamlanmış spor sonucu/faaliyeti bildiriyor."
     );
 
   }
@@ -2085,7 +2322,13 @@ function applySpecialRules({
         "rekor kirdi",
         "madalya kazandi",
         "derece elde etti",
-        "kota kazandi"
+        "kota kazandi",
+        "klasmana yukseldi",
+        "klasmanina yukseldi",
+        "bir ust klasmana yukseldi",
+        "a klasmanina yukseldi",
+        "b klasmanina yukseldi",
+        "terfi etti"
       ]
     )
   ) {
@@ -2095,7 +2338,7 @@ function applySpecialRules({
 
 
     reasons.push(
-      "Başlık doğrudan başarı bildiriyor."
+      "Başlık doğrudan başarı veya kariyer/klasman yükselişi bildiriyor."
     );
 
   }
@@ -2176,6 +2419,56 @@ function applySpecialRules({
 
 
   /* -------------------------------------------------------
+     KLASMAN YÜKSELİŞİ
+
+     Örnek:
+     "Murat Ciner, FIBA 3X3 A Klasmanına Yükseldi"
+
+     Bu bir genel haber değil, doğrudan başarıdır.
+     ------------------------------------------------------- */
+
+  if (
+    containsAnyPhrase(
+      text,
+      [
+        "klasmana yukseldi",
+        "klasmanina yukseldi",
+        "bir ust klasmana yukseldi",
+        "a klasmanina yukseldi",
+        "b klasmanina yukseldi",
+        "ust klasmana yukseldi"
+      ]
+    )
+  ) {
+
+    scores.achievement +=
+      8;
+
+
+    scores.news =
+      Math.max(
+        0,
+        scores.news -
+        2
+      );
+
+
+    scores.opportunity =
+      Math.max(
+        0,
+        scores.opportunity -
+        5
+      );
+
+
+    reasons.push(
+      "Klasman yükselişi doğrudan sportif/kariyer başarısı olarak değerlendirildi."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
      KAYIT HAKKI KAZANANLAR
      ------------------------------------------------------- */
 
@@ -2226,11 +2519,6 @@ function applySpecialRules({
 
   /* -------------------------------------------------------
      GERÇEK GELECEK FAALİYET
-
-     Eski sistemde gelecek fiili tek başına yeterliydi.
-
-     Artık yalnız semanticContext.futureEvent true ise
-     sonuç/başarı skorları azaltılır.
      ------------------------------------------------------- */
 
   if (
@@ -2262,7 +2550,34 @@ function applySpecialRules({
 
 
   /* -------------------------------------------------------
-     GEÇMİŞ SONUÇ
+     TAMAMLANMIŞ GERÇEK SPOR FAALİYETİ
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.completedEvent
+  ) {
+
+    scores.result +=
+      5;
+
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        5
+
+      );
+
+  }
+
+
+  /* -------------------------------------------------------
+     GENEL GEÇMİŞ SONUÇ
+
+     Saf idarî süreç değilse kullanılabilir.
      ------------------------------------------------------- */
 
   if (
@@ -2274,15 +2589,11 @@ function applySpecialRules({
         "sampiyon oldu",
         "kupayi kazandi",
         "maglup etti",
-        "galip geldi"
+        "galip geldi",
+        "noktalandı"
       ]
     )
   ) {
-
-    /*
-      "vize işlemleri tamamlandı" gibi saf idarî süreçlerde
-      spor sonucu puanı verilmez.
-    */
 
     if (
       !semanticContext.pureAdministrativeProcess
@@ -2303,6 +2614,46 @@ function applySpecialRules({
         );
 
     }
+
+  }
+
+
+  /* -------------------------------------------------------
+     BAĞLAMA BAĞLI GEÇMİŞ SPOR DİLİ
+
+     "heyecanı yaşandı"
+     "maçlar oynandı"
+     "hafta geride kaldı"
+
+     yalnız gerçek event bağlamında kullanılır.
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.contextualCompletedLanguage
+
+    &&
+
+    semanticContext.completedEvent
+  ) {
+
+    scores.result +=
+      6;
+
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        6
+
+      );
+
+
+    reasons.push(
+      "Geçmiş zaman ifadesi gerçek spor organizasyonu bağlamında tamamlanmış olay olarak yorumlandı."
+    );
 
   }
 
@@ -2402,9 +2753,6 @@ function applySpecialRules({
 
   /* -------------------------------------------------------
      SAF İDARİ DUYURU
-
-     Vize / lisans / delege / genel kurul gibi içerikler
-     yanlışlıkla opportunity tarafına kaymasın.
      ------------------------------------------------------- */
 
   if (
@@ -2547,20 +2895,6 @@ function selectIntent(
 
 /* =========================================================
    SEMANTİK EVENT STATUS
-
-   Gerçek tarih karşılaştırması burada YOKTUR.
-
-   Temporal Engine daha sonra doğrular.
-
-   EN ÖNEMLİ 1.2 KURALI:
-   ---------------------------------------------------------
-   Gelecek zaman fiili tek başına upcoming değildir.
-
-   "Vize işlemleri başlayacak"
-   → unknown
-
-   "Şampiyona başlayacak"
-   → upcoming
    ========================================================= */
 
 function determineEventStatus({
@@ -2601,12 +2935,6 @@ function determineEventStatus({
 
   /* -------------------------------------------------------
      TRANSACTIONAL INTENTLER
-
-     Kayıt penceresinin açılması / kapanması,
-     ürün, iş veya kampanya bir "eventStatus" değildir.
-
-     Bunların gerçek zaman durumu Temporal Engine'deki
-     actionState üzerinden yönetilir.
      ------------------------------------------------------- */
 
   if (
@@ -2632,6 +2960,11 @@ function determineEventStatus({
   if (
     semanticContext.completedEvent
   ) {
+
+    reasons.push(
+      "Gerçek spor/etkinlik bağlamında tamamlanmış faaliyet dili bulundu."
+    );
+
 
     return EVENT_STATUSES.completed;
 
@@ -2666,10 +2999,6 @@ function determineEventStatus({
 
   /* -------------------------------------------------------
      GELECEK İDARİ SÜREÇ
-
-     Kritik testimiz:
-
-     "Antrenör Vize İşlemleri Hakkında Duyuru"
      ------------------------------------------------------- */
 
   if (
@@ -2706,9 +3035,6 @@ function determineActionable({
 
   /* -------------------------------------------------------
      HABER / DUYURU TÜRLERİ
-
-     Gerçek transactional action yoksa işlem yapılabilir
-     kabul edilmez.
      ------------------------------------------------------- */
 
   if (
@@ -2774,9 +3100,6 @@ function determineActionable({
 
   /* -------------------------------------------------------
      OPPORTUNITY
-
-     Yalnızca kullanıcıya gerçek katılım / işlem sinyali
-     bulunuyorsa actionable.
      ------------------------------------------------------- */
 
   if (
@@ -2841,11 +3164,6 @@ function hasTransactionalAction(
 
 /* =========================================================
    OPPORTUNITY SCORE
-
-   Bu Ranking Score değildir.
-
-   Kullanıcının şu anda değerlendirebileceği
-   fırsat ihtimalini anlatır.
    ========================================================= */
 
 function calculateOpportunityScore({
@@ -3010,10 +3328,6 @@ function calculateOpportunityScore({
 
 /* =========================================================
    FEED TREATMENT
-
-   Haber/sonuç içerikleri otomatik cezalandırılmaz.
-
-   Asıl sıralama Ranking Engine'e aittir.
    ========================================================= */
 
 function determineFeedTreatment({
@@ -3558,8 +3872,6 @@ function flattenValues(
 /* =========================================================
    PHRASE MATCH
 
-   ÖNEMLİ:
-
    "sampiyon"
    "sampiyona"
 
@@ -3608,6 +3920,17 @@ function containsAnyPhrase(
   values
 ) {
 
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
+
   return values.some(
     value =>
       containsPhrase(
@@ -3622,19 +3945,7 @@ function containsAnyPhrase(
 /* =========================================================
    FRAGMENT MATCH
 
-   Türkçe çekimler nedeniyle:
-
-   başlayacak
-   başlayacaktır
-
-   delegeler
-   delegelerin
-   delegelerinin
-
-   gibi kontrollü varyasyonları yakalamak için kullanılır.
-
-   Bu fonksiyon genel scoring için değil,
-   semantik bağlam tespiti için kullanılır.
+   Kontrollü semantik bağlam tespiti için kullanılır.
    ========================================================= */
 
 function containsFragment(
@@ -3836,6 +4147,9 @@ function createFallbackResult() {
       eventObject:
         false,
 
+      eventObjectInTitle:
+        false,
+
       administrativeProcess:
         false,
 
@@ -3854,7 +4168,16 @@ function createFallbackResult() {
       ongoingEvent:
         false,
 
+      completedLanguage:
+        false,
+
+      contextualCompletedLanguage:
+        false,
+
       completedEvent:
+        false,
+
+      achievementLanguage:
         false
 
     },
