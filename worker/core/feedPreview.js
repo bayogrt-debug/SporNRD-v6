@@ -4,11 +4,11 @@
 
    Gerçek Kaynak → v6.1 Preview Pipeline
 
-   Sürüm: 6.1.3-preview
+   Sürüm: 6.1.4-preview
 
    AMAÇ
    ---------------------------------------------------------
-   Gerçek TYF / TBF verisini:
+   Gerçek TYF / TBF / diğer kaynak verisini:
 
    Legacy Feed
         ↓
@@ -19,6 +19,10 @@
    Discovery Engine
         ↓
    Temporal Engine
+        ↓
+   Selection Engine
+        ↓
+   Dedupe
         ↓
    Lifecycle Engine
         ↓
@@ -31,18 +35,37 @@
    zincirinden geçirmek.
 
    =========================================================
+   SELECTION ENGINE
+   ---------------------------------------------------------
+   Kaynakta bulunan her içerik doğrudan kullanıcı akışına
+   girmez.
+
+   Selection Engine şu 6 ana ölçütü birlikte değerlendirir:
+
+   - kullanıcı yararı
+   - önem / haber değeri
+   - fırsat / aksiyon değeri
+   - zaman değeri
+   - güvenilirlik
+   - ilgi değeri
+
+   Ayrıca kategori ve alt kategori bağlamını kullanır.
+
+   Karar:
+
+   selected
+   borderline
+   rejected
+
+   Varsayılan olarak yalnız "selected" içerikler gerçek
+   preview akışına devam eder.
+
+   includeBorderline = true verilirse borderline içerikler de
+   test amacıyla akışa alınabilir.
+
+   =========================================================
    TEMPORAL ENGINE
    ---------------------------------------------------------
-   İçeriğin gerçek tarihlerini bugünün tarihiyle
-   karşılaştırır.
-
-   past
-   present
-   future
-   unknown
-
-   kararını üretir.
-
    Yayın tarihi olay tarihi değildir.
 
    Gerçek olay tarihi yoksa yayın tarihi yalnızca:
@@ -54,29 +77,10 @@
    =========================================================
    RANKING ENGINE
    ---------------------------------------------------------
-   İçeriğin anlamını değiştirmez.
+   Ranking içerik seçmez.
 
-   Yalnızca:
-
-   "Bu içerik kullanıcıya akışta
-   ne kadar yukarıda gösterilmeli?"
-
-   sorusunu cevaplar.
-
-   Ranking;
-
-   - relevance
-   - quality
-   - trust
-   - freshness
-   - temporal
-   - intent
-   - actionable
-   - learning
-   - interaction
-   - lifecycle
-
-   sinyallerini birlikte değerlendirir.
+   Selection Engine tarafından kabul edilmiş içeriklerin
+   kullanıcı akışındaki sırasını belirler.
 
    =========================================================
    ÖNEMLİ
@@ -125,6 +129,16 @@ import {
 
 import {
 
+  applySelection,
+  filterSelectedPosts,
+  createSelectionSummary,
+  SELECTION_ENGINE_VERSION
+
+} from "../intelligence/selectionEngine.js";
+
+
+import {
+
   applyLifecycle,
   filterVisiblePosts,
   createLifecycleSummary
@@ -154,7 +168,7 @@ import {
    ========================================================= */
 
 export const FEED_PREVIEW_VERSION =
-  "1.3";
+  "1.4";
 
 
 const DEFAULT_LIMIT =
@@ -179,6 +193,10 @@ const PIPELINE_STAGES = [
 
   "temporal",
 
+  "selection",
+
+  "dedupe",
+
   "lifecycle",
 
   "persona",
@@ -197,7 +215,8 @@ export async function buildFeedPreview({
   providers = [],
   env = null,
   limit = DEFAULT_LIMIT,
-  requestedSources = []
+  requestedSources = [],
+  includeBorderline = false
 
 } = {}) {
 
@@ -216,6 +235,11 @@ export async function buildFeedPreview({
     normalizeRequestedSources(
       requestedSources
     );
+
+
+  const allowBorderline =
+    includeBorderline ===
+    true;
 
 
   /* =======================================================
@@ -286,6 +310,9 @@ export async function buildFeedPreview({
       temporalVersion:
         TEMPORAL_VERSION,
 
+      selectionEngineVersion:
+        SELECTION_ENGINE_VERSION,
+
       rankingVersion:
         RANKING_VERSION,
 
@@ -293,6 +320,11 @@ export async function buildFeedPreview({
         [
           ...PIPELINE_STAGES
         ],
+
+      selectionMode:
+        allowBorderline
+          ? "selected_and_borderline"
+          : "selected_only",
 
       startedAt:
         startedAt,
@@ -316,6 +348,18 @@ export async function buildFeedPreview({
       uniquePostCount:
         0,
 
+      selectedPostCount:
+        0,
+
+      borderlinePostCount:
+        0,
+
+      rejectedPostCount:
+        0,
+
+      eligiblePostCount:
+        0,
+
       visiblePostCount:
         0,
 
@@ -323,6 +367,9 @@ export async function buildFeedPreview({
         0,
 
       items:
+        [],
+
+      selectionReview:
         [],
 
       errors:
@@ -364,6 +411,11 @@ export async function buildFeedPreview({
 
         temporal:
           createTemporalSummary(
+            []
+          ),
+
+        selection:
+          createSelectionSummary(
             []
           ),
 
@@ -441,7 +493,7 @@ export async function buildFeedPreview({
      SONUÇ HAVUZLARI
      ========================================================= */
 
-  const allPosts =
+  const candidatePosts =
     [];
 
 
@@ -454,7 +506,7 @@ export async function buildFeedPreview({
 
 
   /* =======================================================
-     HER KAYNAĞI YENİ MOTORLARDAN GEÇİR
+     HER KAYNAĞI OKU VE SELECTION NOKTASINA KADAR İŞLE
      ========================================================= */
 
   for (
@@ -587,7 +639,7 @@ export async function buildFeedPreview({
 
 
       /* =====================================================
-         2. HER POSTU İŞLE
+         2. HER POSTU SELECTION NOKTASINA KADAR İŞLE
          ===================================================== */
 
       for (
@@ -596,17 +648,6 @@ export async function buildFeedPreview({
       ) {
 
         try {
-
-          /*
-            Legacy postlarda createPost()
-            firstSeenAt alanını "şimdi" yapabilir.
-
-            Eski haberleri yanlışlıkla her preview
-            isteğinde yeniden "yeni" göstermemek için
-            yayın tarihi biliniyorsa onu koruyoruz.
-
-            Bu işlem yayın tarihini olay tarihi yapmaz.
-          */
 
           let post =
             stabilizeLegacyLifecycle(
@@ -617,20 +658,7 @@ export async function buildFeedPreview({
           /* =================================================
              CONTENT INTENT ENGINE
 
-             Önce içerik NE ANLATIYOR?
-
-             Örnek:
-
-             result
-             achievement
-             registration
-             opportunity
-             announcement
-             campaign
-             job
-             product
-             news
-
+             İçerik ne anlatıyor?
              ================================================= */
 
           post =
@@ -642,32 +670,15 @@ export async function buildFeedPreview({
           /* =================================================
              DISCOVERY ENGINE
 
-             İçerik hangi yapıya ait?
+             İçerik hangi:
 
-             -------------------------------------------------
-             sport:
-             swimming
-             basketball
-             ...
+             - branş
+             - bölüm
+             - kategori
+             - alt kategori
+             - provider türü
 
-             -------------------------------------------------
-             section:
-             individual_athlete
-             trainer_coach
-             business_institution
-
-             -------------------------------------------------
-             category:
-             news
-             course
-             event
-             campaign
-             jobs
-             stores
-
-             -------------------------------------------------
-             subCategory:
-             kategoriye göre değişir
+             yapısına ait?
              ================================================= */
 
           post =
@@ -679,34 +690,9 @@ export async function buildFeedPreview({
           /* =================================================
              TEMPORAL ENGINE
 
-             İçerik NE ZAMAN?
+             İçerik ne zaman?
 
-             -------------------------------------------------
-             state:
-             past
-             present
-             future
-             unknown
-
-             -------------------------------------------------
-             eventStatus:
-             upcoming
-             ongoing
-             completed
-             unknown
-
-             -------------------------------------------------
-             actionState:
-             open
-             closing_today
-             closed
-             possible_unverified
-             not_applicable
-
-             -------------------------------------------------
-             KRİTİK:
-
-             publishedAt olay tarihi değildir.
+             Yayın tarihi olay tarihi değildir.
              ================================================= */
 
           post =
@@ -716,111 +702,32 @@ export async function buildFeedPreview({
 
 
           /* =================================================
-             LIFECYCLE ENGINE
+             SELECTION ENGINE
 
-             İçeriğin SporNRD içindeki yaşam döngüsü.
+             İçerik SporNRD kullanıcı akışına girmeye
+             değer mi?
 
-             Örnek:
+             6 ana ölçüt:
 
-             new
-             active
-             closing_soon
-             updated
-             expired
-             removed
+             - usefulness
+             - importance
+             - opportunity
+             - timeliness
+             - trust
+             - interest
 
-             Temporal ile lifecycle farklı kavramlardır.
+             Karar:
 
-             Örneğin:
-
-             lifecycle.status = "new"
-             temporal.state   = "past"
-
-             olabilir.
-
-             Bu:
-
-             "Yeni yayımlanmış fakat geçmişte
-             gerçekleşmiş olay"
-
-             anlamına gelebilir.
+             selected
+             borderline
+             rejected
              ================================================= */
 
           post =
-            applyLifecycle(
+            applySelection(
               post
             );
 
-
-          /* =================================================
-             PERSONA ENGINE
-
-             Yapılandırılmış gerçekleri kullanıcıya
-             anlaşılır ve dikkat çekici SporNRD diliyle
-             anlatır.
-
-             -------------------------------------------------
-             past:
-             oldu / kazandı / tamamlandı
-
-             present:
-             devam ediyor / bugün
-
-             future:
-             başlayacak / yapılacak
-
-             unknown:
-             yalnız yayın güncelliği kullanılır
-
-             -------------------------------------------------
-             Persona gerçek üretmez.
-             ================================================= */
-
-          post =
-            applyPersona(
-              post
-            );
-
-
-          /* =================================================
-             RANKING ENGINE
-
-             Artık postun:
-
-             - anlamı
-             - kategorisi
-             - zamanı
-             - güveni
-             - güncelliği
-             - kullanıcı açısından değeri
-             - öğrenme puanı
-             - etkileşimleri
-
-             belli.
-
-             Ranking Engine bu postun akıştaki
-             önceliğini hesaplar.
-
-             Örnek çıktı:
-
-             rankingScore: 86.4
-
-             rankingMeta.band:
-             priority
-             high
-             normal
-             low
-             ================================================= */
-
-          post =
-            applyRanking(
-              post
-            );
-
-
-          /* =================================================
-             POST HAVUZUNA EKLE
-             ================================================= */
 
           if (
             post &&
@@ -828,7 +735,7 @@ export async function buildFeedPreview({
             "object"
           ) {
 
-            allPosts.push(
+            candidatePosts.push(
               post
             );
 
@@ -853,7 +760,7 @@ export async function buildFeedPreview({
               "",
 
             stage:
-              "post-pipeline",
+              "candidate-pipeline",
 
             error:
               errorMessage(
@@ -897,42 +804,136 @@ export async function buildFeedPreview({
 
   /* =======================================================
      TEKRARLARI TEMİZLE
+
+     Selection özeti unique içerikler üzerinden hesaplanır.
+     Böylece aynı haber iki kez geldiyse karar istatistiğini
+     şişirmez.
      ========================================================= */
 
   const uniquePosts =
     dedupePosts(
-      allPosts
+      candidatePosts
     );
+
+
+  /* =======================================================
+     SELECTION SUMMARY
+     ========================================================= */
+
+  const selectionSummary =
+    createSelectionSummary(
+      uniquePosts
+    );
+
+
+  const selectionCounts =
+    readSelectionCounts(
+      selectionSummary
+    );
+
+
+  /* =======================================================
+     SEÇİLEN İÇERİKLER
+
+     Varsayılan:
+     sadece selected
+
+     Debug/test:
+     includeBorderline = true
+     ========================================================= */
+
+  const eligiblePosts =
+    filterSelectedPosts(
+      uniquePosts,
+      {
+
+        includeBorderline:
+          allowBorderline
+
+      }
+    );
+
+
+  /* =======================================================
+     LIFECYCLE
+
+     Artık yalnız Selection Engine tarafından kabul edilmiş
+     içeriklerin yaşam döngüsü işlenir.
+     ========================================================= */
+
+  const lifecyclePosts =
+    [];
+
+
+  for (
+    const post
+    of eligiblePosts
+  ) {
+
+    try {
+
+      const lifecyclePost =
+        applyLifecycle(
+          post
+        );
+
+
+      if (
+        lifecyclePost &&
+        typeof lifecyclePost ===
+        "object"
+      ) {
+
+        lifecyclePosts.push(
+          lifecyclePost
+        );
+
+      }
+
+    }
+
+    catch (
+      error
+    ) {
+
+      errors.push({
+
+        sourceId:
+          post?.source?.id ||
+          "",
+
+        source:
+          post?.source?.name ||
+          "",
+
+        itemId:
+          post?.id ||
+          "",
+
+        stage:
+          "lifecycle",
+
+        error:
+          errorMessage(
+            error
+          )
+
+      });
+
+    }
+
+  }
 
 
   /* =======================================================
      SÜRESİ GEÇEN / KALDIRILAN POSTLARI AYIR
 
-     KRİTİK:
-
      Geçmiş bir HABER otomatik expired değildir.
-
-     Örneğin:
-
-     Fenerbahçe kupayı kazandı.
-
-     temporal.state:
-     past
-
-     eventStatus:
-     completed
-
-     olabilir.
-
-     Ancak category = news ise haber olarak görünmeye
-     devam edebilir.
-
-     Lifecycle görünürlük kararını ayrıca verir.
      ========================================================= */
 
-  const visiblePosts =
+  const lifecycleVisiblePosts =
     filterVisiblePosts(
-      uniquePosts,
+      lifecyclePosts,
       {
 
         showExpired:
@@ -946,23 +947,86 @@ export async function buildFeedPreview({
 
 
   /* =======================================================
-     RANKING SIRALAMASI
+     PERSONA + RANKING
 
-     Eski comparePosts() artık kullanılmıyor.
-
-     Ranking Engine'in ürettiği rankingScore
-     ana sıralama ölçütüdür.
-
-     Eşitlik durumunda rankingEngine.js:
-
-     1. quality
-     2. relevance
-     3. publishedAt
-
-     değerlerine bakar.
+     Yalnız gerçekten görünür içeriklerde çalıştırılır.
      ========================================================= */
 
-  visiblePosts.sort(
+  const rankedPosts =
+    [];
+
+
+  for (
+    const post
+    of lifecycleVisiblePosts
+  ) {
+
+    try {
+
+      let preparedPost =
+        applyPersona(
+          post
+        );
+
+
+      preparedPost =
+        applyRanking(
+          preparedPost
+        );
+
+
+      if (
+        preparedPost &&
+        typeof preparedPost ===
+        "object"
+      ) {
+
+        rankedPosts.push(
+          preparedPost
+        );
+
+      }
+
+    }
+
+    catch (
+      error
+    ) {
+
+      errors.push({
+
+        sourceId:
+          post?.source?.id ||
+          "",
+
+        source:
+          post?.source?.name ||
+          "",
+
+        itemId:
+          post?.id ||
+          "",
+
+        stage:
+          "presentation-ranking",
+
+        error:
+          errorMessage(
+            error
+          )
+
+      });
+
+    }
+
+  }
+
+
+  /* =======================================================
+     RANKING SIRALAMASI
+     ========================================================= */
+
+  rankedPosts.sort(
     compareRankedPosts
   );
 
@@ -972,9 +1036,32 @@ export async function buildFeedPreview({
      ========================================================= */
 
   const finalItems =
-    visiblePosts.slice(
+    rankedPosts.slice(
       0,
       safeLimit
+    );
+
+
+  /* =======================================================
+     SOURCE LİSTESİ
+     ========================================================= */
+
+  const finalSources =
+    uniqueSources(
+      sources
+    );
+
+
+  /* =======================================================
+     SELECTION REVIEW
+
+     Preview sırasında hangi içeriğin neden seçildiğini
+     hızlıca görmek için tam post yerine hafif özet döner.
+     ========================================================= */
+
+  const selectionReview =
+    createSelectionReview(
+      uniquePosts
     );
 
 
@@ -999,6 +1086,9 @@ export async function buildFeedPreview({
     temporalVersion:
       TEMPORAL_VERSION,
 
+    selectionEngineVersion:
+      SELECTION_ENGINE_VERSION,
+
     rankingVersion:
       RANKING_VERSION,
 
@@ -1006,6 +1096,11 @@ export async function buildFeedPreview({
       [
         ...PIPELINE_STAGES
       ],
+
+    selectionMode:
+      allowBorderline
+        ? "selected_and_borderline"
+        : "selected_only",
 
     startedAt:
       startedAt,
@@ -1018,29 +1113,40 @@ export async function buildFeedPreview({
       requested,
 
     sourceCount:
-      uniqueSources(
-        sources
-      ).length,
+      finalSources.length,
 
     sources:
-      uniqueSources(
-        sources
-      ),
+      finalSources,
 
     rawPostCount:
-      allPosts.length,
+      candidatePosts.length,
 
     uniquePostCount:
       uniquePosts.length,
 
+    selectedPostCount:
+      selectionCounts.selected,
+
+    borderlinePostCount:
+      selectionCounts.borderline,
+
+    rejectedPostCount:
+      selectionCounts.rejected,
+
+    eligiblePostCount:
+      eligiblePosts.length,
+
     visiblePostCount:
-      visiblePosts.length,
+      rankedPosts.length,
 
     count:
       finalItems.length,
 
     items:
       finalItems,
+
+    selectionReview:
+      selectionReview,
 
     errors:
       errors,
@@ -1062,14 +1168,17 @@ export async function buildFeedPreview({
           uniquePosts
         ),
 
+      selection:
+        selectionSummary,
+
       lifecycle:
         createLifecycleSummary(
-          uniquePosts
+          lifecyclePosts
         ),
 
       ranking:
         createRankingSummary(
-          visiblePosts
+          rankedPosts
         )
 
     }
@@ -1081,9 +1190,6 @@ export async function buildFeedPreview({
 
 /* =========================================================
    INTENT SUMMARY
-
-   Preview ekranında Content Intent motorunun
-   genel kararlarını görmemizi sağlar.
    ========================================================= */
 
 function createIntentSummary(
@@ -1198,9 +1304,6 @@ function createIntentSummary(
 
 /* =========================================================
    TEMPORAL SUMMARY
-
-   Geçmiş / Şimdi / Gelecek kararlarını
-   tek bakışta test etmeyi sağlar.
    ========================================================= */
 
 function createTemporalSummary(
@@ -1346,17 +1449,184 @@ function createTemporalSummary(
 
 
 /* =========================================================
+   SELECTION COUNTS
+   ========================================================= */
+
+function readSelectionCounts(
+  summary
+) {
+
+  const decisions =
+    isPlainObject(
+      summary?.decisions
+    )
+      ? summary.decisions
+      : {};
+
+
+  return {
+
+    selected:
+      safeCount(
+        decisions.selected
+      ),
+
+    borderline:
+      safeCount(
+        decisions.borderline
+      ),
+
+    rejected:
+      safeCount(
+        decisions.rejected
+      )
+
+  };
+
+}
+
+
+/* =========================================================
+   SELECTION REVIEW
+
+   Bu alan preview/debug içindir.
+
+   Ana items alanına yalnız kabul edilen postlar gider.
+   ========================================================= */
+
+function createSelectionReview(
+  posts
+) {
+
+  const items =
+    Array.isArray(
+      posts
+    )
+      ? posts
+      : [];
+
+
+  return items
+
+    .map(
+      post => ({
+
+        id:
+          cleanString(
+            post?.id
+          ),
+
+        sourceId:
+          cleanString(
+            post?.source?.id
+          ),
+
+        source:
+          cleanString(
+            post?.source?.shortName ||
+            post?.source?.name
+          ),
+
+        title:
+          firstString(
+
+            post?.editorial?.originalTitle,
+
+            post?.editorial?.headline,
+
+            post?.title
+
+          ),
+
+        sport:
+          cleanString(
+            post?.sport
+          ),
+
+        section:
+          cleanString(
+            post?.section
+          ),
+
+        category:
+          cleanString(
+            post?.category
+          ),
+
+        subCategory:
+          cleanString(
+            post?.subCategory
+          ),
+
+        contentIntent:
+          cleanString(
+            post?.contentIntent
+          ),
+
+        temporalState:
+          cleanString(
+            post?.temporal?.state
+          ),
+
+        decision:
+          cleanString(
+            post?.selectionMeta?.decision
+          ),
+
+        selectionScore:
+          safeNumber(
+            post?.selectionScore
+          ),
+
+        userValue:
+          cleanString(
+            post?.selectionMeta?.userValue
+          ),
+
+        reasons:
+          Array.isArray(
+            post?.selectionMeta?.reasons
+          )
+
+            ? post.selectionMeta.reasons.slice(
+                0,
+                5
+              )
+
+            : []
+
+      })
+    )
+
+    .sort(
+      (a, b) => {
+
+        if (
+          a.selectionScore !==
+          b.selectionScore
+        ) {
+
+          return (
+            b.selectionScore -
+            a.selectionScore
+          );
+
+        }
+
+
+        return a.title.localeCompare(
+          b.title,
+          "tr-TR"
+        );
+
+      }
+    );
+
+}
+
+
+/* =========================================================
    LEGACY LIFECYCLE DÜZELTME
-
-   Preview'da eski haberlerin her istekte
-   yeniden "YENİ" sayılmasını önler.
-
-   Yayın tarihi biliniyorsa firstSeenAt için
-   geçici ve güvenli referans olarak kullanılır.
-
-   DİKKAT:
-
-   Bu işlem yayın tarihini olay tarihi yapmaz.
    ========================================================= */
 
 function stabilizeLegacyLifecycle(
@@ -1648,6 +1918,87 @@ function incrementCounter(
 
 
 /* =========================================================
+   FIRST STRING
+   ========================================================= */
+
+function firstString(
+  ...values
+) {
+
+  for (
+    const value
+    of values
+  ) {
+
+    const text =
+      cleanString(
+        value
+      );
+
+
+    if (
+      text
+    ) {
+
+      return text;
+
+    }
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
+   SAFE NUMBER
+   ========================================================= */
+
+function safeNumber(
+  value
+) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
+
+}
+
+
+/* =========================================================
+   SAFE COUNT
+   ========================================================= */
+
+function safeCount(
+  value
+) {
+
+  return Math.max(
+
+    0,
+
+    Math.floor(
+      safeNumber(
+        value
+      )
+    )
+
+  );
+
+}
+
+
+/* =========================================================
    ID NORMALİZE
    ========================================================= */
 
@@ -1656,7 +2007,7 @@ function normalizeId(
 ) {
 
   return String(
-    value ||
+    value ??
     ""
   )
 
@@ -1744,4 +2095,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-     }
+   }
