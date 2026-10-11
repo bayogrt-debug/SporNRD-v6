@@ -19,6 +19,7 @@
    /api/health
    /api/core-test
    /api/feed-preview
+   /api/selection-review
    /api/sources
    /api/feed
    /api/tyf
@@ -29,10 +30,14 @@
    ÖNEMLİ
    ---------------------------------------------------------
    /api/feed
-   halen çalışan güvenli 6.0.4 akışıdır.
+   halen çalışan güvenli 6.0.4 üretim akışıdır.
 
    /api/feed-preview
    gerçek TYF + TBF verisini yeni v6.1 çekirdeğinden geçirir.
+
+   /api/selection-review
+   Selection Engine kararlarını sade ve okunabilir biçimde
+   kontrol etmek için kullanılır.
 
    Telefon uygulaması henüz preview endpointine bağlı değildir.
    ========================================================= */
@@ -100,11 +105,6 @@ const MAX_LIMIT =
 
 /* =========================================================
    KAYNAK KAYIT MERKEZİ
-
-   Geçiş döneminde mevcut çalışan registry korunuyor.
-
-   v6.1 sourceRegistry.js ayrıca hazır ve
-   preview/test sistemi tarafından kullanılıyor.
    ========================================================= */
 
 const SOURCE_PROVIDERS = {
@@ -290,6 +290,9 @@ export default {
           feedPreview:
             "/api/feed-preview?limit=20",
 
+          selectionReview:
+            "/api/selection-review?limit=30",
+
           coreTest:
             "/api/core-test",
 
@@ -348,6 +351,9 @@ export default {
           "multi-source-modular",
 
         previewPipeline:
+          true,
+
+        selectionReview:
           true,
 
         timestamp:
@@ -451,15 +457,25 @@ export default {
     /* =====================================================
        v6.1 GERÇEK FEED PREVIEW
 
-       Gerçek TYF + TBF
+       Gerçek kaynak
               ↓
        Normalizer
               ↓
+       Content Intent
+              ↓
        Discovery
+              ↓
+       Temporal
+              ↓
+       Selection
+              ↓
+       Dedupe
               ↓
        Lifecycle
               ↓
        Persona
+              ↓
+       Ranking
               ↓
        v6.1 Preview Posts
 
@@ -563,6 +579,318 @@ export default {
           },
 
           500
+
+        );
+
+      }
+
+    }
+
+
+    /* =====================================================
+       SELECTION REVIEW
+
+       AMAÇ
+       -----------------------------------------------------
+       Feed Preview içindeki uzun post nesnelerini incelemek
+       zorunda kalmadan yalnız Selection Engine kararlarını
+       görmek.
+
+       Dönen temel alanlar:
+
+       - id
+       - source
+       - title
+       - sport
+       - section
+       - category
+       - subCategory
+       - contentIntent
+       - temporalState
+       - decision
+       - selectionScore
+       - userValue
+       - reasons
+
+       -----------------------------------------------------
+       TÜM KARARLAR
+
+       /api/selection-review
+
+       -----------------------------------------------------
+       SADECE SELECTED
+
+       /api/selection-review?decision=selected
+
+       -----------------------------------------------------
+       SADECE BORDERLINE
+
+       /api/selection-review?decision=borderline
+
+       -----------------------------------------------------
+       SADECE REJECTED
+
+       /api/selection-review?decision=rejected
+
+       -----------------------------------------------------
+       KAYNAK FİLTRESİ
+
+       /api/selection-review?sources=tyf
+
+       /api/selection-review?sources=tbf
+
+       /api/selection-review?sources=tyf,tbf
+
+       -----------------------------------------------------
+       BİRLİKTE
+
+       /api/selection-review?sources=tyf&decision=rejected
+       ===================================================== */
+
+    if (
+      pathname === "/api/selection-review" &&
+      request.method === "GET"
+    ) {
+
+      try {
+
+        const limit =
+          getLimit(
+            url
+          );
+
+
+        const requestedSources =
+          parseRequestedSources(
+            url
+          );
+
+
+        const decision =
+          parseSelectionDecision(
+            url
+          );
+
+
+        /*
+          Selection Review için buildFeedPreview'ın final
+          items limiti önemli değildir.
+
+          Asıl kullandığımız alan:
+          result.selectionReview
+
+          Kaynak başına aday havuzunun tamamını görebilmek
+          için preview'a MAX_LIMIT veriyoruz.
+        */
+
+        const preview =
+          await buildFeedPreview({
+
+            providers:
+              getActiveProviders(),
+
+            env:
+              env,
+
+            limit:
+              MAX_LIMIT,
+
+            requestedSources:
+              requestedSources
+
+          });
+
+
+        const allReview =
+          Array.isArray(
+            preview?.selectionReview
+          )
+
+            ? preview.selectionReview
+
+            : [];
+
+
+        const filteredReview =
+          filterSelectionReview({
+
+            items:
+              allReview,
+
+            decision:
+              decision
+
+          });
+
+
+        const finalReview =
+          filteredReview.slice(
+            0,
+            limit
+          );
+
+
+        return json(
+          {
+
+            ok:
+              true,
+
+            type:
+              "SPORNRD_SELECTION_REVIEW",
+
+            productionVersion:
+              VERSION,
+
+            targetVersion:
+              CORE_PREVIEW_VERSION,
+
+            feedPreviewVersion:
+              preview?.version ||
+              "",
+
+            contentIntentVersion:
+              preview?.contentIntentVersion ||
+              "",
+
+            temporalVersion:
+              preview?.temporalVersion ||
+              "",
+
+            selectionEngineVersion:
+              preview?.selectionEngineVersion ||
+              "",
+
+            rankingVersion:
+              preview?.rankingVersion ||
+              "",
+
+            reviewedAt:
+              new Date()
+                .toISOString(),
+
+            requestedSources:
+              requestedSources,
+
+            decisionFilter:
+              decision,
+
+            sourceCount:
+              safeNumber(
+                preview?.sourceCount
+              ),
+
+            sources:
+              Array.isArray(
+                preview?.sources
+              )
+                ? preview.sources
+                : [],
+
+
+            /* ------------------------------------------------
+               HAM ADAY SAYILARI
+               ------------------------------------------------ */
+
+            candidateCount:
+              allReview.length,
+
+            selectedPostCount:
+              safeNumber(
+                preview?.selectedPostCount
+              ),
+
+            borderlinePostCount:
+              safeNumber(
+                preview?.borderlinePostCount
+              ),
+
+            rejectedPostCount:
+              safeNumber(
+                preview?.rejectedPostCount
+              ),
+
+
+            /* ------------------------------------------------
+               FİLTRE SONUCU
+               ------------------------------------------------ */
+
+            matchedCount:
+              filteredReview.length,
+
+            count:
+              finalReview.length,
+
+            limit:
+              limit,
+
+
+            /* ------------------------------------------------
+               SELECTION ÖZETİ
+               ------------------------------------------------ */
+
+            summary:
+              preview?.summary?.selection ||
+              {},
+
+
+            /* ------------------------------------------------
+               SADELEŞTİRİLMİŞ İÇERİKLER
+               ------------------------------------------------ */
+
+            items:
+              finalReview,
+
+
+            errors:
+              Array.isArray(
+                preview?.errors
+              )
+                ? preview.errors
+                : []
+
+          },
+
+          200
+
+        );
+
+      }
+
+      catch (
+        error
+      ) {
+
+        return json(
+          {
+
+            ok:
+              false,
+
+            type:
+              "SPORNRD_SELECTION_REVIEW",
+
+            productionVersion:
+              VERSION,
+
+            targetVersion:
+              CORE_PREVIEW_VERSION,
+
+            error:
+              "Selection Review oluşturulamadı.",
+
+            detail:
+              errorMessage(
+                error
+              ),
+
+            reviewedAt:
+              new Date()
+                .toISOString()
+
+          },
+
+          400
 
         );
 
@@ -1008,6 +1336,14 @@ export default {
 
           "/api/feed-preview?limit=20",
 
+          "/api/selection-review?limit=30",
+
+          "/api/selection-review?decision=selected",
+
+          "/api/selection-review?decision=borderline",
+
+          "/api/selection-review?decision=rejected",
+
           "/api/sources",
 
           "/api/feed?limit=20",
@@ -1031,6 +1367,143 @@ export default {
   }
 
 };
+
+
+/* =========================================================
+   SELECTION REVIEW FİLTRESİ
+   ========================================================= */
+
+function filterSelectionReview({
+
+  items,
+  decision
+
+}) {
+
+  const list =
+    Array.isArray(
+      items
+    )
+      ? items
+      : [];
+
+
+  if (
+    decision ===
+    "all"
+  ) {
+
+    return [
+      ...list
+    ];
+
+  }
+
+
+  return list.filter(
+    item =>
+      normalizeSelectionDecisionValue(
+        item?.decision
+      ) ===
+      decision
+  );
+
+}
+
+
+/* =========================================================
+   SELECTION DECISION PARAMETRESİ
+
+   Geçerli:
+   all
+   selected
+   borderline
+   rejected
+   ========================================================= */
+
+function parseSelectionDecision(
+  url
+) {
+
+  const raw =
+    String(
+
+      url.searchParams.get(
+        "decision"
+      )
+
+      ||
+
+      "all"
+
+    )
+      .trim()
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
+
+
+  if (
+    !raw ||
+    raw ===
+    "all"
+  ) {
+
+    return "all";
+
+  }
+
+
+  const decision =
+    normalizeSelectionDecisionValue(
+      raw
+    );
+
+
+  if (
+    [
+      "selected",
+      "borderline",
+      "rejected"
+    ].includes(
+      decision
+    )
+  ) {
+
+    return decision;
+
+  }
+
+
+  throw new Error(
+    "decision yalnızca all, selected, borderline veya rejected olabilir."
+  );
+
+}
+
+
+/* =========================================================
+   SELECTION DECISION NORMALİZE
+   ========================================================= */
+
+function normalizeSelectionDecisionValue(
+  value
+) {
+
+  return String(
+    value ||
+    ""
+  )
+    .trim()
+    .toLocaleLowerCase(
+      "tr-TR"
+    )
+    .replace(
+      /[^a-z_]+/g,
+      ""
+    );
+
+}
 
 
 /* =========================================================
@@ -2101,6 +2574,9 @@ function isKnownPath(
     "/api/feed-preview" ||
 
     pathname ===
+    "/api/selection-review" ||
+
+    pathname ===
     "/api/sources" ||
 
     pathname ===
@@ -2367,4 +2843,4 @@ function errorMessage(
     "Bilinmeyen hata"
   );
 
-   }
+}
