@@ -5,8 +5,36 @@
    Türkiye Basketbol Federasyonu
    Liste tabanlı güvenli kaynak okuyucu
 
-   SporNRD v6.0.4
-   Safe Location Patch: 6.1
+   SporNRD v6.1.4
+   Candidate Source Architecture
+
+   AMAÇ
+   ---------------------------------------------------------
+   Bu dosyanın görevi TBF içeriklerini SEÇMEK değildir.
+
+   Kaynak motoru yalnızca:
+   - haberi bulur
+   - başlık / özet / tarih / görseli okur
+   - güvenli yardımcı gerçekleri çıkarır
+   - legacy sınıflandırma ipuçlarını üretir
+   - bütün okunabilir adayları merkezi pipeline'a yollar
+
+   Nihai karar:
+   ---------------------------------------------------------
+   selected
+   borderline
+   rejected
+
+   worker/intelligence/selectionEngine.js tarafından verilir.
+
+   Bu nedenle kaynak katmanında:
+   - analysis.keep filtresi YOKTUR
+   - relevanceScore alt sınırı YOKTUR
+   - kurumsal / düşük değerli içerik erken silinmez
+
+   Böylece Selection Engine aynı ölçütlerle:
+   news / course / event / campaign / jobs / stores
+   içeriklerini merkezi olarak değerlendirebilir.
    ========================================================= */
 
 
@@ -15,6 +43,14 @@ import {
   decodeEntities,
   normalize
 } from "../utils/html.js";
+
+
+/* =========================================================
+   VERSION
+   ========================================================= */
+
+export const TBF_SOURCE_VERSION =
+  "6.1.4";
 
 
 /* =========================================================
@@ -168,10 +204,11 @@ export async function getTbfFeed({
 } = {}) {
 
   /*
-    TBF için learning entegrasyonu ileride
-    ortak relevance motoruna bağlanabilir.
+    TBF kaynak motoru artık içerik seçimi yapmaz.
 
-    Şimdilik kaynak okumasını etkilemez.
+    env ileride kaynak seviyesinde cache / learning gibi
+    amaçlarla kullanılabilir. Şimdilik okuma davranışını
+    değiştirmez.
   */
 
   void env;
@@ -193,6 +230,19 @@ export async function getTbfFeed({
       );
 
 
+  /* -------------------------------------------------------
+     KRİTİK:
+
+     createArticle() okunabilir her haberi aday posta çevirir.
+
+     Burada:
+     - keep
+     - minimum relevance
+     - kategori bazlı eleme
+
+     yapılmaz.
+     ------------------------------------------------------- */
+
   const items =
     rawItems
 
@@ -206,7 +256,9 @@ export async function getTbfFeed({
 
 
   /* -------------------------------------------------------
-     Aynı haberleri temizle
+     Aynı URL / id tekrarlarını temizle.
+
+     Bu içerik seçimi değildir; teknik dedupe işlemidir.
      ------------------------------------------------------- */
 
   const uniqueItems =
@@ -216,7 +268,10 @@ export async function getTbfFeed({
 
 
   /* -------------------------------------------------------
-     Puan + tarih
+     Kaynak çıktısı deterministik olsun.
+
+     Nihai kullanıcı akış sıralaması burada yapılmaz.
+     Selection + Ranking Engine daha sonra karar verir.
      ------------------------------------------------------- */
 
   uniqueItems.sort(
@@ -229,6 +284,12 @@ export async function getTbfFeed({
     source: {
       ...SOURCE
     },
+
+    sourceVersion:
+      TBF_SOURCE_VERSION,
+
+    candidateCount:
+      uniqueItems.length,
 
     items:
       uniqueItems.slice(
@@ -268,7 +329,7 @@ async function getHtml(
             "tr-TR,tr;q=0.9,en;q=0.8",
 
           "User-Agent":
-            "Mozilla/5.0 (compatible; SporNRD/6.0.4)"
+            "Mozilla/5.0 (compatible; SporNRD/6.1.4)"
 
         },
 
@@ -346,10 +407,6 @@ function extractNews(
     ) !== null
   ) {
 
-    /* -----------------------------------------------------
-       URL
-       ----------------------------------------------------- */
-
     const url =
       resolveNewsUrl(
         match[2]
@@ -367,10 +424,6 @@ function extractNews(
 
     }
 
-
-    /* -----------------------------------------------------
-       SADECE BU HABERİN KARTI
-       ----------------------------------------------------- */
 
     const cardHtml =
       String(
@@ -404,19 +457,11 @@ function extractNews(
     }
 
 
-    /* -----------------------------------------------------
-       TARİH
-       ----------------------------------------------------- */
-
     const date =
       extractCardDate(
         cardText
       );
 
-
-    /* -----------------------------------------------------
-       BAŞLIK
-       ----------------------------------------------------- */
 
     const title =
       extractCardTitle(
@@ -437,10 +482,6 @@ function extractNews(
     }
 
 
-    /* -----------------------------------------------------
-       ÖZET
-       ----------------------------------------------------- */
-
     const summary =
       extractCardSummary(
         cardHtml,
@@ -449,10 +490,6 @@ function extractNews(
         date
       );
 
-
-    /* -----------------------------------------------------
-       GÖRSEL
-       ----------------------------------------------------- */
 
     const image =
       extractImageFromBlock(
@@ -609,10 +646,6 @@ function extractCardTitle(
   date
 ) {
 
-  /* -------------------------------------------------------
-     H1-H6
-     ------------------------------------------------------- */
-
   const headingRegex =
     /<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi;
 
@@ -648,10 +681,6 @@ function extractCardTitle(
 
   }
 
-
-  /* -------------------------------------------------------
-     class="...title..."
-     ------------------------------------------------------- */
 
   const titleClassRegex =
     /<(?:div|span|p)\b[^>]*class=["'][^"']*(?:title|baslik|headline)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p)>/gi;
@@ -689,10 +718,6 @@ function extractCardTitle(
   }
 
 
-  /* -------------------------------------------------------
-     IMG ALT FALLBACK
-     ------------------------------------------------------- */
-
   const altMatch =
     cardHtml.match(
       /<img\b[^>]*alt=["']([^"']+)["'][^>]*>/i
@@ -725,10 +750,6 @@ function extractCardTitle(
 
   }
 
-
-  /* -------------------------------------------------------
-     KART METNİ
-     ------------------------------------------------------- */
 
   let text =
     String(
@@ -837,28 +858,24 @@ function cleanCandidateTitle(
     );
 
 
-  text =
-    text
+  return text
 
-      .replace(
-        /^[|•·\-–—:]+/,
-        ""
-      )
+    .replace(
+      /^[|•·\-–—:]+/,
+      ""
+    )
 
-      .replace(
-        /[|•·\-–—:]+$/,
-        ""
-      )
+    .replace(
+      /[|•·\-–—:]+$/,
+      ""
+    )
 
-      .replace(
-        /\s+/g,
-        " "
-      )
+    .replace(
+      /\s+/g,
+      " "
+    )
 
-      .trim();
-
-
-  return text;
+    .trim();
 
 }
 
@@ -917,26 +934,20 @@ function isValidTitle(
   ];
 
 
-  if (
-    invalid.some(
-      item =>
-        normalized ===
-        item
-    )
-  ) {
-
-    return false;
-
-  }
-
-
-  return true;
+  return !invalid.some(
+    item =>
+      normalized ===
+      item
+  );
 
 }
 
 
 /* =========================================================
    KART TARİHİ
+
+   Bu tarih HABERİN YAYIN TARİHİDİR.
+   Event startDate değildir.
    ========================================================= */
 
 function extractCardDate(
@@ -949,10 +960,6 @@ function extractCardDate(
       ""
     );
 
-
-  /* -------------------------------------------------------
-     09.10.2026
-     ------------------------------------------------------- */
 
   let match =
     value.match(
@@ -973,15 +980,9 @@ function extractCardDate(
   }
 
 
-  /* -------------------------------------------------------
-     9 Ekim 2026
-     ------------------------------------------------------- */
-
   match =
     value.match(
-
       /\b(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(20\d{2})\b/i
-
     );
 
 
@@ -1005,11 +1006,6 @@ function extractCardDate(
 
 /* =========================================================
    KART ÖZETİ
-
-   Öncelik:
-   1. description/summary class
-   2. p elementleri
-   3. kartın kalan temiz metni
    ========================================================= */
 
 function extractCardSummary(
@@ -1022,10 +1018,6 @@ function extractCardSummary(
   const candidates =
     [];
 
-
-  /* -------------------------------------------------------
-     SUMMARY / DESCRIPTION CLASS
-     ------------------------------------------------------- */
 
   const summaryClassRegex =
     /<(?:div|span|p)\b[^>]*class=["'][^"']*(?:summary|description|desc|excerpt|spot|text|content)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p)>/gi;
@@ -1066,10 +1058,6 @@ function extractCardSummary(
   }
 
 
-  /* -------------------------------------------------------
-     P ELEMENTLERİ
-     ------------------------------------------------------- */
-
   const paragraphRegex =
     /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
 
@@ -1109,10 +1097,6 @@ function extractCardSummary(
   }
 
 
-  /* -------------------------------------------------------
-     İLK KALİTELİ ADAY
-     ------------------------------------------------------- */
-
   const uniqueCandidates =
     uniqueTexts(
       candidates
@@ -1130,10 +1114,6 @@ function extractCardSummary(
 
   }
 
-
-  /* -------------------------------------------------------
-     KART METNİ FALLBACK
-     ------------------------------------------------------- */
 
   const fallback =
     cleanSummaryCandidate(
@@ -1250,18 +1230,9 @@ function isValidSummary(
   }
 
 
-  if (
-    isDateOnly(
-      text
-    )
-  ) {
-
-    return false;
-
-  }
-
-
-  return true;
+  return !isDateOnly(
+    text
+  );
 
 }
 
@@ -1399,6 +1370,15 @@ function collapseRepeatedText(
 
 /* =========================================================
    HABER MODELİ
+
+   KRİTİK:
+   ---------------------------------------------------------
+   Bu fonksiyon artık classifier'ın keep kararına göre
+   içerik ELEMEZ.
+
+   Classifier yalnızca legacy metadata üretir.
+
+   Nihai seçim Selection Engine'indir.
    ========================================================= */
 
 function createArticle(
@@ -1424,26 +1404,9 @@ function createArticle(
     );
 
 
-  if (
-    !analysis.keep
-  ) {
-
-    return null;
-
-  }
-
-
   const combined =
     `${raw.title} ${raw.summary || ""}`;
 
-
-  /*
-    Konum artık başlık + özet ayrı ayrı analiz edilir.
-
-    Böylece:
-    "Çimsa ÇBK Mersin"
-    gibi takım adlarından yanlış konum çıkarılmaz.
-  */
 
   const location =
     findLocation(
@@ -1452,15 +1415,23 @@ function createArticle(
     );
 
 
-  const eventDate =
-    findEventDate(
+  const deadline =
+    findDeadline(
       combined
     );
 
 
-  const deadline =
-    findDeadline(
-      combined
+  /*
+    Deadline önce bulunur.
+
+    Böylece mümkün olduğunca son başvuru tarihi ile
+    etkinlik tarihini ayırmaya çalışırız.
+  */
+
+  const eventDate =
+    findEventDate(
+      combined,
+      deadline
     );
 
 
@@ -1532,10 +1503,6 @@ function createArticle(
 
   return {
 
-    /* -----------------------------------------------------
-       KİMLİK
-       ----------------------------------------------------- */
-
     id:
       id,
 
@@ -1544,7 +1511,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       SPORNRD İÇERİĞİ
+       Kullanıcının gördüğü legacy SporNRD alanları
        ----------------------------------------------------- */
 
     title:
@@ -1555,7 +1522,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       ORİJİNAL KAYNAK
+       Kaynağın gerçek metni
        ----------------------------------------------------- */
 
     originalTitle:
@@ -1567,7 +1534,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       SPORNRD EDİTÖR
+       SporNRD Editörü
        ----------------------------------------------------- */
 
     editorial:
@@ -1577,11 +1544,11 @@ function createArticle(
       "SporNRD Özeti",
 
     editorialVersion:
-      "6.0.4-TBF-safe-location",
+      "6.1.4-TBF-candidate-source",
 
 
     /* -----------------------------------------------------
-       KAYNAK
+       Kaynak
        ----------------------------------------------------- */
 
     sourceId:
@@ -1604,7 +1571,10 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       ANALİZ
+       Legacy sınıflandırma ipucu
+
+       Bunlar nihai kategori / seçim kararı değildir.
+       Discovery + Selection daha sonra yeniden değerlendirir.
        ----------------------------------------------------- */
 
     category:
@@ -1619,17 +1589,17 @@ function createArticle(
     qualityScore:
       qualityScore,
 
+    /*
+      Eski normalizer uyumluluğu için tutulur.
+      Nihai kullanıcı sıralaması Ranking Engine'indir.
+    */
+
     finalScore:
-      (
-        analysis.score *
-        10
-      )
-      +
       qualityScore,
 
 
     /* -----------------------------------------------------
-       HABER DNA
+       Haber DNA
        ----------------------------------------------------- */
 
     topic:
@@ -1660,7 +1630,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       GERÇEKLER
+       Yapılandırılmış gerçekler
        ----------------------------------------------------- */
 
     facts: {
@@ -1680,20 +1650,52 @@ function createArticle(
       location:
         location,
 
+      city:
+        location,
+
+      country:
+        "Türkiye",
+
       eventDate:
+        eventDate,
+
+      dateRange:
         eventDate,
 
       deadline:
         deadline,
 
+      deadlineText:
+        deadline,
+
+      registrationDeadline:
+        deadline,
+
+      applicationDeadline:
+        deadline,
+
       grade:
-        grade
+        grade,
+
+      actionRequired:
+        Boolean(
+          analysis.actionRequired ||
+          deadline
+        ),
+
+      sourceClassification:
+        analysis.category,
+
+      sourcePriorityHint:
+        analysis.priorityHint
 
     },
 
 
     /* -----------------------------------------------------
-       TARİH / KONUM
+       Yayın tarihi / konum
+
+       raw.date olay tarihi değildir.
        ----------------------------------------------------- */
 
     date:
@@ -1703,17 +1705,12 @@ function createArticle(
     timestamp:
       timestamp,
 
-    /*
-      Bilinmiyorsa boş bırakılır.
-      "Türkiye" artık şehir gibi kullanılmaz.
-    */
-
     location:
       location,
 
 
     /* -----------------------------------------------------
-       MEDYA
+       Medya
        ----------------------------------------------------- */
 
     image:
@@ -1728,7 +1725,7 @@ function createArticle(
 
 
     /* -----------------------------------------------------
-       GÖRSEL KATEGORİ
+       Görsel kategori
        ----------------------------------------------------- */
 
     emoji:
@@ -1742,7 +1739,15 @@ function createArticle(
 
 
 /* =========================================================
-   SINIFLANDIRMA
+   YARDIMCI SINIFLANDIRMA
+
+   ÖNEMLİ:
+   ---------------------------------------------------------
+   Bu sınıflandırıcı artık "keep / reject" kararı vermez.
+
+   Yalnızca kaynak seviyesinde başlangıç metadata'sı üretir.
+   Nihai anlam Content Intent + Discovery,
+   nihai seçim Selection Engine tarafından yapılır.
    ========================================================= */
 
 function classify(
@@ -1763,7 +1768,10 @@ function classify(
 
 
   /* -------------------------------------------------------
-     AKIŞ DIŞI
+     DÜŞÜK ÖNCELİKLİ KURUMSAL İÇERİK
+
+     Eskiden burada keep=false ile atılıyordu.
+     Artık ADAY olarak kalır.
      ------------------------------------------------------- */
 
   if (
@@ -1785,11 +1793,11 @@ function classify(
   ) {
 
     return classificationResult(
-      false,
       "announcement",
       "general",
-      0,
-      false
+      1,
+      false,
+      "low"
     );
 
   }
@@ -1814,8 +1822,6 @@ function classify(
 
     return classificationResult(
 
-      true,
-
       "coach",
 
       "antrenör",
@@ -1830,7 +1836,9 @@ function classify(
           "SON BASVURU",
           "KURS"
         ]
-      )
+      ),
+
+      "high"
 
     );
 
@@ -1865,11 +1873,11 @@ function classify(
   ) {
 
     return classificationResult(
-      true,
       "athlete",
       "sporcu",
       9,
-      false
+      false,
+      "high"
     );
 
   }
@@ -1896,8 +1904,6 @@ function classify(
 
     return classificationResult(
 
-      true,
-
       "education",
 
       "general",
@@ -1910,7 +1916,9 @@ function classify(
           "BASVURU",
           "KAYIT"
         ]
-      )
+      ),
+
+      "high"
 
     );
 
@@ -1946,11 +1954,11 @@ function classify(
   ) {
 
     return classificationResult(
-      true,
       "event",
       "general",
       7,
-      false
+      false,
+      "normal"
     );
 
   }
@@ -1977,11 +1985,11 @@ function classify(
   ) {
 
     return classificationResult(
-      true,
       "announcement",
       "general",
       5,
-      true
+      true,
+      "normal"
     );
 
   }
@@ -1992,11 +2000,11 @@ function classify(
      ------------------------------------------------------- */
 
   return classificationResult(
-    true,
     "event",
     "general",
     4,
-    false
+    false,
+    "normal"
   );
 
 }
@@ -2007,19 +2015,14 @@ function classify(
    ========================================================= */
 
 function classificationResult(
-  keep,
   category,
   audience,
   score,
-  actionRequired
+  actionRequired,
+  priorityHint = "normal"
 ) {
 
   return {
-
-    keep:
-      Boolean(
-        keep
-      ),
 
     category:
       category,
@@ -2036,7 +2039,10 @@ function classificationResult(
     actionRequired:
       Boolean(
         actionRequired
-      )
+      ),
+
+    priorityHint:
+      priorityHint
 
   };
 
@@ -2045,6 +2051,12 @@ function classificationResult(
 
 /* =========================================================
    SPORNRD EDİTÖR
+
+   Bu legacy editör yalnız kaynak çıktısının okunabilir
+   kalmasını sağlar.
+
+   Feed Preview içinde Persona Engine daha sonra
+   yeniden editorial üretir.
    ========================================================= */
 
 function createEditorial({
@@ -2085,10 +2097,9 @@ function createEditorial({
     newTitle;
 
 
-  const tags =
-    [
-      "Basketbol"
-    ];
+  const tags = [
+    "Basketbol"
+  ];
 
 
   /* =======================================================
@@ -2114,9 +2125,7 @@ function createEditorial({
 
 
     if (
-      location &&
-      location !==
-      "Türkiye"
+      location
     ) {
 
       newTitle +=
@@ -2145,16 +2154,13 @@ function createEditorial({
 
     if (
       eventDate &&
-      location &&
-      location !==
-      "Türkiye"
+      location
     ) {
 
       newSummary =
         `TBF, ${level} Basketbol Antrenör Kursu’nu ${eventDate} tarihlerinde ${location}’da düzenleyecek.`;
 
     }
-
 
     else if (
       eventDate
@@ -2165,11 +2171,8 @@ function createEditorial({
 
     }
 
-
     else if (
-      location &&
-      location !==
-      "Türkiye"
+      location
     ) {
 
       newSummary +=
@@ -2204,10 +2207,6 @@ function createEditorial({
   }
 
 
-  /* =======================================================
-     ANTRENÖR
-     ======================================================= */
-
   else if (
     category ===
     "coach"
@@ -2223,10 +2222,6 @@ function createEditorial({
 
   }
 
-
-  /* =======================================================
-     SPORCU
-     ======================================================= */
 
   else if (
     category ===
@@ -2244,10 +2239,6 @@ function createEditorial({
   }
 
 
-  /* =======================================================
-     EĞİTİM
-     ======================================================= */
-
   else if (
     category ===
     "education"
@@ -2264,26 +2255,10 @@ function createEditorial({
   }
 
 
-  /* =======================================================
-     ETKİNLİK / HABER
-     ======================================================= */
-
   else if (
     category ===
-    "event"
+    "announcement"
   ) {
-
-    actionLabel =
-      "Haberi İncele";
-
-  }
-
-
-  /* =======================================================
-     DUYURU
-     ======================================================= */
-
-  else {
 
     actionLabel =
       "Duyuruyu İncele";
@@ -2296,14 +2271,8 @@ function createEditorial({
   }
 
 
-  /* -------------------------------------------------------
-     KONUM ETİKETİ
-     ------------------------------------------------------- */
-
   if (
-    location &&
-    location !==
-    "Türkiye"
+    location
   ) {
 
     tags.push(
@@ -2312,10 +2281,6 @@ function createEditorial({
 
   }
 
-
-  /* -------------------------------------------------------
-     KADEME
-     ------------------------------------------------------- */
 
   if (
     grade
@@ -2327,10 +2292,6 @@ function createEditorial({
 
   }
 
-
-  /* -------------------------------------------------------
-     AÇIKLAMA GÜVENLİĞİ
-     ------------------------------------------------------- */
 
   if (
     !newSummary ||
@@ -2344,10 +2305,6 @@ function createEditorial({
 
   }
 
-
-  /* -------------------------------------------------------
-     BAŞLIK GÜVENLİĞİ
-     ------------------------------------------------------- */
 
   if (
     !newTitle ||
@@ -2573,28 +2530,6 @@ function isBadImage(
 
 /* =========================================================
    GÜVENLİ KONUM ÇIKARIMI
-
-   TEMEL KURAL
-   ---------------------------------------------------------
-   Bir şehir adı yalnızca metinde geçiyor diye
-   etkinlik konumu kabul edilmez.
-
-   Örnek:
-
-   "Çimsa ÇBK Mersin"
-   → takım adı
-   → Mersin konumu değildir.
-
-   "Mersin'de düzenlenecek"
-   → Mersin konumdur.
-
-   "Mersin Spor Salonu"
-   → güçlü konum kanıtıdır.
-
-   "Ankara 2. Kademe Antrenör Kursu"
-   → başlık bağlamında güçlü konum kanıtıdır.
-
-   Emin değilsek boş bırakılır.
    ========================================================= */
 
 function findLocation(
@@ -2658,15 +2593,6 @@ function findLocation(
       );
 
 
-    /* =====================================================
-       1. ŞEHİR + BULUNMA EKİ
-
-       Ankara'da
-       İzmir'de
-       Mersin’de
-       Antalya'daki
-       ===================================================== */
-
     const locativePattern =
       new RegExp(
 
@@ -2693,10 +2619,6 @@ function findLocation(
     }
 
 
-    /* =====================================================
-       2. ŞEHİR İLİ / İLİNDE / İLİNDEKİ
-       ===================================================== */
-
     const provincePattern =
       new RegExp(
 
@@ -2721,10 +2643,6 @@ function findLocation(
 
     }
 
-
-    /* =====================================================
-       3. EV SAHİPLİĞİ
-       ===================================================== */
 
     const hostPattern =
       new RegExp(
@@ -2753,10 +2671,6 @@ function findLocation(
 
     }
 
-
-    /* =====================================================
-       4. ŞEHİR + SALON / TESİS / ARENA
-       ===================================================== */
 
     const cityVenuePattern =
       new RegExp(
@@ -2793,10 +2707,6 @@ function findLocation(
     }
 
 
-    /* =====================================================
-       5. SALON / TESİS + ŞEHİR
-       ===================================================== */
-
     const venueCityPattern =
       new RegExp(
 
@@ -2832,13 +2742,6 @@ function findLocation(
     }
 
 
-    /* =====================================================
-       6. BAŞLIKTA ŞEHİR + EĞİTİM / KURS
-
-       Ankara 2. Kademe Antrenör Kursu
-       İzmir Basketbol Semineri
-       ===================================================== */
-
     const titleEducationAfterCity =
       new RegExp(
 
@@ -2872,10 +2775,6 @@ function findLocation(
     }
 
 
-    /* =====================================================
-       7. BAŞLIKTA EĞİTİM / KURS + ŞEHİR
-       ===================================================== */
-
     const titleEducationBeforeCity =
       new RegExp(
 
@@ -2908,15 +2807,6 @@ function findLocation(
 
     }
 
-
-    /* =====================================================
-       8. AÇIK KONUM / ADRES İFADESİ
-
-       adresi Ankara...
-       konumu Ankara...
-       oynanacağı yer Ankara...
-       düzenleneceği yer Ankara...
-       ===================================================== */
 
     const explicitLocationPattern =
       new RegExp(
@@ -2952,19 +2842,6 @@ function findLocation(
   }
 
 
-  /*
-    KRİTİK:
-
-    Konum bilinmiyorsa "Türkiye" döndürmüyoruz.
-
-    Yeni model:
-
-    country = "Türkiye"
-    city    = ""
-
-    şeklinde çalışmalıdır.
-  */
-
   return "";
 
 }
@@ -2972,32 +2849,53 @@ function findLocation(
 
 /* =========================================================
    ETKİNLİK TARİHİ
+
+   Deadline tarihi mümkün olduğunca eventDate olarak
+   kullanılmaz.
    ========================================================= */
 
 function findEventDate(
-  text
+  text,
+  deadline = ""
 ) {
 
-  const value =
+  let value =
     cleanText(
       text
     );
+
+
+  /*
+    Deadline bulunduysa aynı literal tarih ifadesini
+    eventDate aramasında çıkarmaya çalışırız.
+
+    Bu tam semantik çözüm değildir; nihai zaman kararı
+    Temporal Engine tarafından verilir.
+  */
+
+  if (
+    deadline
+  ) {
+
+    value =
+      removeAll(
+        value,
+        deadline
+      );
+
+  }
 
 
   const months =
     "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık";
 
 
-  /* -------------------------------------------------------
-     25 Ekim - 1 Kasım 2026
-     ------------------------------------------------------- */
-
   let match =
     value.match(
 
       new RegExp(
 
-        `(\\d{1,2})\\s+(${months})\\s*[-–]\\s*` +
+        `(\\d{1,2})\\s+(${months})\\s*[-–—]\\s*` +
         `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
 
         "i"
@@ -3019,16 +2917,12 @@ function findEventDate(
   }
 
 
-  /* -------------------------------------------------------
-     24 - 31 Ekim 2026
-     ------------------------------------------------------- */
-
   match =
     value.match(
 
       new RegExp(
 
-        `(\\d{1,2})\\s*[-–]\\s*` +
+        `(\\d{1,2})\\s*[-–—]\\s*` +
         `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
 
         "i"
@@ -3050,23 +2944,12 @@ function findEventDate(
   }
 
 
-  /* -------------------------------------------------------
-     TEK TARİH
-
-     Not:
-     Content Intent / Lifecycle katmanı bunun gerçekten
-     etkinlik tarihi olup olmadığını ayrıca değerlendirecek.
-     ------------------------------------------------------- */
-
   match =
     value.match(
 
       new RegExp(
-
         `(\\d{1,2})\\s+(${months})\\s+(20\\d{2})`,
-
         "i"
-
       )
 
     );
@@ -3106,16 +2989,12 @@ function findDeadline(
     "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık";
 
 
-  /* -------------------------------------------------------
-     Son başvuru 20 Ekim 2026
-     ------------------------------------------------------- */
-
   let match =
     value.match(
 
       new RegExp(
 
-        `(?:son\\s+başvuru|son\\s+basvuru|son\\s+tarih|kayıtlar|kayitlar)` +
+        `(?:son\\s+başvuru|son\\s+basvuru|son\\s+tarih|son\\s+kayıt|son\\s+kayit)` +
         `[^.]{0,50}?` +
         `(\\d{1,2})\\s+(${months})` +
         `(?:\\s+(20\\d{2}))?` +
@@ -3139,10 +3018,6 @@ function findDeadline(
   }
 
 
-  /* -------------------------------------------------------
-     20 Ekim 2026 tarihinde sona erecek
-     ------------------------------------------------------- */
-
   match =
     value.match(
 
@@ -3152,7 +3027,7 @@ function findDeadline(
         `(?:\\s+(20\\d{2}))?` +
         `(?:[^.]{0,40}?)(\\d{1,2}:\\d{2})?` +
         `(?:[^.]{0,70}?)` +
-        `(?:sona\\s+erecek|sona\\s+erecektir|son\\s+başvuru|son\\s+basvuru)`,
+        `(?:sona\\s+erecek|sona\\s+erecektir|sona\\s+eriyor|son\\s+başvuru|son\\s+basvuru|son\\s+kayıt|son\\s+kayit)`,
 
         "i"
 
@@ -3240,7 +3115,7 @@ function findGrade(
 
 
 /* =========================================================
-   TARİH → TIMESTAMP
+   YAYIN TARİHİ → TIMESTAMP
    ========================================================= */
 
 function parseDateTimestamp(
@@ -3253,10 +3128,6 @@ function parseDateTimestamp(
       ""
     );
 
-
-  /* -------------------------------------------------------
-     09.10.2026
-     ------------------------------------------------------- */
 
   let match =
     text.match(
@@ -3286,10 +3157,6 @@ function parseDateTimestamp(
 
   }
 
-
-  /* -------------------------------------------------------
-     9 Ekim 2026
-     ------------------------------------------------------- */
 
   match =
     text.match(
@@ -3360,6 +3227,9 @@ function parseDateTimestamp(
 
 /* =========================================================
    KALİTE PUANI
+
+   Bu puan içerik seçimi değildir.
+   Kaynak verisinin ne kadar dolu olduğunu anlatır.
    ========================================================= */
 
 function calculateQuality({
@@ -3410,15 +3280,8 @@ function calculateQuality({
   }
 
 
-  /*
-    Yalnızca gerçekten doğrulanmış şehir varsa
-    konum kalite puanı verir.
-  */
-
   if (
-    location &&
-    location !==
-    "Türkiye"
+    location
   ) {
 
     score +=
@@ -3544,7 +3407,13 @@ function dedupeArticles(
 
 
 /* =========================================================
-   SIRALAMA
+   KAYNAK İÇİ STABİL SIRALAMA
+
+   Nihai feed ranking değildir.
+
+   1. yayın tarihi
+   2. veri kalitesi
+   3. legacy relevance ipucu
    ========================================================= */
 
 function compareArticles(
@@ -3552,32 +3421,51 @@ function compareArticles(
   b
 ) {
 
-  const scoreDiff =
-    safeNumber(
-      b?.finalScore
-    )
-    -
-    safeNumber(
-      a?.finalScore
-    );
-
-
-  if (
-    scoreDiff !== 0
-  ) {
-
-    return scoreDiff;
-
-  }
-
-
-  return (
+  const dateDiff =
     safeNumber(
       b?.timestamp
     )
     -
     safeNumber(
       a?.timestamp
+    );
+
+
+  if (
+    dateDiff !== 0
+  ) {
+
+    return dateDiff;
+
+  }
+
+
+  const qualityDiff =
+    safeNumber(
+      b?.qualityScore
+    )
+    -
+    safeNumber(
+      a?.qualityScore
+    );
+
+
+  if (
+    qualityDiff !== 0
+  ) {
+
+    return qualityDiff;
+
+  }
+
+
+  return (
+    safeNumber(
+      b?.relevanceScore
+    )
+    -
+    safeNumber(
+      a?.relevanceScore
     )
   );
 
@@ -3708,8 +3596,7 @@ function getEmoji(
   return (
     map[
       category
-    ]
-    ||
+    ] ||
     "🏀"
   );
 
@@ -4083,4 +3970,4 @@ function safeNumber(
     ? number
     : 0;
 
-}
+         }
