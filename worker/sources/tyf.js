@@ -4,15 +4,37 @@
 
    Türkiye Yüzme Federasyonu Kaynak Motoru
 
-   Mimari:
-   worker/
-   ├── sources/
-   │   └── tyf.js
-   ├── intelligence/
-   ├── learning/
-   └── utils/
+   Sürüm: 6.1.3
 
-   SporNRD v6
+   AMAÇ
+   ---------------------------------------------------------
+   TYF haber listesini taramak, haber detaylarını okumak ve
+   mümkün olduğunca ham/gerçek kaynak bilgisini SporNRD
+   pipeline'ına aday içerik olarak teslim etmek.
+
+   YENİ MİMARİ KURAL
+   ---------------------------------------------------------
+   Kaynak motoru artık nihai "SEÇ / ELE" kararı vermez.
+
+   Kaynak motorunun görevi:
+   - bağlantıları bulmak
+   - haber detayını okumak
+   - başlık/gövde/tarih/görsel/PDF çıkarmak
+   - classifier sonucunu yardımcı metadata olarak korumak
+   - Fact Engine gerçeklerini üretmek
+   - legacy uyumluluk için editorial çıktısı üretmek
+
+   Nihai içerik seçimi:
+   Selection Engine tarafından yapılır.
+
+   Bu nedenle bu dosyada artık:
+   - analysis.keep filtresi YOK
+   - relevanceScore >= 3 filtresi YOK
+   - kullanıcı ilgisine göre kaynak seviyesinde eleme YOK
+   - learning/relevance sıralaması YOK
+
+   Böylece TYF'deki aday içerikler merkezi SporNRD karar
+   mekanizmasına ulaşabilir.
    ========================================================= */
 
 
@@ -32,7 +54,11 @@ import {
 
 
 /* =========================================================
-   AKILLI SINIFLANDIRMA
+   LEGACY / YARDIMCI SINIFLANDIRMA
+
+   DİKKAT:
+   classifier artık kaynak seviyesinde içerik ELEMEZ.
+   Yalnızca yardımcı kategori/audience/score sinyali üretir.
    ========================================================= */
 
 import {
@@ -50,7 +76,10 @@ import {
 
 
 /* =========================================================
-   SPORNRD EDİTÖR MOTORU
+   LEGACY EDİTÖR UYUMLULUĞU
+
+   Preview pipeline içinde Persona Engine daha sonra
+   kullanıcıya gösterilecek yeni anlatımı yeniden üretir.
    ========================================================= */
 
 import {
@@ -59,30 +88,11 @@ import {
 
 
 /* =========================================================
-   TEKRAR EDEN HABERLER
+   VERSION
    ========================================================= */
 
-import {
-  dedupeArticles
-} from "../intelligence/duplicateEngine.js";
-
-
-/* =========================================================
-   İLGİ / ÖĞRENME PUANI
-   ========================================================= */
-
-import {
-  calculateFinalScore
-} from "../intelligence/relevanceEngine.js";
-
-
-/* =========================================================
-   GLOBAL ÖĞRENME DURUMU
-   ========================================================= */
-
-import {
-  readLearningState
-} from "../learning/learningStore.js";
+export const TYF_SOURCE_VERSION =
+  "1.1";
 
 
 /* =========================================================
@@ -118,7 +128,10 @@ const SOURCE = {
     true,
 
   website:
-    BASE
+    BASE,
+
+  sourceVersion:
+    TYF_SOURCE_VERSION
 
 };
 
@@ -135,6 +148,10 @@ const MAX_LIMIT =
   30;
 
 
+/*
+  Cloudflare Worker subrequest maliyetini kontrollü tutmak
+  için kaynak başına taranan maksimum detay sayısı.
+*/
 const MAX_ARTICLE_SCAN =
   30;
 
@@ -144,13 +161,18 @@ const MAX_ARTICLE_SCAN =
    ========================================================= */
 
 export async function getTyfFeed({
+
   limit = DEFAULT_LIMIT,
   env = null
+
 } = {}) {
 
-  /* -------------------------------------------------------
-     Limit güvenliği
-     ------------------------------------------------------- */
+  /*
+    env şu anda TYF kaynak okuma aşamasında kullanılmıyor.
+    Parametre provider sözleşmesiyle uyumluluk için korunur.
+  */
+  void env;
+
 
   const safeLimit =
     normalizeLimit(
@@ -158,9 +180,9 @@ export async function getTyfFeed({
     );
 
 
-  /* -------------------------------------------------------
-     Haber liste sayfasını indir
-     ------------------------------------------------------- */
+  /* =======================================================
+     1. HABER LİSTE SAYFASINI OKU
+     ========================================================= */
 
   const html =
     await getHtml(
@@ -168,9 +190,11 @@ export async function getTyfFeed({
     );
 
 
-  /* -------------------------------------------------------
-     Haber bağlantılarını çıkar
-     ------------------------------------------------------- */
+  /* =======================================================
+     2. HABER BAĞLANTILARINI BUL
+
+     findLinks kendi içinde URL tekrarlarını temizler.
+     ========================================================= */
 
   const links =
     findLinks(
@@ -182,21 +206,11 @@ export async function getTyfFeed({
       );
 
 
-  /* -------------------------------------------------------
-     Öğrenme durumunu oku
-     ------------------------------------------------------- */
+  /* =======================================================
+     3. HABER DETAYLARINI PARALEL OKU
 
-  const learningState =
-    await readLearningState(
-      env
-    );
-
-
-  /* -------------------------------------------------------
-     Haberleri paralel oku
-
-     Bir haber hata verirse diğerleri çalışmaya devam eder.
-     ------------------------------------------------------- */
+     Tek bir haber hata verirse diğer adaylar kaybolmaz.
+     ========================================================= */
 
   const results =
     await Promise.allSettled(
@@ -208,9 +222,14 @@ export async function getTyfFeed({
     );
 
 
-  /* -------------------------------------------------------
-     Başarılı ve anlamlı haberleri al
-     ------------------------------------------------------- */
+  /* =======================================================
+     4. BAŞARILI ADAYLARI AL
+
+     KRİTİK:
+     Burada relevance / keep / kategori bazlı ELEME YOK.
+
+     Selection Engine bütün anlamlı adayları görmelidir.
+     ========================================================= */
 
   const items =
     results
@@ -218,7 +237,8 @@ export async function getTyfFeed({
       .filter(
         result =>
           result.status ===
-          "fulfilled" &&
+          "fulfilled"
+          &&
           Boolean(
             result.value
           )
@@ -227,72 +247,28 @@ export async function getTyfFeed({
       .map(
         result =>
           result.value
-      )
-
-      .filter(
-        item =>
-          Number(
-            item.relevanceScore ||
-            0
-          ) >= 3
       );
 
 
   /* =======================================================
-     TEKRAR EDEN HABERLERİ TEMİZLE
-     ======================================================= */
+     5. KAYNAK KRONOLOJİSİ
 
-  const deduped =
-    dedupeArticles(
-      items
-    );
+     Bu nihai SporNRD ranking değildir.
 
+     Yalnızca TYF aday havuzunu mümkün olduğunca kaynak
+     kronolojisine göre düzenler.
 
-  /* =======================================================
-     ÖĞRENME + İLGİ PUANI
-     ======================================================= */
+     Nihai akış sırası Ranking Engine tarafından verilir.
+     ========================================================= */
 
-  for (
-    const item
-    of deduped
-  ) {
-
-    const score =
-      calculateFinalScore(
-        item,
-        learningState
-      );
-
-
-    item.finalScore =
-      Number.isFinite(
-        Number(
-          score
-        )
-      )
-        ? Number(
-            score
-          )
-        : Number(
-            item.relevanceScore ||
-            0
-          );
-
-  }
-
-
-  /* =======================================================
-     PUAN + TARİHE GÖRE SIRALA
-     ======================================================= */
-
-  deduped.sort(
-    compareArticles
+  items.sort(
+    compareByPublicationDate
   );
 
 
   /* =======================================================
-     SONUÇ
-     ======================================================= */
+     6. SONUÇ
+     ========================================================= */
 
   return {
 
@@ -301,8 +277,14 @@ export async function getTyfFeed({
         ...SOURCE
       },
 
+    candidateCount:
+      items.length,
+
+    scannedLinkCount:
+      links.length,
+
     items:
-      deduped.slice(
+      items.slice(
         0,
         safeLimit
       )
@@ -322,9 +304,9 @@ async function readArticle(
 
   try {
 
-    /* -----------------------------------------------------
-       Haber HTML
-       ----------------------------------------------------- */
+    /* =====================================================
+       1. HTML
+       ===================================================== */
 
     const html =
       await getHtml(
@@ -332,13 +314,18 @@ async function readArticle(
       );
 
 
-    /* -----------------------------------------------------
-       ORİJİNAL BAŞLIK
-       ----------------------------------------------------- */
+    /* =====================================================
+       2. ORİJİNAL BAŞLIK
+
+       Başlığı olmayan içerik güvenilir bir aday post
+       üretmek için yeterli değildir.
+       ===================================================== */
 
     const originalTitle =
-      extractTitle(
-        html
+      cleanString(
+        extractTitle(
+          html
+        )
       );
 
 
@@ -351,9 +338,9 @@ async function readArticle(
     }
 
 
-    /* -----------------------------------------------------
-       GERÇEK HABER BÖLÜMÜ
-       ----------------------------------------------------- */
+    /* =====================================================
+       3. GERÇEK HABER BÖLGESİ + GÖVDE
+       ===================================================== */
 
     const region =
       extractArticleRegion(
@@ -362,36 +349,33 @@ async function readArticle(
 
 
     const originalText =
-      extractBody(
-        region,
-        originalTitle
+      cleanString(
+        extractBody(
+          region,
+          originalTitle
+        )
       );
 
 
-    /* -----------------------------------------------------
-       KATEGORİ + HEDEF KİTLE
-       ----------------------------------------------------- */
+    /* =====================================================
+       4. CLASSIFIER
+
+       Artık yalnız yardımcı legacy sinyaldir.
+
+       analysis.keep false olsa bile içerik atılmaz.
+       Nihai seçim Selection Engine'e aittir.
+       ===================================================== */
 
     const analysis =
-      classifyArticle(
+      safeClassify(
         originalTitle,
         originalText
       );
 
 
-    if (
-      !analysis ||
-      analysis.keep !== true
-    ) {
-
-      return null;
-
-    }
-
-
-    /* -----------------------------------------------------
-       GERÇEK BİLGİLER
-       ----------------------------------------------------- */
+    /* =====================================================
+       5. FACT ENGINE
+       ===================================================== */
 
     const facts =
       extractFacts({
@@ -411,9 +395,12 @@ async function readArticle(
       });
 
 
-    /* -----------------------------------------------------
-       TARİH
-       ----------------------------------------------------- */
+    /* =====================================================
+       6. YAYIN TARİHİ
+
+       KRİTİK:
+       Bu değer olay tarihi değildir.
+       ===================================================== */
 
     const date =
       extractDate(
@@ -422,9 +409,9 @@ async function readArticle(
       );
 
 
-    /* -----------------------------------------------------
-       GÖRSEL
-       ----------------------------------------------------- */
+    /* =====================================================
+       7. MEDYA
+       ===================================================== */
 
     const image =
       extractImage(
@@ -432,10 +419,6 @@ async function readArticle(
         BASE
       );
 
-
-    /* -----------------------------------------------------
-       PDF
-       ----------------------------------------------------- */
 
     const pdfUrl =
       extractPdf(
@@ -445,12 +428,18 @@ async function readArticle(
       );
 
 
-    /* -----------------------------------------------------
-       SPORNRD EDİTÖRÜ
-       ----------------------------------------------------- */
+    /* =====================================================
+       8. LEGACY EDITORIAL
+
+       Normalizer'ın mevcut legacy sözleşmesini bozmamak
+       için korunur.
+
+       Persona Engine preview pipeline'ın ilerleyen
+       aşamasında kullanıcı anlatımını yeniden oluşturur.
+       ===================================================== */
 
     const editorial =
-      buildEditorial({
+      safeBuildEditorial({
 
         originalTitle:
           originalTitle,
@@ -470,9 +459,9 @@ async function readArticle(
       });
 
 
-    /* -----------------------------------------------------
-       ID
-       ----------------------------------------------------- */
+    /* =====================================================
+       9. ID
+       ===================================================== */
 
     const id =
       makeId(
@@ -481,7 +470,7 @@ async function readArticle(
 
 
     /* =====================================================
-       SON HABER NESNESİ
+       10. ADAY LEGACY POST
        ===================================================== */
 
     return {
@@ -494,18 +483,24 @@ async function readArticle(
 
 
       /* ---------------------------------------------------
-         Kullanıcının gördüğü SporNRD içeriği
+         Legacy kullanıcı içeriği
          --------------------------------------------------- */
 
       title:
-        editorial.title,
+        cleanString(
+          editorial.title ||
+          originalTitle
+        ),
 
       summary:
-        editorial.summary,
+        cleanString(
+          editorial.summary ||
+          originalText
+        ),
 
 
       /* ---------------------------------------------------
-         Orijinal kaynak
+         Orijinal kaynak içeriği
          --------------------------------------------------- */
 
       originalTitle:
@@ -516,7 +511,7 @@ async function readArticle(
 
 
       /* ---------------------------------------------------
-         SporNRD Editörü
+         Legacy editorial metadata
          --------------------------------------------------- */
 
       editorial:
@@ -526,7 +521,7 @@ async function readArticle(
         "SporNRD Özeti",
 
       editorialVersion:
-        "6.0.4",
+        "6.1.3-source-legacy",
 
       titleCandidates:
         Array.isArray(
@@ -552,6 +547,12 @@ async function readArticle(
       sourceType:
         SOURCE.sourceType,
 
+      sourceWebsite:
+        SOURCE.website,
+
+      sourceVersion:
+        TYF_SOURCE_VERSION,
+
       verified:
         SOURCE.verified,
 
@@ -560,7 +561,9 @@ async function readArticle(
 
 
       /* ---------------------------------------------------
-         Analiz
+         Classifier yardımcı sinyalleri
+
+         Bunlar kaynak seviyesinde eleme yapmaz.
          --------------------------------------------------- */
 
       category:
@@ -570,15 +573,29 @@ async function readArticle(
         analysis.audience,
 
       relevanceScore:
-        Number(
-          analysis.score ||
-          0
+        safeNumber(
+          analysis.score
         ),
 
+      classifierKeep:
+        analysis.keep ===
+        true,
+
+      classifierReason:
+        cleanString(
+          analysis.reason ||
+          analysis.reasons ||
+          ""
+        ),
+
+
+      /* ---------------------------------------------------
+         Editorial kalite sinyali
+         --------------------------------------------------- */
+
       qualityScore:
-        Number(
-          editorial.qualityScore ||
-          0
+        safeNumber(
+          editorial.qualityScore
         ),
 
 
@@ -587,12 +604,16 @@ async function readArticle(
          --------------------------------------------------- */
 
       topic:
-        facts?.topic ||
-        originalTitle,
+        cleanString(
+          facts?.topic ||
+          originalTitle
+        ),
 
       urgency:
-        facts?.urgency ||
-        "normal",
+        cleanString(
+          facts?.urgency ||
+          "normal"
+        ),
 
       actionRequired:
         Boolean(
@@ -600,8 +621,10 @@ async function readArticle(
         ),
 
       actionLabel:
-        editorial.actionLabel ||
-        "Detay",
+        cleanString(
+          editorial.actionLabel ||
+          "Detay"
+        ),
 
       tags:
         Array.isArray(
@@ -616,47 +639,63 @@ async function readArticle(
          --------------------------------------------------- */
 
       facts:
-        facts ||
-        {},
+        facts &&
+        typeof facts ===
+        "object"
+
+          ? facts
+
+          : {},
 
 
       /* ---------------------------------------------------
-         Tarih / konum
+         YAYIN TARİHİ / KAYNAK KONUMU
+
+         date = publication date
+
+         Gerçek olay tarihleri facts içinde ayrı tutulur.
          --------------------------------------------------- */
 
       date:
-        date?.text ||
-        "",
+        cleanString(
+          date?.text ||
+          ""
+        ),
 
       timestamp:
-        Number(
-          date?.time ||
-          0
+        safeNumber(
+          date?.time
         ),
 
       location:
-        facts?.location ||
-        "Türkiye",
+        cleanString(
+          facts?.location ||
+          "Türkiye"
+        ),
 
 
       /* ---------------------------------------------------
-         Medya
+         Medya / bağlantı
          --------------------------------------------------- */
 
       image:
-        image ||
-        "",
+        cleanString(
+          image ||
+          ""
+        ),
 
       url:
         url,
 
       pdfUrl:
-        pdfUrl ||
-        "",
+        cleanString(
+          pdfUrl ||
+          ""
+        ),
 
 
       /* ---------------------------------------------------
-         Görsel kategori
+         Legacy görsel kategori
          --------------------------------------------------- */
 
       emoji:
@@ -693,6 +732,204 @@ async function readArticle(
 
 
 /* =========================================================
+   CLASSIFIER GÜVENLİ ÇAĞRI
+
+   Classifier hata verirse kaynak içeriği kaybedilmez.
+   ========================================================= */
+
+function safeClassify(
+  title,
+  body
+) {
+
+  try {
+
+    const result =
+      classifyArticle(
+        title,
+        body
+      );
+
+
+    if (
+      result &&
+      typeof result ===
+      "object"
+    ) {
+
+      return {
+
+        category:
+          cleanString(
+            result.category ||
+            "announcement"
+          ),
+
+        audience:
+          cleanString(
+            result.audience ||
+            "general"
+          ),
+
+        score:
+          safeNumber(
+            result.score
+          ),
+
+        keep:
+          result.keep ===
+          true,
+
+        reason:
+          result.reason ||
+          result.reasons ||
+          ""
+
+      };
+
+    }
+
+  }
+
+  catch (
+    error
+  ) {
+
+    console.log(
+
+      "TYF classifier uyarısı:",
+
+      getErrorMessage(
+        error
+      )
+
+    );
+
+  }
+
+
+  return {
+
+    category:
+      "announcement",
+
+    audience:
+      "general",
+
+    score:
+      0,
+
+    keep:
+      false,
+
+    reason:
+      ""
+
+  };
+
+}
+
+
+/* =========================================================
+   EDITORIAL GÜVENLİ ÇAĞRI
+
+   Eski editorial motorundaki hata kaynak içeriğini
+   Selection Engine'e ulaşmadan yok etmemelidir.
+   ========================================================= */
+
+function safeBuildEditorial({
+
+  originalTitle,
+  originalText,
+  category,
+  facts,
+  pdfUrl
+
+}) {
+
+  try {
+
+    const result =
+      buildEditorial({
+
+        originalTitle:
+          originalTitle,
+
+        originalText:
+          originalText,
+
+        category:
+          category,
+
+        facts:
+          facts,
+
+        pdfUrl:
+          pdfUrl
+
+      });
+
+
+    if (
+      result &&
+      typeof result ===
+      "object"
+    ) {
+
+      return result;
+
+    }
+
+  }
+
+  catch (
+    error
+  ) {
+
+    console.log(
+
+      "TYF legacy editorial uyarısı:",
+
+      getErrorMessage(
+        error
+      )
+
+    );
+
+  }
+
+
+  return {
+
+    title:
+      originalTitle,
+
+    summary:
+      shorten(
+        originalText,
+        420
+      ),
+
+    titleCandidates:
+      [],
+
+    qualityScore:
+      originalText
+        ? 50
+        : 25,
+
+    actionLabel:
+      "Detay",
+
+    tags:
+      []
+
+  };
+
+}
+
+
+/* =========================================================
    HTML İNDİR
    ========================================================= */
 
@@ -717,7 +954,7 @@ async function getHtml(
             "tr-TR,tr;q=0.9,en;q=0.8",
 
           "User-Agent":
-            "Mozilla/5.0 (compatible; SporNRD/6.0)"
+            "Mozilla/5.0 (compatible; SporNRD/6.1)"
 
         },
 
@@ -807,7 +1044,7 @@ function findLinks(
 
 
     /* -----------------------------------------------------
-       Sadece TYF domaini
+       Yalnız TYF domaini
        ----------------------------------------------------- */
 
     try {
@@ -820,7 +1057,8 @@ function findLinks(
 
       if (
         parsed.hostname !==
-        "www.tyf.gov.tr" &&
+        "www.tyf.gov.tr"
+        &&
         parsed.hostname !==
         "tyf.gov.tr"
       ) {
@@ -828,6 +1066,18 @@ function findLinks(
         continue;
 
       }
+
+
+      /*
+        Fragment seçim kararına katkı sağlamaz.
+      */
+
+      parsed.hash =
+        "";
+
+
+      url =
+        parsed.href;
 
     }
 
@@ -837,20 +1087,6 @@ function findLinks(
 
     }
 
-
-    /* -----------------------------------------------------
-       URL fragment temizliği
-       ----------------------------------------------------- */
-
-    url =
-      url.split(
-        "#"
-      )[0];
-
-
-    /* -----------------------------------------------------
-       Tekrar kontrolü
-       ----------------------------------------------------- */
 
     if (
       used.has(
@@ -881,55 +1117,48 @@ function findLinks(
 
 
 /* =========================================================
-   HABER SIRALAMASI
+   YAYIN TARİHİNE GÖRE KAYNAK SIRASI
+
+   Bu RANKING değildir.
    ========================================================= */
 
-function compareArticles(
+function compareByPublicationDate(
   a,
   b
 ) {
 
-  const scoreA =
-    Number(
-      a?.finalScore ||
-      0
+  const timestampA =
+    safeNumber(
+      a?.timestamp
     );
 
 
-  const scoreB =
-    Number(
-      b?.finalScore ||
-      0
+  const timestampB =
+    safeNumber(
+      b?.timestamp
     );
 
 
   if (
-    scoreA !==
-    scoreB
+    timestampA !==
+    timestampB
   ) {
 
     return (
-      scoreB -
-      scoreA
+      timestampB -
+      timestampA
     );
 
   }
 
 
-  return (
-
-    Number(
-      b?.timestamp ||
-      0
-    )
-
-    -
-
-    Number(
-      a?.timestamp ||
-      0
-    )
-
+  return cleanString(
+    a?.originalTitle
+  ).localeCompare(
+    cleanString(
+      b?.originalTitle
+    ),
+    "tr-TR"
   );
 
 }
@@ -1031,7 +1260,7 @@ function makeId(
 
 
 /* =========================================================
-   KATEGORİ EMOJİSİ
+   LEGACY KATEGORİ EMOJİSİ
    ========================================================= */
 
 function emojiFor(
@@ -1060,10 +1289,140 @@ function emojiFor(
 
   return (
     map[
-      category
+      cleanString(
+        category
+      )
+        .toLowerCase()
     ]
     ||
     "🏊"
+  );
+
+}
+
+
+/* =========================================================
+   SAFE NUMBER
+   ========================================================= */
+
+function safeNumber(
+  value
+) {
+
+  const number =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
+
+}
+
+
+/* =========================================================
+   CLEAN STRING
+   ========================================================= */
+
+function cleanString(
+  value
+) {
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+
+    return value
+      .map(
+        cleanString
+      )
+      .filter(
+        Boolean
+      )
+      .join(
+        " · "
+      );
+
+  }
+
+
+  if (
+    value &&
+    typeof value ===
+    "object"
+  ) {
+
+    return "";
+
+  }
+
+
+  return String(
+    value ??
+    ""
+  )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+}
+
+
+/* =========================================================
+   SHORTEN
+   ========================================================= */
+
+function shorten(
+  value,
+  max
+) {
+
+  const text =
+    cleanString(
+      value
+    );
+
+
+  if (
+    text.length <=
+    max
+  ) {
+
+    return text;
+
+  }
+
+
+  const part =
+    text.slice(
+      0,
+      max
+    );
+
+
+  const lastSpace =
+    part.lastIndexOf(
+      " "
+    );
+
+
+  return (
+    part.slice(
+      0,
+      lastSpace > 0
+        ? lastSpace
+        : max
+    )
+    +
+    "…"
   );
 
 }
@@ -1093,4 +1452,4 @@ function getErrorMessage(
     "Bilinmeyen hata"
   );
 
-  }
+}
