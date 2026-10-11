@@ -4,7 +4,8 @@
 
    İçerik Niyet / Durum Anlama Motoru
 
-   Sürüm: 6.1.2
+   Sürüm: 6.1.3
+   Engine Version: 1.2
 
    AMAÇ
    ---------------------------------------------------------
@@ -14,7 +15,7 @@
    - Sonuç / başarı haberi mi?
    - Görevlendirme / transfer haberi mi?
    - Kayıt / başvuru var mı?
-   - Yaklaşan bir fırsat / etkinlik mi?
+   - Yaklaşan gerçek bir fırsat / etkinlik mi?
    - Kampanya mı?
    - İş ilanı mı?
    - Ürün / mağaza içeriği mi?
@@ -30,6 +31,49 @@
    jobs
    stores
 
+   =========================================================
+   1.2 ANA GELİŞTİRME
+   ---------------------------------------------------------
+   Gelecek zaman fiili artık tek başına upcoming üretmez.
+
+   Örnek:
+
+   "Antrenör vize işlemleri 1 Ekim'de başlayacak."
+   ---------------------------------------------------------
+   contentIntent:
+   announcement
+
+   eventStatus:
+   unknown
+
+   Çünkü burada başlayacak olan şey bir ETKİNLİK değil,
+   idarî / meslekî bir işlem dönemidir.
+
+   Buna karşılık:
+
+   "Yüzme Şampiyonası 20 Ekim'de başlayacak."
+   ---------------------------------------------------------
+   gerçek etkinlik nesnesi bulunduğu için:
+
+   eventStatus:
+   upcoming
+
+   olabilir.
+
+   Aynı ayrım:
+
+   - başvuru işlemleri
+   - kayıt işlemleri
+   - lisans işlemleri
+   - vize işlemleri
+   - ödeme işlemleri
+   - delege işlemleri
+   - genel kurul işlemleri
+   - belge / evrak işlemleri
+
+   için de uygulanır.
+
+   =========================================================
    TEMEL KURAL
    ---------------------------------------------------------
    Önce ANLA
@@ -41,6 +85,7 @@
    - Kaynakta olmayan bilgi üretmez.
    - Yayın tarihini olay tarihi saymaz.
    - Temporal Engine'in görevini üstlenmez.
+   - İşlem başlangıcını etkinlik başlangıcı saymaz.
    - Emin olmadığı durumda güvenli varsayım olarak
      news / unknown kullanır.
    ========================================================= */
@@ -51,7 +96,7 @@
    ========================================================= */
 
 export const CONTENT_INTENT_VERSION =
-  "1.1";
+  "1.2";
 
 
 /* =========================================================
@@ -124,6 +169,278 @@ export const EVENT_STATUSES = {
 
 
 /* =========================================================
+   GERÇEK ETKİNLİK NESNELERİ
+
+   Bir gelecek zaman fiilinin "upcoming" üretebilmesi için
+   bu tür gerçek faaliyet bağlamlarından en az biri aranır.
+
+   Çok genel:
+   - program
+   - süreç
+   - işlem
+
+   gibi kelimeler burada özellikle YOKTUR.
+   ========================================================= */
+
+const EVENT_OBJECT_SIGNALS = [
+
+  "sampiyona",
+
+  "turnuva",
+
+  "musabaka",
+
+  "karsilasma",
+
+  "mac",
+
+  "yarisma",
+
+  "spor yarismasi",
+
+  "final",
+
+  "final four",
+
+  "kupa",
+
+  "festival",
+
+  "spor senligi",
+
+  "etkinlik",
+
+  "organizasyon",
+
+  "spor organizasyonu",
+
+  "kamp",
+
+  "spor kampi",
+
+  "hazirlik kampi",
+
+  "yaz kampi",
+
+  "seminer",
+
+  "panel",
+
+  "konferans",
+
+  "workshop",
+
+  "atolye",
+
+  "kurs",
+
+  "antrenorluk kursu",
+
+  "antrenor kursu",
+
+  "hakemlik kursu",
+
+  "hakem kursu",
+
+  "egitim programi",
+
+  "egitim etkinligi",
+
+  "sertifika programi"
+
+];
+
+
+/* =========================================================
+   İDARİ / İŞLEMSEL SÜREÇLER
+
+   Bunların "başlayacak" olması gerçek spor etkinliğinin
+   başlayacağı anlamına gelmez.
+   ========================================================= */
+
+const ADMINISTRATIVE_PROCESS_SIGNALS = [
+
+  "vize islemleri",
+
+  "vize islemi",
+
+  "lisans islemleri",
+
+  "lisans islemi",
+
+  "tescil islemleri",
+
+  "tescil islemi",
+
+  "kayit islemleri",
+
+  "kayit islemi",
+
+  "basvuru islemleri",
+
+  "basvuru islemi",
+
+  "odeme islemleri",
+
+  "odeme islemi",
+
+  "banka odeme",
+
+  "belge islemleri",
+
+  "belge islemi",
+
+  "evrak islemleri",
+
+  "evrak islemi",
+
+  "delege islemleri",
+
+  "delegelerin ulasim",
+
+  "delegelerinin ulasim",
+
+  "delege ulasim",
+
+  "ulasim islemleri",
+
+  "konaklama islemleri",
+
+  "transfer islemleri",
+
+  "genel kurul",
+
+  "mali genel kurul",
+
+  "olagan genel kurul",
+
+  "olaganustu genel kurul",
+
+  "yonetim kurulu",
+
+  "disiplin kurulu",
+
+  "tahkim kurulu",
+
+  "denetim kurulu",
+
+  "ihale",
+
+  "satin alma",
+
+  "teklif verme",
+
+  "teklif mektubu",
+
+  "hizmet alimi",
+
+  "mal alimi",
+
+  "sistem islemleri",
+
+  "hesap islemleri",
+
+  "portal islemleri"
+
+];
+
+
+/* =========================================================
+   GELECEK ZAMAN SİNYALLERİ
+   ========================================================= */
+
+const FUTURE_LANGUAGE_SIGNALS = [
+
+  "duzenlenecek",
+
+  "duzenlenecektir",
+
+  "gerceklesecek",
+
+  "gerceklesecektir",
+
+  "gerceklestirilecek",
+
+  "gerceklestirilecektir",
+
+  "yapilacak",
+
+  "yapilacaktir",
+
+  "oynanacak",
+
+  "oynanacaktir",
+
+  "baslayacak",
+
+  "baslayacaktir",
+
+  "basliyor",
+
+  "katilim saglanacak",
+
+  "gerceklesmesi planlaniyor"
+
+];
+
+
+/* =========================================================
+   DEVAM EDEN FAALİYET SİNYALLERİ
+   ========================================================= */
+
+const ONGOING_LANGUAGE_SIGNALS = [
+
+  "devam ediyor",
+
+  "suruyor",
+
+  "devam etmekte",
+
+  "halen devam eden",
+
+  "bugun devam ediyor",
+
+  "musabakalar devam ediyor",
+
+  "turnuva devam ediyor",
+
+  "sampiyona devam ediyor",
+
+  "kamp devam ediyor"
+
+];
+
+
+/* =========================================================
+   TAMAMLANMIŞ FAALİYET SİNYALLERİ
+   ========================================================= */
+
+const COMPLETED_LANGUAGE_SIGNALS = [
+
+  "tamamlandi",
+
+  "sona erdi",
+
+  "duzenlendi",
+
+  "gerceklestirildi",
+
+  "sampiyon oldu",
+
+  "kupayi kazandi",
+
+  "kupayi kaldirdi",
+
+  "maglup etti",
+
+  "galip geldi",
+
+  "sonuclandi"
+
+];
+
+
+/* =========================================================
    ANA ANALİZ
    ========================================================= */
 
@@ -152,6 +469,33 @@ export function analyzeContentIntent(
     buildTitleText(
       post
     );
+
+
+  /* =======================================================
+     SEMANTİK BAĞLAM
+
+     Daha skor üretmeden önce:
+
+     - gerçek etkinlik var mı?
+     - yalnız idarî süreç mi var?
+     - gelecek / devam / geçmiş dili var mı?
+
+     belirlenir.
+     ========================================================= */
+
+  const semanticContext =
+    analyzeSemanticContext({
+
+      post:
+        post,
+
+      text:
+        text,
+
+      titleText:
+        titleText
+
+    });
 
 
   const scores =
@@ -448,6 +792,12 @@ export function analyzeContentIntent(
 
   /* =======================================================
      8. KAYIT / BAŞVURU
+
+     DİKKAT:
+     Kayıt süreci bir ETKİNLİK değildir.
+
+     Registration intent üretilebilir ancak eventStatus
+     bunun yüzünden upcoming olmaz.
      ========================================================= */
 
   scorePatterns({
@@ -495,7 +845,23 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     9. YAKLAŞAN FIRSAT / ETKİNLİK
+     9. FIRSAT / GERÇEK FAALİYET
+
+     1.1'DEKİ KRİTİK HATA:
+     ---------------------------------------------------------
+     "başlayacak"
+     "yapılacak"
+     "gerçekleşecek"
+
+     gibi fiiller burada doğrudan opportunity puanı
+     üretiyordu.
+
+     1.2'DE:
+     Gelecek zaman fiilleri bu genel pattern listesinden
+     çıkarıldı.
+
+     Gerçek faaliyet kontrolü aşağıdaki
+     applySemanticContextRules() içinde yapılır.
      ========================================================= */
 
   scorePatterns({
@@ -511,22 +877,17 @@ export function analyzeContentIntent(
 
     patterns: [
 
-      ["duzenlenecek", 12],
-      ["gerceklesecek", 12],
-      ["gerceklestirilecek", 12],
-      ["yapilacak", 10],
-      ["oynanacak", 11],
-      ["baslayacak", 11],
-      ["basliyor", 8],
       ["katilabilir", 9],
       ["katilim icin", 8],
       ["katilim", 4],
-      ["program", 2],
       ["turnuva", 3],
       ["festival", 4],
+      ["spor senligi", 4],
       ["kamp", 3],
       ["seminer", 3],
-      ["kurs", 3]
+      ["kurs", 3],
+      ["sampiyona", 3],
+      ["musabaka", 2]
 
     ],
 
@@ -534,7 +895,7 @@ export function analyzeContentIntent(
       reasons,
 
     reasonLabel:
-      "Fırsat / yaklaşan faaliyet sinyali"
+      "Fırsat / faaliyet sinyali"
 
   });
 
@@ -635,7 +996,27 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     13. ÖZEL ÇAKIŞMA KURALLARI
+     13. SEMANTİK BAĞLAM KURALLARI
+
+     Gelecek zaman dili burada güvenli şekilde yorumlanır.
+     ========================================================= */
+
+  applySemanticContextRules({
+
+    semanticContext:
+      semanticContext,
+
+    scores:
+      scores,
+
+    reasons:
+      reasons
+
+  });
+
+
+  /* =======================================================
+     14. ÖZEL ÇAKIŞMA KURALLARI
      ========================================================= */
 
   applySpecialRules({
@@ -653,13 +1034,16 @@ export function analyzeContentIntent(
       scores,
 
     reasons:
-      reasons
+      reasons,
+
+    semanticContext:
+      semanticContext
 
   });
 
 
   /* =======================================================
-     14. NİHAİ INTENT
+     15. NİHAİ INTENT
      ========================================================= */
 
   const contentIntent =
@@ -669,7 +1053,7 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     15. SEMANTİK EVENT STATUS
+     16. SEMANTİK EVENT STATUS
      ========================================================= */
 
   const eventStatus =
@@ -682,13 +1066,16 @@ export function analyzeContentIntent(
         contentIntent,
 
       reasons:
-        reasons
+        reasons,
+
+      semanticContext:
+        semanticContext
 
     });
 
 
   /* =======================================================
-     16. ACTIONABLE
+     17. ACTIONABLE
      ========================================================= */
 
   const actionable =
@@ -710,7 +1097,7 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     17. OPPORTUNITY SCORE
+     18. OPPORTUNITY SCORE
      ========================================================= */
 
   const opportunityScore =
@@ -732,7 +1119,7 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     18. CONFIDENCE
+     19. CONFIDENCE
      ========================================================= */
 
   const confidenceScore =
@@ -743,7 +1130,7 @@ export function analyzeContentIntent(
 
 
   /* =======================================================
-     19. FEED TREATMENT
+     20. FEED TREATMENT
      ========================================================= */
 
   const feedTreatment =
@@ -783,6 +1170,40 @@ export function analyzeContentIntent(
 
     feedTreatment:
       feedTreatment,
+
+
+    /* -----------------------------------------------------
+       Debug / semantik karar özeti
+       ----------------------------------------------------- */
+
+    context: {
+
+      eventObject:
+        semanticContext.eventObject,
+
+      administrativeProcess:
+        semanticContext.administrativeProcess,
+
+      pureAdministrativeProcess:
+        semanticContext.pureAdministrativeProcess,
+
+      futureLanguage:
+        semanticContext.futureLanguage,
+
+      futureEvent:
+        semanticContext.futureEvent,
+
+      futureAdministrativeProcess:
+        semanticContext.futureAdministrativeProcess,
+
+      ongoingEvent:
+        semanticContext.ongoingEvent,
+
+      completedEvent:
+        semanticContext.completedEvent
+
+    },
+
 
     scores:
       roundScores(
@@ -856,6 +1277,9 @@ export function applyContentIntent(
 
       feedTreatment:
         analysis.feedTreatment,
+
+      context:
+        analysis.context,
 
       scores:
         analysis.scores,
@@ -947,6 +1371,329 @@ function createScoreMap() {
       0
 
   };
+
+}
+
+
+/* =========================================================
+   SEMANTİK BAĞLAM ANALİZİ
+
+   Bu fonksiyon içerik kategorisini seçmez.
+
+   Yalnızca:
+
+   "Gelecek zaman fiili neyin geleceğini anlatıyor?"
+
+   sorusunun yanıtını hazırlar.
+   ========================================================= */
+
+function analyzeSemanticContext({
+
+  post,
+  text,
+  titleText
+
+}) {
+
+  void post;
+
+
+  const eventObject =
+    containsAnyFragment(
+      text,
+      EVENT_OBJECT_SIGNALS
+    );
+
+
+  const eventObjectInTitle =
+    containsAnyFragment(
+      titleText,
+      EVENT_OBJECT_SIGNALS
+    );
+
+
+  const administrativeProcess =
+    containsAnyFragment(
+      text,
+      ADMINISTRATIVE_PROCESS_SIGNALS
+    );
+
+
+  const administrativeProcessInTitle =
+    containsAnyFragment(
+      titleText,
+      ADMINISTRATIVE_PROCESS_SIGNALS
+    );
+
+
+  const futureLanguage =
+    containsAnyFragment(
+      text,
+      FUTURE_LANGUAGE_SIGNALS
+    );
+
+
+  const ongoingLanguage =
+    containsAnyFragment(
+      text,
+      ONGOING_LANGUAGE_SIGNALS
+    );
+
+
+  const completedLanguage =
+    containsAnyFragment(
+      text,
+      COMPLETED_LANGUAGE_SIGNALS
+    );
+
+
+  /*
+    Başlıkta gerçek faaliyet nesnesi bulunması
+    özellikle güçlü kabul edilir.
+
+    Örnek:
+    "3. Kademe Yüzme Antrenörlük Kursu..."
+  */
+
+  const strongEventContext =
+    eventObjectInTitle
+    ||
+    (
+      eventObject
+      &&
+      !administrativeProcessInTitle
+    );
+
+
+  /*
+    Tamamen idarî süreç:
+
+    "Antrenör Vize İşlemleri Hakkında Duyuru"
+
+    gibi başlıklar.
+
+    Metnin başka bir yerinde "seminer" kelimesinin
+    geçmesi yanlışlıkla bunu etkinliğe çevirmesin diye
+    başlık idarî ise güçlü şekilde korunur.
+  */
+
+  const pureAdministrativeProcess =
+    Boolean(
+
+      administrativeProcess
+
+      &&
+
+      !eventObjectInTitle
+
+      &&
+
+      (
+        administrativeProcessInTitle
+
+        ||
+
+        !eventObject
+      )
+
+    );
+
+
+  const futureAdministrativeProcess =
+    Boolean(
+
+      futureLanguage
+
+      &&
+
+      pureAdministrativeProcess
+
+    );
+
+
+  const futureEvent =
+    Boolean(
+
+      futureLanguage
+
+      &&
+
+      strongEventContext
+
+      &&
+
+      !pureAdministrativeProcess
+
+    );
+
+
+  const ongoingEvent =
+    Boolean(
+
+      ongoingLanguage
+
+      &&
+
+      strongEventContext
+
+      &&
+
+      !pureAdministrativeProcess
+
+    );
+
+
+  const completedEvent =
+    Boolean(
+
+      completedLanguage
+
+      &&
+
+      strongEventContext
+
+      &&
+
+      !pureAdministrativeProcess
+
+    );
+
+
+  return {
+
+    eventObject:
+      eventObject,
+
+    eventObjectInTitle:
+      eventObjectInTitle,
+
+    administrativeProcess:
+      administrativeProcess,
+
+    administrativeProcessInTitle:
+      administrativeProcessInTitle,
+
+    pureAdministrativeProcess:
+      pureAdministrativeProcess,
+
+    strongEventContext:
+      strongEventContext,
+
+    futureLanguage:
+      futureLanguage,
+
+    ongoingLanguage:
+      ongoingLanguage,
+
+    completedLanguage:
+      completedLanguage,
+
+    futureAdministrativeProcess:
+      futureAdministrativeProcess,
+
+    futureEvent:
+      futureEvent,
+
+    ongoingEvent:
+      ongoingEvent,
+
+    completedEvent:
+      completedEvent
+
+  };
+
+}
+
+
+/* =========================================================
+   SEMANTİK BAĞLAM → SCORE KURALLARI
+   ========================================================= */
+
+function applySemanticContextRules({
+
+  semanticContext,
+  scores,
+  reasons
+
+}) {
+
+  /* -------------------------------------------------------
+     GERÇEK GELECEK ETKİNLİK
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.futureEvent
+  ) {
+
+    scores.opportunity +=
+      12;
+
+
+    scores.result -=
+      5;
+
+
+    scores.achievement -=
+      3;
+
+
+    reasons.push(
+      "Gelecek zaman dili gerçek faaliyet/etkinlik bağlamıyla birlikte bulundu."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     İDARİ SÜREÇ + GELECEK ZAMAN
+
+     "Vize işlemleri başlayacak"
+     "Lisans işlemleri başlayacak"
+
+     upcoming etkinlik DEĞİLDİR.
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.futureAdministrativeProcess
+  ) {
+
+    scores.announcement +=
+      8;
+
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        12
+
+      );
+
+
+    reasons.push(
+      "Gelecek zaman ifadesi gerçek etkinlik yerine idarî/işlemsel süreci anlatıyor."
+    );
+
+  }
+
+
+  /* -------------------------------------------------------
+     İDARİ BAĞLAM
+
+     Gelecek zaman olmasa bile duyuru olasılığını
+     destekler.
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.pureAdministrativeProcess
+  ) {
+
+    scores.announcement +=
+      4;
+
+  }
 
 }
 
@@ -1086,19 +1833,27 @@ function applyStructuredSignals({
   if (
     category ===
     "jobs"
+
     ||
+
     hasUsefulValue(
       details.position
     )
+
     ||
+
     hasUsefulValue(
       details.employmentType
     )
+
     ||
+
     hasUsefulValue(
       details.salaryMin
     )
+
     ||
+
     hasUsefulValue(
       details.salaryMax
     )
@@ -1120,14 +1875,20 @@ function applyStructuredSignals({
   if (
     category ===
     "stores"
+
     ||
+
     providerType ===
     "store"
+
     ||
+
     hasUsefulValue(
       details.productName
     )
+
     ||
+
     hasUsefulValue(
       details.stockStatus
     )
@@ -1137,7 +1898,9 @@ function applyStructuredSignals({
       (
         category ===
         "stores"
+
         ||
+
         providerType ===
         "store"
       )
@@ -1154,21 +1917,29 @@ function applyStructuredSignals({
   if (
     category ===
     "campaign"
+
     ||
+
     hasUsefulValue(
       details.discountRate
     )
+
     ||
+
     (
       hasUsefulValue(
         details.oldPrice
       )
+
       &&
+
       (
         hasUsefulValue(
           details.newPrice
         )
+
         ||
+
         hasUsefulValue(
           details.price
         )
@@ -1193,13 +1964,29 @@ function applyStructuredSignals({
     hasUsefulValue(
       details.registrationDeadline
     )
+
     ||
+
+    hasUsefulValue(
+      details.applicationDeadline
+    )
+
+    ||
+
     hasUsefulValue(
       details.deadlineIso
     )
+
     ||
+
     hasUsefulValue(
       facts.registrationDeadline
+    )
+
+    ||
+
+    hasUsefulValue(
+      facts.applicationDeadline
     )
   ) {
 
@@ -1254,7 +2041,8 @@ function applySpecialRules({
   text,
   titleText,
   scores,
-  reasons
+  reasons,
+  semanticContext
 
 }) {
 
@@ -1340,7 +2128,9 @@ function applySpecialRules({
         titleText,
         "sampiyon"
       )
+
       ||
+
       containsAnyPhrase(
         titleText,
         [
@@ -1349,7 +2139,9 @@ function applySpecialRules({
         ]
       )
     )
+
     &&
+
     containsAnyPhrase(
       text,
       [
@@ -1365,8 +2157,15 @@ function applySpecialRules({
       12;
 
 
-    scores.opportunity -=
-      8;
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        8
+
+      );
 
 
     reasons.push(
@@ -1426,29 +2225,38 @@ function applySpecialRules({
 
 
   /* -------------------------------------------------------
-     GELECEK ZAMAN
+     GERÇEK GELECEK FAALİYET
+
+     Eski sistemde gelecek fiili tek başına yeterliydi.
+
+     Artık yalnız semanticContext.futureEvent true ise
+     sonuç/başarı skorları azaltılır.
      ------------------------------------------------------- */
 
   if (
-    containsAnyPhrase(
-      text,
-      [
-        "duzenlenecek",
-        "gerceklesecek",
-        "gerceklestirilecek",
-        "oynanacak",
-        "yapilacak",
-        "baslayacak"
-      ]
-    )
+    semanticContext.futureEvent
   ) {
 
-    scores.result -=
-      5;
+    scores.result =
+      Math.max(
+
+        -10,
+
+        scores.result -
+        2
+
+      );
 
 
-    scores.achievement -=
-      3;
+    scores.achievement =
+      Math.max(
+
+        -10,
+
+        scores.achievement -
+        2
+
+      );
 
   }
 
@@ -1471,12 +2279,30 @@ function applySpecialRules({
     )
   ) {
 
-    scores.result +=
-      5;
+    /*
+      "vize işlemleri tamamlandı" gibi saf idarî süreçlerde
+      spor sonucu puanı verilmez.
+    */
+
+    if (
+      !semanticContext.pureAdministrativeProcess
+    ) {
+
+      scores.result +=
+        5;
 
 
-    scores.opportunity -=
-      5;
+      scores.opportunity =
+        Math.max(
+
+          0,
+
+          scores.opportunity -
+          5
+
+        );
+
+    }
 
   }
 
@@ -1512,7 +2338,9 @@ function applySpecialRules({
   if (
     scores.campaign >=
     10
+
     &&
+
     scores.product >
     0
   ) {
@@ -1552,7 +2380,9 @@ function applySpecialRules({
   if (
     scores.product >=
     10
+
     ||
+
     scores.campaign >=
     10
   ) {
@@ -1564,6 +2394,40 @@ function applySpecialRules({
 
         scores.opportunity -
         3
+
+      );
+
+  }
+
+
+  /* -------------------------------------------------------
+     SAF İDARİ DUYURU
+
+     Vize / lisans / delege / genel kurul gibi içerikler
+     yanlışlıkla opportunity tarafına kaymasın.
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.pureAdministrativeProcess
+
+    &&
+
+    !hasTransactionalAction(
+      post
+    )
+  ) {
+
+    scores.announcement +=
+      5;
+
+
+    scores.opportunity =
+      Math.max(
+
+        0,
+
+        scores.opportunity -
+        8
 
       );
 
@@ -1685,21 +2549,42 @@ function selectIntent(
    SEMANTİK EVENT STATUS
 
    Gerçek tarih karşılaştırması burada YOKTUR.
+
    Temporal Engine daha sonra doğrular.
+
+   EN ÖNEMLİ 1.2 KURALI:
+   ---------------------------------------------------------
+   Gelecek zaman fiili tek başına upcoming değildir.
+
+   "Vize işlemleri başlayacak"
+   → unknown
+
+   "Şampiyona başlayacak"
+   → upcoming
    ========================================================= */
 
 function determineEventStatus({
 
   text,
   contentIntent,
-  reasons
+  reasons,
+  semanticContext
 
 }) {
+
+  void text;
+
+
+  /* -------------------------------------------------------
+     SPOR SONUCU / BAŞARI
+     ------------------------------------------------------- */
 
   if (
     contentIntent ===
     CONTENT_INTENTS.result
+
     ||
+
     contentIntent ===
     CONTENT_INTENTS.achievement
   ) {
@@ -1714,20 +2599,38 @@ function determineEventStatus({
   }
 
 
+  /* -------------------------------------------------------
+     TRANSACTIONAL INTENTLER
+
+     Kayıt penceresinin açılması / kapanması,
+     ürün, iş veya kampanya bir "eventStatus" değildir.
+
+     Bunların gerçek zaman durumu Temporal Engine'deki
+     actionState üzerinden yönetilir.
+     ------------------------------------------------------- */
+
   if (
-    containsAnyPhrase(
-      text,
-      [
-        "tamamlandi",
-        "sona erdi",
-        "duzenlendi",
-        "gerceklestirildi",
-        "sampiyon oldu",
-        "kupayi kazandi",
-        "maglup etti",
-        "galip geldi"
-      ]
+    [
+      CONTENT_INTENTS.registration,
+      CONTENT_INTENTS.job,
+      CONTENT_INTENTS.product,
+      CONTENT_INTENTS.campaign
+    ].includes(
+      contentIntent
     )
+  ) {
+
+    return EVENT_STATUSES.unknown;
+
+  }
+
+
+  /* -------------------------------------------------------
+     TAMAMLANMIŞ GERÇEK ETKİNLİK
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.completedEvent
   ) {
 
     return EVENT_STATUSES.completed;
@@ -1735,17 +2638,12 @@ function determineEventStatus({
   }
 
 
+  /* -------------------------------------------------------
+     DEVAM EDEN GERÇEK ETKİNLİK
+     ------------------------------------------------------- */
+
   if (
-    containsAnyPhrase(
-      text,
-      [
-        "devam ediyor",
-        "suruyor",
-        "devam etmekte",
-        "halen devam eden",
-        "bugun devam ediyor"
-      ]
-    )
+    semanticContext.ongoingEvent
   ) {
 
     return EVENT_STATUSES.ongoing;
@@ -1753,21 +2651,37 @@ function determineEventStatus({
   }
 
 
+  /* -------------------------------------------------------
+     GELECEK GERÇEK ETKİNLİK
+     ------------------------------------------------------- */
+
   if (
-    containsAnyPhrase(
-      text,
-      [
-        "duzenlenecek",
-        "gerceklesecek",
-        "gerceklestirilecek",
-        "oynanacak",
-        "yapilacak",
-        "baslayacak"
-      ]
-    )
+    semanticContext.futureEvent
   ) {
 
     return EVENT_STATUSES.upcoming;
+
+  }
+
+
+  /* -------------------------------------------------------
+     GELECEK İDARİ SÜREÇ
+
+     Kritik testimiz:
+
+     "Antrenör Vize İşlemleri Hakkında Duyuru"
+     ------------------------------------------------------- */
+
+  if (
+    semanticContext.futureAdministrativeProcess
+  ) {
+
+    reasons.push(
+      "Gelecek zaman ifadesi idarî/işlemsel sürece ait olduğu için eventStatus unknown bırakıldı."
+    );
+
+
+    return EVENT_STATUSES.unknown;
 
   }
 
@@ -1789,6 +2703,13 @@ function determineActionable({
   eventStatus
 
 }) {
+
+  /* -------------------------------------------------------
+     HABER / DUYURU TÜRLERİ
+
+     Gerçek transactional action yoksa işlem yapılabilir
+     kabul edilmez.
+     ------------------------------------------------------- */
 
   if (
     [
@@ -1816,6 +2737,10 @@ function determineActionable({
   }
 
 
+  /* -------------------------------------------------------
+     DOĞRUDAN ACTION
+     ------------------------------------------------------- */
+
   if (
     hasTransactionalAction(
       post
@@ -1826,6 +2751,10 @@ function determineActionable({
 
   }
 
+
+  /* -------------------------------------------------------
+     TRANSACTIONAL INTENT
+     ------------------------------------------------------- */
 
   if (
     [
@@ -1843,13 +2772,24 @@ function determineActionable({
   }
 
 
+  /* -------------------------------------------------------
+     OPPORTUNITY
+
+     Yalnızca kullanıcıya gerçek katılım / işlem sinyali
+     bulunuyorsa actionable.
+     ------------------------------------------------------- */
+
   if (
     contentIntent ===
     CONTENT_INTENTS.opportunity
+
     &&
+
     eventStatus !==
     EVENT_STATUSES.completed
+
     &&
+
     containsAnyPhrase(
       text,
       [
@@ -2086,7 +3026,9 @@ function determineFeedTreatment({
 
   if (
     actionable
+
     &&
+
     opportunityScore >=
     70
   ) {
@@ -2132,6 +3074,7 @@ function calculateConfidenceScore(
     Object.entries(
       scores
     )
+
       .map(
         ([key, score]) => ({
 
@@ -2146,6 +3089,7 @@ function calculateConfidenceScore(
 
         })
       )
+
       .sort(
         (a, b) =>
           b.score -
@@ -2230,7 +3174,9 @@ function calculateConfidenceScore(
   if (
     selected ===
     CONTENT_INTENTS.news
+
     &&
+
     first <=
     2
   ) {
@@ -2347,14 +3293,18 @@ function buildSearchText(
   return normalizeText(
 
     values
+
       .filter(
         value =>
           value !==
           null
+
           &&
+
           value !==
           undefined
       )
+
       .join(
         " "
       )
@@ -2489,7 +3439,10 @@ function hasActionType(
     action => {
 
       if (
-        !action ||
+        !action
+
+        ||
+
         action.enabled ===
         false
       ) {
@@ -2544,7 +3497,9 @@ function flattenValues(
     if (
       item ===
       null
+
       ||
+
       item ===
       undefined
     ) {
@@ -2665,6 +3620,89 @@ function containsAnyPhrase(
 
 
 /* =========================================================
+   FRAGMENT MATCH
+
+   Türkçe çekimler nedeniyle:
+
+   başlayacak
+   başlayacaktır
+
+   delegeler
+   delegelerin
+   delegelerinin
+
+   gibi kontrollü varyasyonları yakalamak için kullanılır.
+
+   Bu fonksiyon genel scoring için değil,
+   semantik bağlam tespiti için kullanılır.
+   ========================================================= */
+
+function containsFragment(
+  text,
+  value
+) {
+
+  const haystack =
+    normalizeText(
+      text
+    );
+
+
+  const needle =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !haystack ||
+    !needle
+  ) {
+
+    return false;
+
+  }
+
+
+  return haystack.includes(
+    needle
+  );
+
+}
+
+
+/* =========================================================
+   ANY FRAGMENT
+   ========================================================= */
+
+function containsAnyFragment(
+  text,
+  values
+) {
+
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  return values.some(
+    value =>
+      containsFragment(
+        text,
+        value
+      )
+  );
+
+}
+
+
+/* =========================================================
    HAS USEFUL VALUE
    ========================================================= */
 
@@ -2675,7 +3713,9 @@ function hasUsefulValue(
   if (
     value ===
     null
+
     ||
+
     value ===
     undefined
   ) {
@@ -2745,7 +3785,9 @@ function roundScores(
           value ||
           0
         )
+
         *
+
         100
 
       )
@@ -2789,6 +3831,34 @@ function createFallbackResult() {
     feedTreatment:
       "inform",
 
+    context: {
+
+      eventObject:
+        false,
+
+      administrativeProcess:
+        false,
+
+      pureAdministrativeProcess:
+        false,
+
+      futureLanguage:
+        false,
+
+      futureEvent:
+        false,
+
+      futureAdministrativeProcess:
+        false,
+
+      ongoingEvent:
+        false,
+
+      completedEvent:
+        false
+
+    },
+
     scores:
       createScoreMap(),
 
@@ -2815,10 +3885,12 @@ function normalizeId(
   return normalizeText(
     value
   )
+
     .replace(
       /[^a-z0-9]+/g,
       "_"
     )
+
     .replace(
       /^_+|_+$/g,
       ""
@@ -2952,4 +4024,4 @@ function clamp(
 
   );
 
-         }
+       }
