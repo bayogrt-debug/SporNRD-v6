@@ -4,7 +4,8 @@
 
    SporNRD Keşif / Sınıflandırma Motoru
 
-   Sürüm: 6.1.2
+   Sürüm: 6.1.3
+   Engine Version: 1.3
 
    ANA GÖREV
    ---------------------------------------------------------
@@ -54,7 +55,14 @@
    "Bu içerik SporNRD içinde esas olarak
     hangi kullanıcı bölümünü ilgilendiriyor?"
 
-   ÖRNEK:
+   professionalAudience:
+
+   "İçeriğin doğrudan hedeflediği meslek / kullanıcı grubu
+    nedir?"
+
+   ---------------------------------------------------------
+
+   ÖRNEK 1
 
    Türkiye Yüzme Federasyonu tarafından yayımlanan:
 
@@ -66,6 +74,9 @@
    section:
    trainer_coach
 
+   professionalAudience:
+   trainer_coach
+
    category:
    news
 
@@ -73,6 +84,8 @@
    announcement
 
    ---------------------------------------------------------
+
+   ÖRNEK 2
 
    Türkiye Basketbol Federasyonu tarafından yayımlanan:
 
@@ -87,15 +100,75 @@
    category:
    event
 
+   subCategory:
+   competition
+
    ---------------------------------------------------------
 
-   Bir sporcunun kişisel hesabından yayımlanan içerik:
+   ÖRNEK 3
+
+   "Murat Ciner, FIBA 3x3 A Klasmanına Yükseldi"
 
    providerType:
-   athlete / individual
+   federation
 
    section:
-   individual_athlete
+   trainer_coach
+
+   professionalAudience:
+   referee
+
+   category:
+   news
+
+   subCategory:
+   achievement
+
+   contentType:
+   general
+
+   ---------------------------------------------------------
+
+   ÖRNEK 4
+
+   "Fenerbahçe kupayı kazandı"
+
+   category:
+   news
+
+   subCategory:
+   result
+
+   contentType:
+   competition
+
+   =========================================================
+   1.3 ANA GELİŞTİRMELER
+   =========================================================
+
+   1. Source Registry providerType için otoritedir.
+
+   2. Content Intent Engine güçlü biçimde:
+
+      result
+      achievement
+      assignment
+      transfer
+
+      kararı verdiyse Discovery haber alt türünü yeniden
+      başka bir türe çevirmemeye çalışır.
+
+   3. Lig hafta programı / fikstür / maç programı gibi
+      gerçek gelecek müsabaka programları EVENT olarak
+      tanınır.
+
+   4. Her achievement "competition" değildir.
+
+      Örneğin:
+
+      "Murat Ciner A Klasmanına yükseldi"
+
+      bir mesleki başarıdır fakat müsabaka sonucu değildir.
 
    =========================================================
    ÇOK ÖNEMLİ KURAL
@@ -110,6 +183,9 @@
    → news
 
    "20 Ekim'de basketbol turnuvası yapılacak"
+   → event
+
+   "Kadınlar Süper Ligi 3. Hafta Programı"
    → event
 
    "2. Kademe yüzme antrenörlük kursu"
@@ -150,7 +226,7 @@ import {
    ========================================================= */
 
 export const DISCOVERY_VERSION =
-  "1.2";
+  "1.3";
 
 
 /* =========================================================
@@ -235,8 +311,13 @@ export function discoverPost(
   /* =======================================================
      PROVIDER METNİ
 
-     İçerikte geçen "antrenör", "sporcu" gibi kelimeler
-     yayıncı kimliğini değiştirmemelidir.
+     İçerikte geçen:
+
+     - antrenör
+     - hakem
+     - sporcu
+
+     gibi kelimeler yayıncı kimliğini değiştirmemelidir.
 
      Bu nedenle provider için ayrı kaynak metni kullanılır.
      ========================================================= */
@@ -327,7 +408,7 @@ export function discoverPost(
   /* =======================================================
      BÖLÜM
 
-     Artık yayıncı tipi değildir.
+     section yayıncı tipi değildir.
 
      İçeriğin ağırlıklı olarak kimi ilgilendirdiğini
      gösterir.
@@ -359,9 +440,6 @@ export function discoverPost(
 
   /* =======================================================
      PROFESYONEL HEDEF KİTLE
-
-     Selection Engine gibi sonraki katmanların
-     kullanabilmesi için ayrıca açık alan üretilir.
      ========================================================= */
 
   const professionalAudience =
@@ -501,84 +579,45 @@ export function discoverPost(
       DISCOVERY_VERSION,
 
 
-    /* -----------------------------------------------------
-       Branş
-       ----------------------------------------------------- */
-
     sport:
       sport,
 
-
-    /* -----------------------------------------------------
-       Kullanıcı bölümü
-       ----------------------------------------------------- */
 
     section:
       section,
 
 
-    /* -----------------------------------------------------
-       Ana kategori
-       ----------------------------------------------------- */
-
     category:
       category,
 
-
-    /* -----------------------------------------------------
-       Alt kategori
-       ----------------------------------------------------- */
 
     subCategory:
       subCategory,
 
 
-    /* -----------------------------------------------------
-       Yayıncı / sağlayıcı tipi
-       ----------------------------------------------------- */
-
     providerType:
       providerType,
 
-
-    /* -----------------------------------------------------
-       İçerik tipi
-       ----------------------------------------------------- */
 
     contentType:
       contentType,
 
 
-    /* -----------------------------------------------------
-       Profesyonel hedef
-       ----------------------------------------------------- */
-
     professionalAudience:
       professionalAudience,
 
 
-    /* -----------------------------------------------------
-       Filtre sistemi
-       ----------------------------------------------------- */
-
     requiredFields:
       requiredFields,
+
 
     missingFields:
       missingFields,
 
 
-    /* -----------------------------------------------------
-       Güven
-       ----------------------------------------------------- */
-
     confidenceScore:
       confidenceScore,
 
-
-    /* -----------------------------------------------------
-       Debug
-       ----------------------------------------------------- */
 
     signals:
       signals,
@@ -779,12 +818,16 @@ function resolveSource(
   const sourceId =
     cleanString(
 
-      post?.source?.id ||
+      post?.source?.id
+
+      ||
 
       post?.sourceId
 
     )
-      .toLowerCase();
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
 
 
   if (
@@ -810,7 +853,7 @@ function resolveSource(
 
   if (
     isPlainObject(
-      post.source
+      post?.source
     )
   ) {
 
@@ -868,6 +911,12 @@ function buildProviderText(
    PROVIDER TYPE
 
    Yalnız yayıncı kimliği.
+
+   1.3 KURALI:
+   Source Registry otoritedir.
+
+   Registry'de güvenilir bir providerType varsa eski post
+   metadata'sı bunu değiştiremez.
    ========================================================= */
 
 function resolveProviderType(
@@ -876,26 +925,13 @@ function resolveProviderType(
   providerText
 ) {
 
-  const existing =
-    normalizeId(
-      post.providerType
-    );
-
-
-  if (
-    getProviderType(
-      existing
-    )
-  ) {
-
-    return existing;
-
-  }
-
+  /* =======================================================
+     1. SOURCE REGISTRY OTORİTESİ
+     ========================================================= */
 
   const sourceProviderType =
     normalizeId(
-      source.providerType
+      source?.providerType
     );
 
 
@@ -910,12 +946,21 @@ function resolveProviderType(
   }
 
 
+  /* =======================================================
+     2. SOURCE TYPE
+
+     Registry providerType taşımıyorsa kaynak türünden
+     güvenilir yayıncı sınıfı üret.
+     ========================================================= */
+
   const sourceType =
     normalizeText(
 
-      source.sourceType ||
+      source?.sourceType
 
-      post.sourceType
+      ||
+
+      post?.sourceType
 
     );
 
@@ -940,6 +985,33 @@ function resolveProviderType(
   }
 
 
+  /* =======================================================
+     3. POST ÜZERİNDEKİ MEVCUT PROVIDER
+
+     Registry ve sourceType çözemezse fallback.
+     ========================================================= */
+
+  const existing =
+    normalizeId(
+      post?.providerType
+    );
+
+
+  if (
+    getProviderType(
+      existing
+    )
+  ) {
+
+    return existing;
+
+  }
+
+
+  /* =======================================================
+     4. KULÜP
+     ========================================================= */
+
   if (
     containsAny(
       providerText,
@@ -959,6 +1031,10 @@ function resolveProviderType(
 
   }
 
+
+  /* =======================================================
+     5. AKADEMİ
+     ========================================================= */
 
   if (
     containsAny(
@@ -980,6 +1056,10 @@ function resolveProviderType(
   }
 
 
+  /* =======================================================
+     6. SPOR SALONU
+     ========================================================= */
+
   if (
     containsAny(
       providerText,
@@ -999,6 +1079,10 @@ function resolveProviderType(
   }
 
 
+  /* =======================================================
+     7. TESİS
+     ========================================================= */
+
   if (
     containsAny(
       providerText,
@@ -1016,6 +1100,10 @@ function resolveProviderType(
 
   }
 
+
+  /* =======================================================
+     8. MAĞAZA
+     ========================================================= */
 
   if (
     containsAny(
@@ -1035,6 +1123,10 @@ function resolveProviderType(
   }
 
 
+  /* =======================================================
+     9. ORGANİZATÖR
+     ========================================================= */
+
   if (
     containsAny(
       providerText,
@@ -1052,6 +1144,10 @@ function resolveProviderType(
   }
 
 
+  /* =======================================================
+     10. MEDYA
+     ========================================================= */
+
   if (
     containsAny(
       providerText,
@@ -1060,7 +1156,8 @@ function resolveProviderType(
         "gazete",
         "haber",
         "medya",
-        "televizyon"
+        "televizyon",
+        "tv"
 
       ]
     )
@@ -1070,6 +1167,10 @@ function resolveProviderType(
 
   }
 
+
+  /* =======================================================
+     11. ANTRENÖR / EĞİTMEN HESABI
+     ========================================================= */
 
   if (
     containsAny(
@@ -1089,6 +1190,10 @@ function resolveProviderType(
 
   }
 
+
+  /* =======================================================
+     12. BİREYSEL / SPORCU
+     ========================================================= */
 
   if (
     [
@@ -1113,10 +1218,11 @@ function resolveProviderType(
 /* =========================================================
    BÖLÜM
 
-   section artık yayıncı değil,
-   içeriğin ana kullanıcı / hedef bölümüdür.
+   section yayıncı değildir.
 
-   providerType yayıncı bilgisini zaten korur.
+   İçeriğin ana kullanıcı / hedef bölümüdür.
+
+   providerType yayıncı bilgisini ayrıca korur.
    ========================================================= */
 
 function resolveSection({
@@ -1179,7 +1285,9 @@ function resolveSection({
      Tek başına "antrenör" kelimesi yeterli değildir.
 
      Örnek:
+
      "Takımın antrenörü maç sonrası konuştu"
+
      otomatik trainer_coach değildir.
      ========================================================= */
 
@@ -1238,12 +1346,6 @@ function resolveSection({
 
   /* =======================================================
      5. VARSAYILAN
-
-     Federasyon, kulüp, akademi, tesis, mağaza,
-     medya, organizatör veya genel içerik.
-
-     İçerik özel olarak sporcu/antrenör bölümüne
-     yönelmiyorsa business_institution.
      ========================================================= */
 
   void post;
@@ -1316,6 +1418,8 @@ function isProfessionalTrainerContent(
 
     "hakem lisansi",
 
+    "hakem gorevlendirme",
+
     "egitmen kursu",
 
     "egitmen egitimi",
@@ -1337,9 +1441,9 @@ function isProfessionalTrainerContent(
   }
 
 
-  /*
-    Course + antrenör/hakem doğrudan profesyonel bölümdür.
-  */
+  /* -------------------------------------------------------
+     Course + profesyonel hedef
+     ------------------------------------------------------- */
 
   if (
     category ===
@@ -1362,9 +1466,9 @@ function isProfessionalTrainerContent(
   }
 
 
-  /*
-    Duyuru içeriğinde profesyonel işlem bağlamı.
-  */
+  /* -------------------------------------------------------
+     Profesyonel idari duyuru
+     ------------------------------------------------------- */
 
   if (
     category ===
@@ -1480,8 +1584,8 @@ function isAthleteTargetContent(
 
 
   /*
-    Sadece başarı/sonuç haberinde "sporcu" kelimesi
-    geçmesi içeriği otomatik bireysel bölüme taşımaz.
+    Sadece başarı / sonuç haberinde "sporcu" geçmesi
+    içeriği otomatik bireysel bölüme taşımaz.
   */
 
   if (
@@ -1571,9 +1675,9 @@ function resolveProfessionalAudience({
   }
 
 
-  /*
-    Legacy audience alanı yalnız zayıf fallback.
-  */
+  /* -------------------------------------------------------
+     Legacy audience yalnız zayıf fallback.
+     ------------------------------------------------------- */
 
   const audience =
     normalizeId(
@@ -1592,6 +1696,20 @@ function resolveProfessionalAudience({
   ) {
 
     return "trainer_coach";
+
+  }
+
+
+  if (
+    [
+      "hakem",
+      "referee"
+    ].includes(
+      audience
+    )
+  ) {
+
+    return "referee";
 
   }
 
@@ -1630,9 +1748,13 @@ function resolveSport(
   text
 ) {
 
+  /* =======================================================
+     1. POST ÜZERİNDE GEÇERLİ SPORT
+     ========================================================= */
+
   const existing =
     normalizeId(
-      post.sport
+      post?.sport
     );
 
 
@@ -1647,9 +1769,13 @@ function resolveSport(
   }
 
 
+  /* =======================================================
+     2. SOURCE REGISTRY
+     ========================================================= */
+
   const sourceSport =
     normalizeId(
-      source.sport
+      source?.sport
     );
 
 
@@ -1664,9 +1790,13 @@ function resolveSport(
   }
 
 
+  /* =======================================================
+     3. LEGACY TÜRKÇE SPORT
+     ========================================================= */
+
   const legacySport =
     normalizeText(
-      post.sport
+      post?.sport
     );
 
 
@@ -1719,6 +1849,10 @@ function resolveSport(
 
   }
 
+
+  /* =======================================================
+     4. İÇERİK METNİ
+     ========================================================= */
 
   if (
     containsAny(
@@ -1819,13 +1953,13 @@ function resolveCategory({
 
   const intent =
     normalizeId(
-      post.contentIntent
+      post?.contentIntent
     );
 
 
   const eventStatus =
     normalizeId(
-      post.eventStatus
+      post?.eventStatus
     );
 
 
@@ -1895,14 +2029,10 @@ function resolveCategory({
   /* =======================================================
      5. PROFESYONEL DUYURU
 
-     KRİTİK:
-
      "Antrenör vize işlemleri başlayacak"
 
-     geleceğe ait bir işlem olabilir fakat
-     etkinlik değildir.
-
-     Bu nedenle event kontrolünden ÖNCE yapılır.
+     gelecekte gerçekleşen bir işlem olabilir fakat
+     gerçek spor etkinliği değildir.
      ========================================================= */
 
   if (
@@ -1923,6 +2053,11 @@ function resolveCategory({
   if (
     intent ===
     "result"
+
+    ||
+
+    intent ===
+    "achievement"
 
     ||
 
@@ -1982,12 +2117,13 @@ function resolveCategory({
   /* =======================================================
      9. ESKİ KATEGORİ
 
-     Eski "event" doğrudan korunmaz.
+     Eski "event" değeri güçlü event kanıtı olmadan
+     doğrudan korunmaz.
      ========================================================= */
 
   const existing =
     normalizeCategoryAlias(
-      post.category
+      post?.category
     );
 
 
@@ -2030,14 +2166,23 @@ function isProfessionalAnnouncement(
       [
 
         "antrenor vize",
+
         "antrenor vizesi",
+
         "antrenor lisans",
+
         "antrenor belge",
+
         "antrenor denklik",
+
         "hakem vize",
+
         "hakem lisans",
+
         "hakem klasman",
+
         "hakem terfi",
+
         "hakem gorevlendirme"
 
       ]
@@ -2057,10 +2202,12 @@ function isProfessionalAnnouncement(
     containsAny(
       text,
       [
+
         "antrenorler",
         "antrenorlerin",
         "hakemler",
         "hakemlerin"
+
       ]
     );
 
@@ -2069,6 +2216,7 @@ function isProfessionalAnnouncement(
     containsAny(
       text,
       [
+
         "vize islemleri",
         "lisans islemleri",
         "belgelendirme",
@@ -2076,13 +2224,19 @@ function isProfessionalAnnouncement(
         "basvuru rehberi",
         "odeme yontemleri",
         "islem rehberi"
+
       ]
     );
 
 
-  return (
-    professionalAudience &&
+  return Boolean(
+
+    professionalAudience
+
+    &&
+
     administrativeAction
+
   );
 
 }
@@ -2105,6 +2259,10 @@ function resolveSubCategory({
   void providerType;
 
 
+  /* =======================================================
+     HABER
+     ========================================================= */
+
   if (
     category ===
     "news"
@@ -2117,6 +2275,10 @@ function resolveSubCategory({
 
   }
 
+
+  /* =======================================================
+     KURS
+     ========================================================= */
 
   if (
     category ===
@@ -2143,6 +2305,10 @@ function resolveSubCategory({
 
   }
 
+
+  /* =======================================================
+     ETKİNLİK
+     ========================================================= */
 
   if (
     category ===
@@ -2218,6 +2384,10 @@ function resolveSubCategory({
   }
 
 
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
+
   if (
     category ===
     "campaign"
@@ -2269,6 +2439,10 @@ function resolveSubCategory({
   }
 
 
+  /* =======================================================
+     İŞ İLANI
+     ========================================================= */
+
   if (
     category ===
     "jobs"
@@ -2289,6 +2463,10 @@ function resolveSubCategory({
 
   }
 
+
+  /* =======================================================
+     MAĞAZA
+     ========================================================= */
 
   if (
     category ===
@@ -2379,6 +2557,19 @@ function resolveSubCategory({
 
 /* =========================================================
    HABER ALT KATEGORİSİ
+
+   1.3 KURALI:
+   Content Intent Engine güçlü haber tiplerinde önce gelir.
+
+   Böylece Content Intent:
+
+   result
+   achievement
+   assignment
+   transfer
+
+   dediyse Discovery aynı haberi başka alt türe
+   çevirmemeye çalışır.
    ========================================================= */
 
 function resolveNewsSubCategory(
@@ -2388,9 +2579,33 @@ function resolveNewsSubCategory(
 
   const intent =
     normalizeId(
-      post.contentIntent
+      post?.contentIntent
     );
 
+
+  /* =======================================================
+     1. CONTENT INTENT OTORİTESİ
+     ========================================================= */
+
+  if (
+    [
+      "result",
+      "achievement",
+      "assignment",
+      "transfer"
+    ].includes(
+      intent
+    )
+  ) {
+
+    return intent;
+
+  }
+
+
+  /* =======================================================
+     2. GÖREVLENDİRME / ATAMA
+     ========================================================= */
 
   if (
     containsAny(
@@ -2415,6 +2630,10 @@ function resolveNewsSubCategory(
   }
 
 
+  /* =======================================================
+     3. TRANSFER
+     ========================================================= */
+
   if (
     containsAny(
       text,
@@ -2436,15 +2655,16 @@ function resolveNewsSubCategory(
   }
 
 
+  /* =======================================================
+     4. BAŞARI
+     ========================================================= */
+
   if (
     containsAny(
       text,
       [
 
-        "sampiyon oldu",
         "sampiyonluga ulasti",
-        "kupayi kazandi",
-        "kupayi kaldirdi",
         "madalya kazandi",
         "altin madalya",
         "gumus madalya",
@@ -2466,6 +2686,10 @@ function resolveNewsSubCategory(
   }
 
 
+  /* =======================================================
+     5. MÜSABAKA / MAÇ SONUCU
+     ========================================================= */
+
   if (
     intent ===
     "result"
@@ -2479,6 +2703,9 @@ function resolveNewsSubCategory(
         "mac sonucu",
         "musabaka sonucu",
         "karsilasma sonucu",
+        "sampiyon oldu",
+        "kupayi kazandi",
+        "kupayi kaldirdi",
         "galip geldi",
         "maglup etti",
         "kazandi",
@@ -2494,6 +2721,10 @@ function resolveNewsSubCategory(
   }
 
 
+  /* =======================================================
+     6. PROFESYONEL DUYURU
+     ========================================================= */
+
   if (
     isProfessionalAnnouncement(
       text
@@ -2505,7 +2736,16 @@ function resolveNewsSubCategory(
   }
 
 
+  /* =======================================================
+     7. GENEL DUYURU
+     ========================================================= */
+
   if (
+    intent ===
+    "announcement"
+
+    ||
+
     containsAny(
       text,
       [
@@ -2525,6 +2765,10 @@ function resolveNewsSubCategory(
   }
 
 
+  /* =======================================================
+     8. GENEL GELİŞME
+     ========================================================= */
+
   return "development";
 
 }
@@ -2532,6 +2776,10 @@ function resolveNewsSubCategory(
 
 /* =========================================================
    CONTENT TYPE
+
+   contentType ana kategori değildir.
+
+   Bir haberin anlatım / nesne tipini belirtir.
    ========================================================= */
 
 function resolveContentType({
@@ -2544,6 +2792,10 @@ function resolveContentType({
 
 }) {
 
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
+
   if (
     category ===
     "campaign"
@@ -2553,6 +2805,10 @@ function resolveContentType({
 
   }
 
+
+  /* =======================================================
+     İŞ
+     ========================================================= */
 
   if (
     category ===
@@ -2564,6 +2820,10 @@ function resolveContentType({
   }
 
 
+  /* =======================================================
+     MAĞAZA
+     ========================================================= */
+
   if (
     category ===
     "stores"
@@ -2574,6 +2834,10 @@ function resolveContentType({
   }
 
 
+  /* =======================================================
+     KURS
+     ========================================================= */
+
   if (
     category ===
     "course"
@@ -2583,6 +2847,10 @@ function resolveContentType({
 
   }
 
+
+  /* =======================================================
+     ETKİNLİK
+     ========================================================= */
 
   if (
     category ===
@@ -2614,22 +2882,60 @@ function resolveContentType({
   }
 
 
+  /* =======================================================
+     HABER
+     ========================================================= */
+
   if (
     category ===
     "news"
   ) {
 
+    /* -----------------------------------------------------
+       Gerçek müsabaka sonucu
+       ----------------------------------------------------- */
+
     if (
       subCategory ===
       "result"
+    ) {
 
-      ||
+      return "competition";
 
+    }
+
+
+    /* -----------------------------------------------------
+       Achievement her zaman competition değildir.
+
+       Örnek:
+
+       Murat Ciner A Klasmanına yükseldi
+       → achievement
+       → general
+
+       Milli sporcu altın madalya kazandı
+       → achievement
+       → competition
+       ----------------------------------------------------- */
+
+    if (
       subCategory ===
       "achievement"
     ) {
 
-      return "competition";
+      if (
+        isCompetitionAchievement(
+          text
+        )
+      ) {
+
+        return "competition";
+
+      }
+
+
+      return "general";
 
     }
 
@@ -2669,9 +2975,13 @@ function resolveContentType({
   }
 
 
+  /* =======================================================
+     LEGACY FALLBACK
+     ========================================================= */
+
   const existing =
     normalizeId(
-      post.contentType
+      post?.contentType
     );
 
 
@@ -2686,10 +2996,64 @@ function resolveContentType({
   }
 
 
-  void text;
-
-
   return "general";
+
+}
+
+
+/* =========================================================
+   MÜSABAKA BAŞARISI MI?
+
+   Her achievement müsabaka değildir.
+
+   Bu fonksiyon yarışma / derece / madalya / kupa bağlamını
+   arar.
+   ========================================================= */
+
+function isCompetitionAchievement(
+  text
+) {
+
+  return containsAny(
+    text,
+    [
+
+      "sampiyon oldu",
+
+      "sampiyonluga ulasti",
+
+      "kupayi kazandi",
+
+      "kupayi kaldirdi",
+
+      "madalya kazandi",
+
+      "altin madalya",
+
+      "gumus madalya",
+
+      "bronz madalya",
+
+      "rekor kirdi",
+
+      "turkiye rekoru",
+
+      "dunya rekoru",
+
+      "derece elde etti",
+
+      "birinci oldu",
+
+      "ikinci oldu",
+
+      "ucuncu oldu",
+
+      "yarisi kazandi",
+
+      "musabakayi kazandi"
+
+    ]
+  );
 
 }
 
@@ -2778,9 +3142,14 @@ function isJobContent(
     );
 
 
-  return (
-    positionContext &&
+  return Boolean(
+
+    positionContext
+
+    &&
+
     applicationContext
+
   );
 
 }
@@ -3119,6 +3488,119 @@ function hasEventObject(
 
 
 /* =========================================================
+   MÜSABAKA / LİG PROGRAMI MI?
+
+   1.3 ile eklendi.
+
+   Örnekler:
+
+   "Kadınlar Süper Ligi 3. Hafta Programı"
+   "Basketbol Süper Ligi 5. Hafta Karşılaşmaları"
+   "1. Hafta Maç Programı"
+   "Yeni sezon fikstürü açıklandı"
+
+   Bunlar sonuç haberi değil, gelecek müsabaka programıdır.
+   ========================================================= */
+
+function isCompetitionScheduleContent(
+  text
+) {
+
+  const scheduleSignal =
+    containsAny(
+      text,
+      [
+
+        "hafta programi",
+
+        "mac programi",
+
+        "maclarin programi",
+
+        "karsilasma programi",
+
+        "karsilasmalarin programi",
+
+        "musabaka programi",
+
+        "musabakalarin programi",
+
+        "fikstur",
+
+        "fiksturu",
+
+        "hafta karsilasmalari",
+
+        "hafta maclari",
+
+        "hafta musabakalari",
+
+        "programi aciklandi",
+
+        "fiksturu aciklandi",
+
+        "fikstur aciklandi"
+
+      ]
+    );
+
+
+  if (
+    !scheduleSignal
+  ) {
+
+    return false;
+
+  }
+
+
+  const sportContext =
+    containsAny(
+      text,
+      [
+
+        "basketbol",
+
+        "futbol",
+
+        "voleybol",
+
+        "hentbol",
+
+        "lig",
+
+        "super lig",
+
+        "kupa",
+
+        "fiba",
+
+        "euroleague",
+
+        "eurocup",
+
+        "sampiyona",
+
+        "turnuva",
+
+        "musabaka",
+
+        "mac",
+
+        "karsilasma"
+
+      ]
+    );
+
+
+  return Boolean(
+    sportContext
+  );
+
+}
+
+
+/* =========================================================
    ETKİNLİK Mİ?
    ========================================================= */
 
@@ -3129,19 +3611,30 @@ function isEventContent(
 
   const intent =
     normalizeId(
-      post.contentIntent
+      post?.contentIntent
     );
 
 
   const eventStatus =
     normalizeId(
-      post.eventStatus
+      post?.eventStatus
     );
 
+
+  /* =======================================================
+     SONUÇ / TAMAMLANMIŞ OLAY
+
+     Artık event değildir.
+     ========================================================= */
 
   if (
     intent ===
     "result"
+
+    ||
+
+    intent ===
+    "achievement"
 
     ||
 
@@ -3160,12 +3653,12 @@ function isEventContent(
   }
 
 
-  /*
-    Profesyonel idari işlem event değildir.
+  /* =======================================================
+     PROFESYONEL İDARİ DUYURU
 
-    Örnek:
-    Antrenör vize işlemleri başlayacak.
-  */
+     Örnek:
+     Antrenör vize işlemleri başlayacak.
+     ========================================================= */
 
   if (
     isProfessionalAnnouncement(
@@ -3177,6 +3670,31 @@ function isEventContent(
 
   }
 
+
+  /* =======================================================
+     1.3 — MÜSABAKA / HAFTA / FİKSTÜR PROGRAMI
+
+     Metinde "maç" kelimesi geçmese bile:
+
+     "Basketbol Süper Ligi 3. Hafta Programı"
+
+     bir event'tir.
+     ========================================================= */
+
+  if (
+    isCompetitionScheduleContent(
+      text
+    )
+  ) {
+
+    return true;
+
+  }
+
+
+  /* =======================================================
+     NORMAL ETKİNLİK NESNESİ
+     ========================================================= */
 
   const eventObject =
     hasEventObject(
@@ -3193,6 +3711,10 @@ function isEventContent(
   }
 
 
+  /* =======================================================
+     UPSTREAM EVENT STATUS
+     ========================================================= */
+
   if (
     [
       "upcoming",
@@ -3207,6 +3729,10 @@ function isEventContent(
   }
 
 
+  /* =======================================================
+     GELECEK ZAMAN DİLİ
+     ========================================================= */
+
   if (
     hasFutureEventLanguage(
       text
@@ -3217,6 +3743,10 @@ function isEventContent(
 
   }
 
+
+  /* =======================================================
+     KATILIM / TAKVİM / PROGRAM
+     ========================================================= */
 
   if (
     containsAny(
@@ -3243,7 +3773,7 @@ function isEventContent(
     Gerçek bir etkinlik nesnesi varsa fakat zamanı
     çıkarılamadıysa event olarak korunabilir.
 
-    Geçmiş sonuç dili yukarıda zaten engellendi.
+    Geçmiş sonuç dili yukarıda engellenmiştir.
   */
 
   return true;
@@ -3254,7 +3784,6 @@ function isEventContent(
 /* =========================================================
    GELECEK ETKİNLİK DİLİ
 
-   KRİTİK:
    "başlayacak" tek başına yeterli değildir.
 
    Mutlaka etkinlik nesnesi de bulunmalıdır.
@@ -3266,6 +3795,12 @@ function hasFutureEventLanguage(
 
   if (
     !hasEventObject(
+      text
+    )
+
+    &&
+
+    !isCompetitionScheduleContent(
       text
     )
   ) {
@@ -3303,7 +3838,11 @@ function hasFutureEventLanguage(
 
       "takvimi aciklandi",
 
-      "gerceklesecek"
+      "fiksturu aciklandi",
+
+      "gerceklesecek",
+
+      "oynanacak"
 
     ]
   );
@@ -3316,14 +3855,6 @@ function hasFutureEventLanguage(
 
    Her "kayıt" veya "başvuru" kelimesi kullanıcı aksiyonu
    değildir.
-
-   Örnek:
-
-   "başvuru rehberi yayımlandı"
-   tek başına açık kayıt anlamına gelmez.
-
-   "kayıtlar başladı"
-   güçlü aksiyon sinyalidir.
    ========================================================= */
 
 function hasRegistrationAction(
@@ -3385,11 +3916,6 @@ function hasRegistrationAction(
   }
 
 
-  /*
-    Upstream Content Intent gerçekten actionable demişse
-    ve kayıt/başvuru bağlamı varsa destek sinyalidir.
-  */
-
   if (
     post?.actionable ===
     true
@@ -3418,8 +3944,11 @@ function hasRegistrationAction(
 /* =========================================================
    ARAMA METNİ
 
-   Persona'nın ürettiği metinden çok gerçek kaynak
-   başlık/gövdesine ağırlık verilir.
+   Persona tarafından üretilmiş yeni anlatımdan önce
+   gerçek/orijinal kaynak alanları kullanılır.
+
+   Böylece önceki yanlış editorial yorumunun Discovery
+   kararına geri beslenmesi azaltılır.
    ========================================================= */
 
 function buildSearchText(
@@ -3497,6 +4026,7 @@ function buildSearchText(
   return normalizeText(
 
     values
+
       .filter(
         value =>
           value !==
@@ -3507,6 +4037,7 @@ function buildSearchText(
           value !==
           null
       )
+
       .join(
         " "
       )
@@ -3575,6 +4106,10 @@ function hasFieldValue(
   field
 ) {
 
+  /* =======================================================
+     KONUM
+     ========================================================= */
+
   if (
     [
       "city",
@@ -3595,6 +4130,10 @@ function hasFieldValue(
   }
 
 
+  /* =======================================================
+     YAYIN TARİHİ
+     ========================================================= */
+
   if (
     field ===
     "publishedAt"
@@ -3612,6 +4151,10 @@ function hasFieldValue(
 
   }
 
+
+  /* =======================================================
+     BAŞLANGIÇ TARİHİ
+     ========================================================= */
 
   if (
     field ===
@@ -3631,6 +4174,10 @@ function hasFieldValue(
   }
 
 
+  /* =======================================================
+     BİTİŞ TARİHİ
+     ========================================================= */
+
   if (
     field ===
     "endDate"
@@ -3648,6 +4195,10 @@ function hasFieldValue(
 
   }
 
+
+  /* =======================================================
+     DETAILS
+     ========================================================= */
 
   return hasUsefulValue(
     post?.details?.[
@@ -3731,6 +4282,10 @@ function calculateDiscoveryConfidence({
     15;
 
 
+  /* =======================================================
+     BRANŞ
+     ========================================================= */
+
   if (
     sport
 
@@ -3746,6 +4301,10 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* =======================================================
+     BÖLÜM
+     ========================================================= */
+
   if (
     Object.values(
       SECTIONS
@@ -3759,6 +4318,10 @@ function calculateDiscoveryConfidence({
 
   }
 
+
+  /* =======================================================
+     ANA KATEGORİ
+     ========================================================= */
 
   if (
     getCategory(
@@ -3778,6 +4341,10 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* =======================================================
+     ALT KATEGORİ
+     ========================================================= */
+
   if (
     subCategory
   ) {
@@ -3796,6 +4363,11 @@ function calculateDiscoveryConfidence({
 
     else {
 
+      /*
+        Taxonomy geçişinde yeni subCategory değerleri
+        tamamen güvensiz sayılmaz.
+      */
+
       score +=
         8;
 
@@ -3803,6 +4375,10 @@ function calculateDiscoveryConfidence({
 
   }
 
+
+  /* =======================================================
+     PROVIDER
+     ========================================================= */
 
   if (
     providerType
@@ -3819,6 +4395,10 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* =======================================================
+     DOĞRULANMIŞ KAYNAK
+     ========================================================= */
+
   if (
     source?.verified ===
     true
@@ -3830,6 +4410,10 @@ function calculateDiscoveryConfidence({
   }
 
 
+  /* =======================================================
+     İÇERİK ZENGİNLİĞİ
+     ========================================================= */
+
   if (
     text.length >
     80
@@ -3840,6 +4424,10 @@ function calculateDiscoveryConfidence({
 
   }
 
+
+  /* =======================================================
+     PROFESYONEL HEDEF
+     ========================================================= */
 
   if (
     professionalAudience
@@ -3916,6 +4504,10 @@ function collectSignals({
   );
 
 
+  /* =======================================================
+     CONTENT INTENT
+     ========================================================= */
+
   if (
     post?.contentIntent
   ) {
@@ -3928,6 +4520,10 @@ function collectSignals({
 
   }
 
+
+  /* =======================================================
+     EVENT STATUS
+     ========================================================= */
 
   if (
     post?.eventStatus
@@ -3942,9 +4538,9 @@ function collectSignals({
   }
 
 
-  /* -------------------------------------------------------
-     Gerçek kayıt/başvuru aksiyonu
-     ------------------------------------------------------- */
+  /* =======================================================
+     GERÇEK KAYIT / BAŞVURU
+     ========================================================= */
 
   if (
     hasRegistrationAction(
@@ -3960,9 +4556,9 @@ function collectSignals({
   }
 
 
-  /* -------------------------------------------------------
-     Deadline
-     ------------------------------------------------------- */
+  /* =======================================================
+     DEADLINE
+     ========================================================= */
 
   if (
     containsAny(
@@ -3985,6 +4581,10 @@ function collectSignals({
   }
 
 
+  /* =======================================================
+     ÜCRETSİZ
+     ========================================================= */
+
   if (
     containsAny(
       text,
@@ -4000,6 +4600,10 @@ function collectSignals({
 
   }
 
+
+  /* =======================================================
+     KAMPANYA
+     ========================================================= */
 
   if (
     containsAny(
@@ -4018,6 +4622,10 @@ function collectSignals({
   }
 
 
+  /* =======================================================
+     TAMAMLANMIŞ DİL
+     ========================================================= */
+
   if (
     isCompletedNewsContent(
       text
@@ -4031,12 +4639,9 @@ function collectSignals({
   }
 
 
-  /*
-    "başlayacak" tek başına artık future event sinyali
-    üretmez.
-
-    Gerçek etkinlik nesnesi gerekir.
-  */
+  /* =======================================================
+     GELECEK ETKİNLİK DİLİ
+     ========================================================= */
 
   if (
     hasFutureEventLanguage(
@@ -4050,6 +4655,27 @@ function collectSignals({
 
   }
 
+
+  /* =======================================================
+     FİKSTÜR / HAFTA PROGRAMI
+     ========================================================= */
+
+  if (
+    isCompetitionScheduleContent(
+      text
+    )
+  ) {
+
+    signals.push(
+      "competition:schedule"
+    );
+
+  }
+
+
+  /* =======================================================
+     PROFESYONEL DUYURU
+     ========================================================= */
 
   if (
     isProfessionalAnnouncement(
@@ -4562,21 +5188,29 @@ function clamp(
   max
 ) {
 
+  const number =
+    Number(
+      value
+    );
+
+
+  const safe =
+    Number.isFinite(
+      number
+    )
+      ? number
+      : 0;
+
+
   return Math.max(
 
     min,
 
     Math.min(
-
       max,
-
-      Number(
-        value
-      ) ||
-      0
-
+      safe
     )
 
   );
 
-}
+     }
