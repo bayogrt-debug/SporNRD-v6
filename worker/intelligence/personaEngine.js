@@ -4561,4 +4561,4 @@ function shorten(
     "…"
   );
 
-       }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "SporNRD",
+  "short_name": "SporNRD",
+  "description": "SporNRD - Ara Bul Seç Hemen Başla",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0b0d",
+  "theme_color": "#0b0b0d",
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}{
+  "name": "SporNRD",
+  "short_name": "SporNRD",
+  "description": "Ara Bul Seç Hemen Başla",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f3f5",
+  "theme_color": "#0b0b0d",
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

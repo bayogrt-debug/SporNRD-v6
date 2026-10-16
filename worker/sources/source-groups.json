@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "id": "federasyonlar",
+      "name": "Federasyonlar",
+      "autoDiscovery": true
+    },
+    {
+      "id": "genclik_spor_il_mudurlukleri",
+      "name": "81 il müdürlüğü",
+      "autoDiscovery": true
+    },
+    {
+      "id": "bakanlik_ve_kamu",
+      "name": "Bakanlık ve kamu spor kuruluşları",
+      "autoDiscovery": false
+    },
+    {
+      "id": "belediyeler",
+      "name": "Belediye spor birimleri",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_gazeteleri",
+      "name": "Ulusal ve yerel spor gazeteleri",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_tv_kanallari",
+      "name": "Spor TV kanalları ve yayıncılar",
+      "autoDiscovery": false
+    },
+    {
+      "id": "dijital_spor_medyasi",
+      "name": "Dijital spor medyası",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_kulupleri",
+      "name": "Spor kulüpleri ve birlikleri",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_okullari_akademileri",
+      "name": "Spor okulları ve akademiler",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_salonlari_tesisleri",
+      "name": "Spor salonları, fitness merkezleri ve tesisler",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_ticareti",
+      "name": "Toptan, perakende, online mağaza ve ticari kurumlar",
+      "autoDiscovery": false
+    },
+    {
+      "id": "antrenorler_egitmenler",
+      "name": "Antrenörler ve eğitmenler",
+      "autoDiscovery": false
+    },
+    {
+      "id": "sporcular",
+      "name": "Sporcular",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_ligleri",
+      "name": "Spor ligleri ve organizasyonları",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_organizasyonlari",
+      "name": "Spor organizatörleri",
+      "autoDiscovery": false
+    },
+    {
+      "id": "universiteler",
+      "name": "Üniversiteler ve spor bilimleri",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_sagligi_bilimi",
+      "name": "Spor sağlığı ve bilimi",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_turizmi",
+      "name": "Spor turizmi ve kamplar",
+      "autoDiscovery": false
+    },
+    {
+      "id": "engelli_ve_uyarlanmis_spor",
+      "name": "Engelli ve uyarlanmış spor",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_teknolojileri",
+      "name": "Spor teknoloji kuruluşları",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_istihdam",
+      "name": "Spor istihdam ve iş ilanı kaynakları",
+      "autoDiscovery": false
+    },
+    {
+      "id": "spor_dernekleri_vakiflari",
+      "name": "Spor dernekleri ve vakıfları",
+      "autoDiscovery": false
+    },
+    {
+      "id": "uluslararasi_kaynaklar",
+      "name": "Uluslararası spor kuruluşları",
+      "autoDiscovery": false
+    },
+    {
+      "id": "sosyal_medya",
+      "name": "Instagram, Facebook, YouTube vb. yayın kanalları",
+      "autoDiscovery": false
+    }
+  ]
+}

@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "test:v2": "node tests/v2.test.mjs",
+    "deploy:v2-test": "wrangler deploy --config wrangler.v2-test.jsonc",
+    "db:v2-test": "wrangler d1 migrations apply spornrd-v2-test-db --remote --config wrangler.v2-test.jsonc"
   },
   "devDependencies": {
     "wrangler": "^4.68.0"

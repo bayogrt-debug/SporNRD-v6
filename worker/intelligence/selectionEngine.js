@@ -5720,4 +5720,4 @@ function isPlainObject(
 
   );
 
-     }
+}

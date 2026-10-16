@@ -2305,4 +2305,4 @@ export function normalizeTaxonomyId(
       ""
     );
 
-     }
+}

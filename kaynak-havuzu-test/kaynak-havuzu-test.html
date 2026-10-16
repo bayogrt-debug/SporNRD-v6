@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0d">
+  <title>SporNRD · Yerel Kaynak Havuzu Testi</title>
+  <style>
+    :root {font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#18181b;background:#0b0b0d;font-synthesis:none}
+    * {box-sizing:border-box} body {margin:0} button,input,select,textarea {font:inherit}
+    button {cursor:pointer} button:disabled {opacity:.55;cursor:default}
+    .app {max-width:520px;min-height:100vh;background:#f3f3f5;margin:auto;padding-bottom:30px}
+    header {background:#0b0b0d;color:white;padding:19px 16px 15px;position:sticky;top:0;z-index:3}
+    header h1 {font-size:19px;margin:0;letter-spacing:-.4px}header h1 span {color:#ffd52a}
+    header p {margin:4px 0 0;font-size:11px;color:#c4c4c8}
+    main {padding:12px;display:grid;gap:12px}
+    .panel {background:white;border:1px solid #e4e4e7;border-radius:15px;padding:14px;box-shadow:0 2px 10px #00000006}
+    .panel h2 {font-size:15px;margin:0 0 8px}
+    .panel h3 {font-size:12px;margin:8px 0}
+    .muted {color:#71717a;font-size:11px;line-height:1.45}
+    .notice {background:#fff6c7;border:1px solid #f6db62;color:#6b4c08;padding:11px;border-radius:12px;font-size:11px;line-height:1.45}
+    .grid {display:grid;gap:9px}.stats {display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+    .stat {text-align:center;background:#f4f4f5;border-radius:10px;padding:11px 3px}
+    .stat b {font-size:20px;display:block}.stat small {font-size:9px;color:#71717a}
+    label {display:grid;gap:5px;font-size:11px;font-weight:750;color:#38383d}
+    input,select,textarea {width:100%;min-width:0;min-height:39px;border:1px solid #d4d4d8;border-radius:10px;padding:9px;background:white;color:#18181b;font-size:12px}
+    textarea {min-height:70px;resize:vertical}form {display:grid;gap:10px}
+    .btn {border:0;border-radius:10px;min-height:38px;padding:8px 12px;background:#18181b;color:white;font-weight:800;font-size:11px}
+    .btn.alt {background:#f1ebff;color:#5b21b6}.btn.weak {background:#f4f4f5;color:#18181b}
+    .btn.danger {background:#fff1f2;color:#be123c}
+    .actions {display:flex;gap:7px;flex-wrap:wrap}.actions .btn {min-height:34px}
+    .record {border:1px solid #e4e4e7;border-radius:11px;padding:11px;margin-top:9px;background:#fff;overflow-wrap:anywhere}
+    .record b {font-size:12px}.record p {margin:5px 0;color:#52525b;font-size:10px;line-height:1.5}
+    .pill {display:inline-block;border-radius:999px;background:#f1ebff;color:#5b21b6;padding:4px 7px;font-size:9px;font-weight:800}
+    .row {display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap}
+    .divider {height:1px;background:#e4e4e7;margin:12px 0}
+    .status {min-height:30px;padding:8px 10px;border-radius:9px;background:#f4f4f5;font-size:11px;line-height:1.4}
+    .status.error {background:#fee2e2;color:#991b1b}.status.success {background:#dcfce7;color:#166534}
+    .empty {text-align:center;padding:14px 5px;color:#71717a;font-size:11px}
+    .mono {font:10px ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+    details>summary {font-size:12px;font-weight:800;cursor:pointer;padding:5px 0}
+    .testmark {font-size:9px;padding:4px 6px;background:#29212b;color:#ffd52a;border-radius:6px;margin-left:6px}
+    .check {display:flex;gap:8px;align-items:flex-start;font-size:11px;font-weight:500}
+    .check input {width:18px;min-height:18px;flex:0 0 18px;margin:0}
+    .footer {font-size:10px;text-align:center;color:#71717a;padding:8px 14px 20px}
+    [hidden] {display:none!important}
+    .source-detail-section {scroll-margin-top:110px}
+    .source-detail-subhead {font-size:12px;margin:13px 0 6px;color:#3f3f46}
+    .source-detail-section .record {background:#fafafa}
+    .link-text {word-break:break-all;overflow-wrap:anywhere}
+    .inline-note {font-size:10px;color:#71717a;margin:5px 0;line-height:1.5}
+    .record .actions {margin-top:9px}
+    .pill.alert {background:#fff6c7;color:#854d0e}
+    .pill.okay {background:#e8f8ef;color:#166534}
+    .review-check {border-top:1px solid #e4e4e7;padding:9px 0 3px}
+    .review-check:first-child {border-top:0}
+    .review-check .row b {font-size:11px}
+    .review-check .row .pill {white-space:normal}
+    .review-notes-help {line-height:1.5}
+    .review-dossier-text {min-height:160px;white-space:pre;overflow:auto;font-size:11px}
+    .review-note-item {border-left:3px solid #a78bfa}
+    .discovery-help {line-height:1.6}
+    .candidate-record {border-left:3px solid #a78bfa}
+    .candidate-review {margin-top:10px;padding-top:8px;border-top:1px solid #e4e4e7}
+    .candidate-review label {margin:10px 0}
+    .candidate-history {border-top:1px solid #e4e4e7;margin-top:8px;padding:8px 0 2px}
+    .candidate-history b {font-size:10px}
+    .candidate-history p {font-size:10px}
+    #discoveryResult .record {border-left:3px solid #a78bfa}
+    #discoveryResult .notice {margin:8px 0}
+    @media (min-width:521px) {body {padding:15px 0}.app {box-shadow:0 15px 50px #0007;border-radius:15px;overflow:hidden}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Spor<span>NRD</span> <small class="testmark">BAĞIMSIZ TEST</small></h1>
+    <p>Yerel Kaynak Havuzu · IndexedDB v1.5 (DB şeması v1)</p>
+  </header>
+  <main>
+    <div class="notice"><b>Mevcut uygulamadan ayrıdır.</b> Bu sayfa 6.1.7 akışına, Cloudflare Worker'a veya mevcut TYF/TBF dosyalarına dokunmaz. Kayıtlar yalnızca bu sayfanın açıldığı tarayıcı adresinde saklanır.</div>
+    <div class="status" id="status" role="status" aria-live="polite">Veritabanı başlatılıyor…</div>
+
+    <section class="panel">
+      <div class="row"><h2>Havuz durumu</h2><button class="btn weak" id="refresh" type="button">Yenile ↻</button></div>
+      <div class="stats">
+        <div class="stat"><b id="statSources">–</b><small>Kaynak</small></div>
+        <div class="stat"><b id="statCandidates">–</b><small>Aday</small></div>
+        <div class="stat"><b id="statChannels">–</b><small>Kanal</small></div>
+      </div>
+      <p class="muted" id="secondaryStats">Kanıt · Değerlendirme · Geçmiş</p>
+      <button class="btn alt" id="seed" type="button">TYF ve TBF test kayıtlarını ekle</button>
+      <p class="muted">Örnek kayıtlar doğrulanmış/aktif sayılmaz. Mevcut spor haberlerini buraya aktarmıyoruz.</p>
+    </section>
+
+    <section class="panel" id="discoveryPanel">
+      <h2>Kaynak Keşif Ön Kontrolü · v1.5</h2>
+      <p class="muted discovery-help">Bu keşif motoru <b>internette arama yapmaz</b>:
+      yalnızca senin girdiğin adresi yerel kayıtlarla karşılaştırır. Web sitesi / RSS / API / sosyal kanal
+      türünü URL biçiminden tahmin eder. Resmîlik, sahiplik, erişim izni ve telif hakkı doğrulamaz.</p>
+      <form id="discoveryForm">
+        <label>Bulunan kaynak veya yayıncı adı
+          <input name="name" required minlength="3" maxlength="180" placeholder="Örnek: SporNRD Yeni Test Kulübü"></label>
+        <label>İncelenecek web adresi
+          <input name="url" type="url" required placeholder="https://example.net/yeni-spor-kulubu"></label>
+        <label>Olası kaynak türü
+          <select name="typeId" id="discoveryType" required><option value="">Kaynak türünü seç</option></select></label>
+        <button class="btn alt" type="submit">Adresi Ön Kontrol Et</button>
+      </form>
+      <div id="discoveryResult" aria-live="polite"><div class="empty">Ön kontrol için kaynak adı, türü ve adresi gir.</div></div>
+      <button id="saveDiscoveryCandidate" class="btn" type="button" disabled>Yeni Kaynak Adayı Olarak Kaydet</button>
+      <p class="muted">Yalnızca uygun görülen <b>yeni kuruluş adayları</b> kaydedilebilir. Mevcut kuruma
+      ait olabilecek kanallar, mükerrer adresler ve şüpheli bağlantılar otomatik eklenmez.
+      Yeni kayıtlar SporNRD profilini veya haber gönderisini oluşturmaz.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Manuel yeni kaynak adayı kaydet</h2>
+      <p class="muted">Bu eski form da artık v1.5 keşif ön kontrolünden geçer. Şüpheli, mükerrer veya mevcut kaynağa yakın adresler kabul edilmez.</p>
+      <form id="candidateForm">
+        <label>Kaynak veya kuruluş adı<input name="name" required minlength="3" maxlength="180" placeholder="Örnek: Yerel Spor Kulübü"></label>
+        <label>Kaynağın tam web adresi<input name="url" type="url" required placeholder="https://ornek.org"></label>
+        <label>Kaynak türü<select name="typeId" id="candidateType" required></select></label>
+        <button class="btn" type="submit">Aday Havuzuna Kaydet</button>
+      </form>
+      <div class="divider"></div>
+      <h3>Keşif adayları ve inceleme kuyruğu · v1.5</h3>
+      <p class="muted">Keşfedilen adaylar doğrudan kaynak olamaz. Gerekçeli ön inceleme ve "Değerlendirme kaydına hazır" kararı gerekir. Bu karar resmî doğrulama değildir.</p>
+      <label>Aday durumuna göre filtrele
+        <select id="candidateStatusFilter">
+          <option value="all">Tüm adaylar</option>
+          <option value="discovered">Keşfedildi</option>
+          <option value="review">İncelemede</option>
+          <option value="hold">Bekletildi</option>
+          <option value="ready">Değerlendirme kaydına hazır</option>
+          <option value="rejected">Reddedildi</option>
+        </select>
+      </label>
+      <p id="candidateQueueSummary" class="muted">İnceleme kuyruğu yükleniyor…</p>
+      <div id="candidateList"><div class="empty">Henüz aday yok.</div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Kayıtlı kaynaklar</h2>
+      <p class="muted">Kaynağa dönüştürülen adaylar önce “değerlendiriliyor” durumuna geçer. Kanıt olmadan otomatik kabul edilmez.</p>
+      <div id="sourceList"><div class="empty">Henüz kaynak kaydı yok.</div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Kaynak uygunluk ön kontrolü · v1.3</h2>
+      <p class="muted">Sekiz ön koşulu, kayıtlı bilgiler üzerinden salt okunur kontrol eder.
+      Bu <b>resmî sekiz kriterli kalite puanlaması değildir</b>; internet taraması, kanıt doğrulaması
+      ve otomatik kaynak kabulü yapmaz.</p>
+      <div id="reviewSummary"><div class="empty">Kaynaklar değerlendiriliyor…</div></div>
+    </section>
+
+    <section class="panel" id="reviewNotesPanel">
+      <h2>Kaynak inceleme dosyası · v1.3</h2>
+      <p class="muted review-notes-help">Ön kontrolde eksik görülen koşullara araştırma veya belge ihtiyacı notu
+      ekleyebilirsin. Notlar işlem geçmişinde saklanır, fakat <b>kimlik doğrulamaz, kanıtı onaylamaz,
+      kaynak durumunu ve kalite puanını değiştirmez.</b> Gerçek doğrulama bu sürümün kapsamı dışındadır.</p>
+      <form id="reviewNoteForm">
+        <label>İncelenecek kaynak<select name="sourceId" id="reviewNoteSource" class="source-picker" required></select></label>
+        <label>İnceleme koşulu<select name="checkId" id="reviewNoteCheck" required>
+          <option value="type">Kaynak türü</option>
+          <option value="sport">Sporla ilgisi</option>
+          <option value="identity">Kuruluş kimliği</option>
+          <option value="ownership">Kanal sahipliği</option>
+          <option value="access">İzinli/güvenli erişim</option>
+          <option value="rights">İçerik kullanım hakkı</option>
+          <option value="evidence">Kanıta dayalı inceleme</option>
+          <option value="quality">Onaylı kalite değerlendirmesi</option>
+        </select></label>
+        <label>Not türü<select name="noteType" required>
+          <option value="research">Araştırılması gerekiyor</option>
+          <option value="document_missing">Belge eksik</option>
+          <option value="security_concern">Güvenlik şüphesi</option>
+          <option value="general">Genel inceleme notu</option>
+        </select></label>
+        <label>İnceleme açıklaması<textarea name="note" id="reviewNoteText" minlength="15" maxlength="600" required
+          placeholder="Örnek: Federasyonun resmî kuruluş kaydı ve yayın kanalı sahipliği bağımsız kaynaklardan incelenecek."></textarea></label>
+        <button class="btn alt" type="submit">İnceleme Notunu Kaydet</button>
+      </form>
+      <div class="divider"></div>
+      <h3>Bu kaynağın inceleme geçmişi</h3>
+      <div id="reviewNoteList"><div class="empty">Önce kaynak seç.</div></div>
+      <div class="divider"></div>
+      <h3>İnceleme özeti (metin)</h3>
+      <p class="muted">Sekiz ön koşulu ve kaydedilen notları metin halinde hazırlar. Bu <b>veritabanı yedeği değildir.</b>
+      Acode indirme yöneticisini çalıştırmaz.</p>
+      <div class="actions"><button id="buildReviewDossier" class="btn weak" type="button">İnceleme Özeti Oluştur</button>
+      <button id="selectReviewDossier" class="btn alt" type="button">Metni Seç</button></div>
+      <label>İnceleme dosyası metni<textarea id="reviewDossierText" class="review-dossier-text"
+        readonly placeholder="Önce bir kaynak seçip İnceleme Özeti Oluştur butonuna bas."></textarea></label>
+    </section>
+
+    <section class="panel source-detail-section" id="sourceDetailPanel" hidden>
+      <div class="row"><h2>Kaynak detayları</h2>
+        <button class="btn weak" id="closeSourceDetail" type="button">Kapat ×</button></div>
+      <div id="sourceDetail"><div class="empty">Bir kaynak seç.</div></div>
+    </section>
+
+    <section class="panel">
+      <details id="evidenceSection">
+        <summary>Kanıt adayları listesi (<span id="evidenceCount">0</span>)</summary>
+        <p class="muted">Eski tekrar kayıtlar silinmez; varsa işaretlenir. Yeni mükerrer kanıt eklenmesi engellenir.</p>
+        <label>Kaynağa göre filtrele
+          <select id="evidenceFilter"><option value="">Tüm kaynaklar</option></select>
+        </label>
+        <div id="evidenceList"><div class="empty">Henüz kanıt kaydı yok.</div></div>
+      </details>
+    </section>
+
+    <section class="panel">
+      <details>
+        <summary>Doğrulama kanıtı adayı ekle</summary>
+        <p class="muted">Buraya URL girilmesi kanıtın otomatik doğrulandığı anlamına gelmez. Sonuç “beklemede” tutulur.</p>
+        <form id="evidenceForm">
+          <label>Kaynak<select name="sourceId" class="source-picker" required></select></label>
+          <label>Kanıtın amacı<select name="claimType" required>
+            <option value="identity">Kuruluş kimliği</option><option value="ownership">Yayın kanalı sahipliği</option>
+            <option value="authorization">Yetki veya ruhsat</option><option value="usage_rights">İçerik kullanım hakkı</option>
+          </select></label>
+          <label>Kanıt seviyesi<select name="evidenceLevel" required><option>A</option><option>B</option><option>C</option></select></label>
+          <label>Kanıtı sağlayan kurum<input name="issuer" required maxlength="180" placeholder="Yetkili kurumun adı"></label>
+          <label>Kanıtın URL adresi<input name="evidenceUrl" type="url" required placeholder="https://..."></label>
+          <button class="btn alt" type="submit">Kanıt Adayını Ekle</button>
+        </form>
+      </details>
+    </section>
+
+    <section class="panel">
+      <details>
+        <summary>Manuel taslak kalite puanı ekle</summary>
+        <p class="muted">Taslak puan kabul kararı vermez. Resmî 8 kriterli otomatik puanlama motoru daha sonraki aşamadır.</p>
+        <form id="evaluationForm">
+          <label>Kaynak<select name="sourceId" class="source-picker" required></select></label>
+          <label>Taslak puan (0–100)<input type="number" name="qualityScore" min="0" max="100" step="1" required></label>
+          <label>Gerekçe<textarea name="reason" maxlength="500" placeholder="Ölçüm gerekçesi (taslak)"></textarea></label>
+          <button class="btn alt" type="submit">Taslak Değerlendirmeyi Kaydet</button>
+        </form>
+      </details>
+    </section>
+
+    <section class="panel">
+      <h2>JSON yedekleme ve geri yükleme</h2>
+      <p class="muted">Yedek SHA-256 bütünlük özeti içerir; bu özet dosyanın kimden geldiğini ispatlamaz. Yedekten gelen kimlikler, kanıtlar ve kanallar yeniden doğrulama durumuna alınır.</p>
+      <div class="notice"><b>Geçici olarak kapalı:</b> Android Acode indirme yöneticisi önceki testte çöktü. Güvenli bir yedek yöntemi hazırlanıncaya kadar indirme ve geri yükleme işlemleri kullanılmayacak.</div>
+      <button class="btn" id="export" type="button" disabled>JSON Yedeği (Şimdilik Kapalı)</button>
+      <div class="divider"></div>
+      <label>Yedek dosyası seç<input id="backupFile" type="file" accept=".json,application/json" disabled></label>
+      <label>Geri yükleme yöntemi
+        <select id="importMode" disabled>
+          <option value="merge">Birleştir (mevcut kayıtları koru)</option>
+          <option value="replace">Tam geri yükle (eski kayıtları değiştir)</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button class="btn alt" id="previewImport" type="button" disabled>Önce Dosyayı Kontrol Et</button>
+      </div>
+      <div id="importSummary" class="muted"></div>
+      <button class="btn danger" id="importBackup" type="button" disabled>Geri Yükleme (Şimdilik Kapalı)</button>
+    </section>
+
+    <section class="panel">
+      <details>
+        <summary>Denetim geçmişini görüntüle</summary>
+        <div id="auditList"></div>
+      </details>
+    </section>
+    <p class="footer">SporNRD · Yerel test. İnternette otomatik arama, kurum doğrulaması, profil ve haber akışı bağlantısı bu aşamada yoktur.</p>
+  </main>
+</div>
+<script src="./sourcePoolDB.js?v=1.5"></script>
+<script src="./sourceReviewEngine.js?v=1.5"></script>
+<script src="./sourceDiscoveryEngine.js?v=1.5"></script>
+<script src="./sourcePoolTest.js?v=1.5"></script>
+</body>
+</html>

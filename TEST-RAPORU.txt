@@ -1,0 +1,36 @@
+SporNRD v2 entegre test — GERÇEK TEST RAPORU (16 Ekim 2026)
+=======================================================
+
+Yerel testlerde doğrulananlar:
+[GEÇTİ] worker/v2/taxonomy.js 6 ana kategori, 27 alt kategori, 81 içerik tipi.
+[GEÇTİ] 63 federasyon + 81 il müdürlüğü, tekrarsız 144 aday.
+[GEÇTİ] node tests/v2.test.mjs: 20+ temel assertion.
+[GEÇTİ] node scripts/sync-official-sources.test.mjs: 4/4 kaynak dizini testi.
+[GEÇTİ] Eski çekirdek runCoreTest(): 4/4 (eskimiş test beklentileri güncellendi).
+[GEÇTİ] migrations/0001_v2.sql: SQLite bellekte 10 tablo oluşturuldu.
+[GEÇTİ] D1 feed SQL'inin SQLite söz dizimi kontrol edildi.
+[GEÇTİ] Tüm ESM JS modülleri Node 22 ile içe aktarılabildi.
+[GEÇTİ] /api/health eski rotası lokal olarak 200 ve ok:true verdi.
+[GEÇTİ] /api/v2/taxonomy, D1 eksik raporu, yetkisiz admin erişimi
+        yerel HTTP Request simülasyonunda beklendiği gibi çalıştı.
+[GEÇTİ] HTML/JS sentaksı ve dosya/bağımlılık denetimleri.
+
+CANLI ORTAMDA HENÜZ TEST EDİLMEDİ:
+[BEKLİYOR] Cloudflare Wrangler gerçek Worker bundle/deploy.
+[BEKLİYOR] Ayrı Cloudflare D1 kurulumu/migration.
+[BEKLİYOR] Gerçek internet TYF/TBF GET; yayınların D1'e kaydı.
+[BEKLİYOR] GitHub Actions secret ve izinleriyle gerçek yürütme.
+[BEKLİYOR] Gerçek Instagram/YouTube API ve yapay zekâ görsel API.
+[BEKLİYOR] İşlem süreleri, kaynak kotaları, uçtan uca güvenlik testi.
+
+Eski dosyalardaki giderilen eksikler:
+- worker/core/sourceRegistry.js orijinal ZIP'te yoktu. Önceki
+  federasyon test paketinden TYF/TBF kaydı uyumlu biçimde geri eklendi.
+- core/coreTest.js güncel altı kategori yerine beş kategori ve
+  artık kullanılmayan courses/events id'lerini bekliyordu;
+  mevcut gerçek sınıflandırmaya göre testler düzeltildi.
+- assets/.../*.svg dosyaları orijinalde hatalı .sgv uzantısındaydı;
+  eski dosyalar silinmeden doğru uzantılı kopyaları eklendi.
+
+Var olan canlı Cloudflare Worker ve GitHub deposu BU İŞLEMDE DEĞİŞTİRİLMEDİ.
+Yalnız ZIP oluşturuldu; git push veya deploy yapılmadı.

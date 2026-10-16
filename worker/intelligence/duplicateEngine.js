@@ -678,4 +678,4 @@ function safeNumber(
     ? number
     : 0;
 
-      }
+}

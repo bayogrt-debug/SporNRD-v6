@@ -824,4 +824,4 @@ function roundScore(
     100
   );
 
-      }
+}

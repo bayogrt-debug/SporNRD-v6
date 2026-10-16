@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0b0b0d">
+  <meta name="description" content="SporNRD - Ara Bul Seç Hemen Başla">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SporNRD">
+  <title>SporNRD</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css?v=6.1.7-profile-2">
+</head>
+<body>
+<div id="app" class="app">
+  <!-- ÜST SABİT BAŞLIK -->
+  <header class="top-header">
+    <button id="openFilterButton" class="header-icon-button" aria-label="Akışı filtrele" type="button">⌕</button>
+    <button id="homeButton" class="brand-area" aria-label="SporNRD ana sayfa" type="button">
+      <div class="brand-line">
+        <span class="brand-spor">Spor</span>
+        <span class="brand-letter brand-n">N</span>
+        <span class="brand-letter brand-r">R</span>
+        <span class="brand-letter brand-d">D</span>
+      </div>
+      <span class="brand-slogan">Ara Bul Seç Hemen Başla</span>
+    </button>
+    <button id="refreshButton" class="header-icon-button right" aria-label="Akışı yenile" type="button">↻</button>
+  </header>
+
+  <main class="main-content">
+    <!-- ANA AKIŞ -->
+    <section id="feedPage" class="page active-page">
+      <div class="category-scroll" aria-label="SporNRD kategorileri">
+        <button class="category-item active" data-category="all" type="button"><span class="category-circle">★</span><small>Tümü</small></button>
+        <button class="category-item" data-category="news" type="button"><span class="category-circle">H</span><small>Haber</small></button>
+        <button class="category-item" data-category="course" type="button"><span class="category-circle">K</span><small>Kurs</small></button>
+        <button class="category-item" data-category="event" type="button"><span class="category-circle">E</span><small>Etkinlik</small></button>
+        <button class="category-item" data-category="campaign" type="button"><span class="category-circle">%</span><small>Kampanya</small></button>
+        <button class="category-item" data-category="jobs" type="button"><span class="category-circle">İ</span><small>İş İlanı</small></button>
+        <button class="category-item" data-category="stores" type="button"><span class="category-circle">M</span><small>Mağaza</small></button>
+      </div>
+      <div id="activeFilterBar" class="active-filter-bar hidden">
+        <div class="active-filter-text"><span class="active-filter-label">Filtre</span><strong id="activeFilterSummary">Tüm içerikler</strong></div>
+        <button id="clearActiveFiltersButton" class="active-filter-clear" type="button">Temizle</button>
+      </div>
+      <div class="feed-heading">
+        <div><h1>Spor Akışı</h1><p id="feedSubtitle">Resmî spor kaynaklarından seçilmiş ve sıralanmış içerikler</p></div>
+        <span id="liveBadge" class="live-badge">CANLI</span>
+      </div>
+      <div id="statusBox" class="status-box hidden" aria-live="polite"></div>
+      <div id="feedContainer" class="feed-container"></div>
+    </section>
+
+    <!-- KEŞFET -->
+    <section id="discoverPage" class="page">
+      <div class="page-title"><h2>Keşfet</h2><p>Spor, kategori, şehir, kişi veya anahtar kelime ile ara.</p></div>
+      <div class="discover-search">
+        <input id="discoverInput" type="search" placeholder="Örn. yüzme, basketbol, antrenör, şampiyona..." autocomplete="off">
+        <button id="discoverSearchButton" type="button">Ara</button>
+      </div>
+      <div id="discoverResults" class="result-list"></div>
+    </section>
+
+    <!-- KAYNAKLAR: KARTLAR app.js TARAFINDAN DİNAMİK OLUŞTURULUR -->
+    <section id="sourcesPage" class="page">
+      <div class="page-title"><h2>Kaynaklar</h2><p>SporNRD'nin takip ettiği doğrulanmış resmî spor kaynakları.</p></div>
+      <div class="source-search">
+        <input id="sourceSearchInput" type="search" autocomplete="off" placeholder="Kaynak, branş veya şehir ara..." aria-label="Kaynaklarda ara">
+      </div>
+      <div id="sourceList" class="source-list" aria-live="polite"></div>
+      <div class="source-stats">
+        <div><strong id="sourcePostCount">0</strong><span>Seçilen içerik</span></div>
+        <div><strong id="sourceLastUpdate">-</strong><span>Son güncelleme</span></div>
+      </div>
+      <div class="future-source-box"><strong>SporNRD Akıllı Seçim Sistemi</strong><p>TYF ve TBF içerikleri SporNRD çekirdeği tarafından analiz edilir, sınıflandırılır, kullanıcı değeri açısından seçilir ve akış için sıralanır.</p></div>
+      <div class="future-source-box"><strong>Çok kaynaklı altyapı</strong><p>Yeni federasyonlar, kulüpler, akademiler, tesisler, mağazalar ve diğer doğrulanmış spor kaynakları aynı mimariye eklenebilir.</p></div>
+    </section>
+
+    <!-- KURUMSAL KAYNAK PROFİLİ -->
+    <section id="sourceProfilePage" class="page" aria-label="Kurumsal kaynak profili">
+      <div class="source-profile-navigation">
+        <button id="sourceProfileBackButton" type="button" aria-label="Önceki sayfaya dön">← <span>Geri</span></button>
+        <strong>Kaynak Profili</strong>
+        <button id="shareSourceProfileButton" type="button" aria-label="Kaynak profilini paylaş">↗</button>
+      </div>
+      <div id="sourceProfileHeader" class="source-profile-header"></div>
+      <div class="source-profile-tabs" id="sourceProfileTabs" role="tablist" aria-label="Kaynak profili sekmeleri">
+        <button class="source-profile-tab active" data-source-tab="posts" type="button" role="tab" aria-selected="true">Paylaşımlar</button>
+        <button class="source-profile-tab" data-source-tab="events" type="button" role="tab" aria-selected="false">Etkinlikler</button>
+        <button class="source-profile-tab" data-source-tab="courses" type="button" role="tab" aria-selected="false">Eğitimler</button>
+        <button class="source-profile-tab" data-source-tab="about" type="button" role="tab" aria-selected="false">Hakkında</button>
+        <button class="source-profile-tab" data-source-tab="contact" type="button" role="tab" aria-selected="false">İletişim</button>
+      </div>
+      <div id="sourceProfileCategoryFilters" class="source-profile-category-filters"></div>
+      <div id="sourceProfileContent" class="source-profile-content"></div>
+    </section>
+  </main>
+
+  <!-- ALT MENÜ: YENİ SEKME EKLENMEDİ -->
+  <nav class="bottom-navigation" aria-label="Alt menü">
+    <button class="bottom-nav-item active" data-page="feedPage" type="button"><span class="nav-symbol">⌂</span><small>Ana Akış</small></button>
+    <button class="bottom-nav-item" data-page="discoverPage" type="button"><span class="nav-symbol">⌕</span><small>Keşfet</small></button>
+    <button class="bottom-nav-item" data-page="sourcesPage" type="button"><span class="nav-symbol">◎</span><small>Kaynaklar</small></button>
+  </nav>
+
+  <!-- FİLTRE MODALI: 6.1.6 YAPISI KORUNDU -->
+  <div id="filterModal" class="modal filter-modal" aria-hidden="true">
+    <div class="modal-sheet filter-sheet">
+      <div class="modal-title-row filter-modal-title">
+        <div><h3>Akışı Filtrele</h3><p>Aradığını seç veya doğrudan yaz</p></div>
+        <button class="modal-close" data-close="filterModal" type="button" aria-label="Filtreyi kapat">×</button>
+      </div>
+      <div class="filter-select-list">
+        <div class="filter-select-box" data-filter-box="city">
+          <div class="filter-select-control">
+            <input id="filterCityInput" class="filter-select-input" data-filter-input="city" type="search" placeholder="İl" autocomplete="off" spellcheck="false">
+            <button class="filter-select-arrow" data-filter-toggle="city" type="button" aria-label="İl seçeneklerini aç" aria-expanded="false">⌄</button>
+          </div>
+          <div id="filterCityDropdown" class="filter-dropdown hidden" data-filter-dropdown="city"><div id="filterCityOptions" class="filter-option-list"></div></div>
+        </div>
+        <div class="filter-select-box" data-filter-box="sport">
+          <div class="filter-select-control">
+            <input id="filterSportInput" class="filter-select-input" data-filter-input="sport" type="search" placeholder="Branş" autocomplete="off" spellcheck="false">
+            <button class="filter-select-arrow" data-filter-toggle="sport" type="button" aria-label="Branş seçeneklerini aç" aria-expanded="false">⌄</button>
+          </div>
+          <div id="filterSportDropdown" class="filter-dropdown hidden" data-filter-dropdown="sport"><div id="filterSportOptions" class="filter-option-list"></div></div>
+        </div>
+        <div class="filter-select-box" data-filter-box="category">
+          <div class="filter-select-control">
+            <input id="filterCategoryInput" class="filter-select-input" data-filter-input="category" type="search" placeholder="Kategori" autocomplete="off" spellcheck="false">
+            <button class="filter-select-arrow" data-filter-toggle="category" type="button" aria-label="Kategori seçeneklerini aç" aria-expanded="false">⌄</button>
+          </div>
+          <div id="filterCategoryDropdown" class="filter-dropdown hidden" data-filter-dropdown="category"><div id="filterCategoryOptions" class="filter-option-list"></div></div>
+        </div>
+        <div class="filter-select-box" data-filter-box="subCategory">
+          <div class="filter-select-control">
+            <input id="filterSubCategoryInput" class="filter-select-input" data-filter-input="subCategory" type="search" placeholder="İçerik" autocomplete="off" spellcheck="false">
+            <button class="filter-select-arrow" data-filter-toggle="subCategory" type="button" aria-label="İçerik seçeneklerini aç" aria-expanded="false">⌄</button>
+          </div>
+          <div id="filterSubCategoryDropdown" class="filter-dropdown hidden" data-filter-dropdown="subCategory"><div id="filterSubCategoryOptions" class="filter-option-list"></div></div>
+        </div>
+      </div>
+      <div class="filter-result-box"><strong id="filterResultCount">0 içerik</strong><span>bu seçimlere uyuyor</span></div>
+      <div class="filter-actions">
+        <button id="clearFiltersButton" class="filter-action secondary" type="button">Temizle</button>
+        <button id="applyFiltersButton" class="filter-action primary" type="button">Sonuçları Göster</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAY MODALI -->
+  <div id="detailModal" class="modal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-title-row">
+        <div><h3>İçerik Detayı</h3><p id="detailSourceLabel">SporNRD · Resmî Kaynak</p></div>
+        <button class="modal-close" data-close="detailModal" type="button" aria-label="Detayı kapat">×</button>
+      </div>
+      <div id="detailContent" class="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- KURUM PROFİLİ YORUM / PUAN PENCERESİ -->
+  <div id="sourceEngagementModal" class="modal source-engagement-modal" aria-hidden="true">
+    <div class="modal-sheet source-engagement-sheet">
+      <div class="modal-title-row">
+        <div><h3 id="sourceEngagementTitle">Yorumlar</h3><p id="sourceEngagementSubtitle"></p></div>
+        <button class="modal-close" data-close="sourceEngagementModal" type="button" aria-label="Pencereyi kapat">×</button>
+      </div>
+      <div id="sourceEngagementBody" class="source-engagement-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+</div>
+
+<script src="js/config.js?v=6.1.7-profile-1"></script>
+<script src="js/liveSources.js?v=6.1.6"></script>
+<script src="js/learningEngine.js?v=6.1.6"></script>
+<script src="js/app.js?v=6.1.7-profile-2"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", async function () {
+      try {
+        const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
+        await registration.update();
+      } catch (error) {
+        console.log("Service Worker:", error);
+      }
+    });
+  }
+</script>
+</body>
+</html>

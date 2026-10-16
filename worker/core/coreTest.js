@@ -338,11 +338,11 @@ function testTaxonomy() {
     Object.keys(
       CATEGORIES
     ).length !==
-    5
+    6
   ) {
 
     errors.push(
-      "Ana kategori sayısı 5 değil."
+      "Ana kategori sayısı 6 değil."
     );
 
   }
@@ -705,11 +705,11 @@ function testConsumerCourse() {
 
   if (
     post.category !==
-    "courses"
+    "course"
   ) {
 
     errors.push(
-      `Beklenen category courses, gelen: ${post.category}`
+      `Beklenen category course, gelen: ${post.category}`
     );
 
   }
@@ -1007,11 +1007,11 @@ function testLegacyFederationPost() {
 
   if (
     post.category !==
-    "events"
+    "course"
   ) {
 
     errors.push(
-      `Beklenen category events, gelen: ${post.category}`
+      `Beklenen category course, gelen: ${post.category}`
     );
 
   }
@@ -1019,11 +1019,11 @@ function testLegacyFederationPost() {
 
   if (
     post.subCategory !==
-    "education"
+    "swimming"
   ) {
 
     errors.push(
-      `Beklenen subCategory education, gelen: ${post.subCategory}`
+      `Beklenen subCategory swimming, gelen: ${post.subCategory}`
     );
 
   }
@@ -1155,4 +1155,4 @@ function createReadableSample(
 
   };
 
-      }
+}

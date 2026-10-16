@@ -1978,4 +1978,4 @@ function positiveNumber(
 
     : fallback;
 
-    }
+}

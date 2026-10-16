@@ -401,4 +401,4 @@ function roundScore(
     100
   );
 
-    }
+}

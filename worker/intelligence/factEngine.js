@@ -3404,4 +3404,4 @@ function escapeRegex(
       "\\$&"
     );
 
-   }
+}

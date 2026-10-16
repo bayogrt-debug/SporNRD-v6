@@ -1863,4 +1863,4 @@ function safeScore(
     ? number
     : 0;
 
-      }
+}

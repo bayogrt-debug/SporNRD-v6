@@ -1,0 +1,103 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+>
+
+  <rect
+    width="512"
+    height="512"
+    rx="105"
+    fill="#0b0b0d"
+  />
+
+
+  <text
+    x="60"
+    y="190"
+    font-family="Arial, sans-serif"
+    font-size="92"
+    font-weight="900"
+    fill="#ffffff"
+  >
+    Spor
+  </text>
+
+
+  <circle
+    cx="150"
+    cy="315"
+    r="62"
+    fill="#ffffff"
+    stroke="#ffd52a"
+    stroke-width="22"
+  />
+
+
+  <circle
+    cx="256"
+    cy="315"
+    r="62"
+    fill="#ffffff"
+    stroke="#8b5cf6"
+    stroke-width="22"
+  />
+
+
+  <circle
+    cx="362"
+    cy="315"
+    r="62"
+    fill="#ffffff"
+    stroke="#55555e"
+    stroke-width="22"
+  />
+
+
+  <text
+    x="150"
+    y="340"
+    text-anchor="middle"
+    font-family="Arial"
+    font-size="70"
+    font-weight="900"
+    fill="#111111"
+  >
+    N
+  </text>
+
+
+  <text
+    x="256"
+    y="340"
+    text-anchor="middle"
+    font-family="Arial"
+    font-size="70"
+    font-weight="900"
+    fill="#111111"
+  >
+    R
+  </text>
+
+
+  <text
+    x="362"
+    y="340"
+    text-anchor="middle"
+    font-family="Arial"
+    font-size="70"
+    font-weight="900"
+    fill="#111111"
+  >
+    D
+  </text>
+
+</svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0b0b0d"/>
+  <text x="64" y="292" font-family="Arial, Helvetica, sans-serif" font-size="108" font-weight="900" fill="#fff">Spor</text>
+  <circle cx="350" cy="244" r="42" fill="#fff" stroke="#ffd52a" stroke-width="16"/>
+  <circle cx="420" cy="244" r="42" fill="#fff" stroke="#8b5cf6" stroke-width="16"/>
+  <circle cx="350" cy="334" r="42" fill="#fff" stroke="#55555e" stroke-width="16"/>
+  <text x="329" y="263" font-family="Arial" font-size="44" font-weight="900">N</text>
+  <text x="400" y="263" font-family="Arial" font-size="44" font-weight="900">R</text>
+  <text x="329" y="353" font-family="Arial" font-size="44" font-weight="900">D</text>
+</svg>

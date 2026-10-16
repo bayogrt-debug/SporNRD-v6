@@ -79,6 +79,9 @@ import {
 } from "./utils/response.js";
 
 
+// v2 ek mimari yalnız ayrı TEST Worker'ında kullanılacaktır.
+import {handleV2Request,scheduledV2} from './v2/system.js';
+
 /* =========================================================
    SİSTEM
    ========================================================= */
@@ -189,10 +192,23 @@ const SOURCE_PROVIDERS = {
 
 export default {
 
+  async scheduled(event,env,ctx){
+    ctx.waitUntil(scheduledV2(env).catch(e=>console.error('SporNRD v2 cron:',e.message)));
+  },
+
   async fetch(
     request,
     env
   ) {
+
+    // v2 endpointlerini var olan çalışan rotalara müdahale etmeden ayır.
+    if(new URL(request.url).pathname.startsWith('/api/v2/')){
+      try{return await handleV2Request(request,env);}
+      catch(e){
+        console.error('SporNRD v2 route failure',e.message);
+        return new Response(JSON.stringify({ok:false,error:'v2 sistem işlemi başarısız.',detail:String(e.message).slice(0,180)}),{status:500,headers:{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'no-store'}});
+      }
+    }
 
     /* =====================================================
        CORS

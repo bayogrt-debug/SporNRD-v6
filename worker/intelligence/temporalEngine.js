@@ -3728,4 +3728,4 @@ function clamp(
 
   );
 
-   }
+}

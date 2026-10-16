@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spornrd-v2-test",
+  "main": "worker/worker.js",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "SPORNRD_DB",
+      "database_name": "spornrd-v2-test-db",
+      "database_id": "REPLACE_WITH_TEST_DB_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SPORNRD_V2_CRON_ENABLED": "false"
+  },
+  "triggers": { "crons": [ "0 */2 * * *" ] }
+}
