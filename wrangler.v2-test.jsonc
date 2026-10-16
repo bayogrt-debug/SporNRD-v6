@@ -8,7 +8,7 @@
     {
       "binding": "SPORNRD_DB",
       "database_name": "spornrd-v2-test-db",
-      "database_id": "REPLACE_WITH_TEST_DB_ID",
+      "database_id": "c8fff82b-5a69-4a76-855f-4ac716fed466",
       "migrations_dir": "migrations"
     }
   ],
