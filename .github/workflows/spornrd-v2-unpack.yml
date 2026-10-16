@@ -76,7 +76,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add -A -- . ':(exclude).github/workflows/**'
           if ! git diff --cached --quiet; then
             git commit -m 'SporNRD v2 dosyalarini test dalina ac'
             git push origin HEAD:spornrd-v2-test
