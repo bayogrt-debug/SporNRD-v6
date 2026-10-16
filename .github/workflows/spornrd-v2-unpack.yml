@@ -1,1 +1,84 @@
+name: SporNRD v2 ZIP acma (yalniz TEST dali)
+
+on:
+  push:
+    branches:
+      - spornrd-v2-test
+    paths:
+      - .github/workflows/spornrd-v2-unpack.yml
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    if: github.ref == 'refs/heads/spornrd-v2-test'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test dalini al
+        uses: actions/checkout@v4
+        with:
+          ref: spornrd-v2-test
+
+      - name: Yalniz dogru v2 paketini guvenle ac
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile, BadZipFile
+          import shutil
+          import stat
+
+          zip_path = Path('SporNRD.zip')
+          if not zip_path.is_file():
+              raise SystemExit('DURDU: Kok dizinde SporNRD.zip bulunamadi.')
+
+          required = {
+              'worker/worker.js',
+              'wrangler.v2-test.jsonc',
+              'migrations/0001_v2.sql',
+              'tests/v2.test.mjs',
+              '.github/workflows/spornrd-v2-test-deploy.yml',
+          }
+          try:
+              with ZipFile(zip_path) as archive:
+                  entries = archive.infolist()
+                  names = {i.filename[len('SporNRD/'):] for i in entries if i.filename.startswith('SporNRD/')}
+                  if not required.issubset(names):
+                      raise SystemExit('DURDU: SporNRD.zip beklenen v2 paketi degil; hicbir dosya acilmadi.')
+                  for info in entries:
+                      parts = PurePosixPath(info.filename).parts
+                      is_link = stat.S_ISLNK(info.external_attr >> 16)
+                      if not parts or parts[0] != 'SporNRD' or '..' in parts or is_link:
+                          raise SystemExit('DURDU: ZIP icinde izin verilmeyen yol var.')
+                      if info.file_size > 10_000_000:
+                          raise SystemExit('DURDU: ZIP icinde beklenmedik buyuk dosya var.')
+                  if len(entries) > 500:
+                      raise SystemExit('DURDU: ZIP icinde beklenmedik sayida dosya var.')
+                  for info in entries:
+                      parts = PurePosixPath(info.filename).parts[1:]
+                      if not parts:
+                          continue
+                      out = Path(*parts)
+                      if info.is_dir():
+                          out.mkdir(parents=True, exist_ok=True)
+                          continue
+                      out.parent.mkdir(parents=True, exist_ok=True)
+                      with archive.open(info) as src, out.open('wb') as dst:
+                          shutil.copyfileobj(src, dst)
+                  print(f'V2 paketi acildi: {len(entries)} kayit.')
+          except BadZipFile:
+              raise SystemExit('DURDU: Gecersiz ZIP dosyasi.')
+          PY
+
+      - name: Dosyalari yalniz test dalina kaydet
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'SporNRD v2 dosyalarini test dalina ac'
+            git push origin HEAD:spornrd-v2-test
+          fi
 
